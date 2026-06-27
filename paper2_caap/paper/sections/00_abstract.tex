@@ -1,0 +1,36 @@
+% ── Abstract ─────────────────────────────────────────────────────────
+% Length  : 150–250 words
+% Structure (fill AFTER experiments):
+%   [P] Problem    — fixed thresholds fail in mixed traffic
+%   [G] Gap        — no system adapts perception for mixed + dual-task
+%   [M] Method     — C1 context estimator, C2 CTRV model, C3 reliability score
+%   [R] Results    — numbers: MOTA↑, FP rate↓, accident F1↑
+% ─────────────────────────────────────────────────────────────────────
+% TODO: write after Section V (Results) is complete.
+
+Urban traffic surveillance in motorcycle-dominant environments poses
+unique challenges for perception systems.
+%
+[P] Fixed detection and tracking thresholds lead to high false-positive
+accident alerts and degraded multi-object tracking during dense weaving
+maneuvers, directly reducing the reliability of downstream safety and
+control applications.
+%
+[G] Existing systems address either highway accident detection or
+multi-agent traffic control, but none adapt perception parameters to
+real-time traffic context, particularly for mixed-traffic scenes where
+motorcycles constitute over 90\% of vehicles.
+%
+[M] We propose a context-aware adaptive perception pipeline comprising
+three contributions: (C1)~a lightweight context estimator that adjusts
+YOLO confidence thresholds and ByteTrack buffer sizes based on traffic
+density, time-of-day, and lighting; (C2)~a class-conditioned motion
+model replacing linear Kalman prediction with the constant turn-rate and
+velocity (CTRV) model for motorcycles; and (C3)~a dual-task track
+reliability score that simultaneously optimizes precision for accident
+alerting and recall for MAPPO-based signal control observations.
+%
+[R] Evaluated on a self-collected Vietnamese urban dataset
+(TODO: numbers here --- e.g., our method achieves MOTA of XX\%,
+IDF1 of XX\%, and reduces false-positive alert rate by XX\%
+compared to the vanilla ByteTrack baseline.)

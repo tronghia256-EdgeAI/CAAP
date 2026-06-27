@@ -1,0 +1,5 @@
+# configs/exp2_C1C2.yaml — Ablation Exp 2 (C1 + C2)
+ablation:
+  use_C1_adaptive: true
+  use_C2_ctrv: true
+  use_C3_reliability: false

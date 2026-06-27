@@ -1,0 +1,112 @@
+% ── Section I: Introduction ──────────────────────────────────────────
+% Length  : ~1 page (double-column IEEE = ~700–900 words)
+% Structure:
+%   1. Hook       — Vietnam traffic fatality statistics
+%   2. Problem    — 2 concrete failure cases from real footage
+%   3. Gap        — table / list of what prior systems miss
+%   4. Solution   — 1-paragraph plain-English overview of pipeline
+%   5. Contributions — C1, C2, C3 explicit bullet points
+%   6. Outline    — "The rest of this paper is organized as follows…"
+% ─────────────────────────────────────────────────────────────────────
+
+\section{Introduction}
+\label{sec:intro}
+
+% [HOOK] Vietnam + SEA traffic context
+% TODO: cite WHO or Vietnam Ministry of Transport accident statistics
+Vietnam records one of the highest road accident fatality rates in
+Southeast Asia, with motorcycles accounting for approximately 94\% of
+urban traffic flow~\cite{TODO_VN_traffic_stats}.
+%
+Automated traffic surveillance systems that can detect accidents
+in real time and provide high-quality observations for adaptive signal
+control are therefore of practical urgency.
+
+% [PROBLEM] Two concrete failure cases
+Modern perception pipelines typically combine a single-stage object
+detector (e.g., YOLOv8~\cite{Jocher2023_yolov8}) with a multi-object
+tracker (e.g., ByteTrack~\cite{Zhang2022_bytetrack}).
+%
+However, two systematic failure cases emerge when such pipelines operate
+in motorcycle-dominant mixed traffic:
+
+\begin{enumerate}
+  \item \textbf{Track fragmentation and missed detections.}
+        During dense weaving maneuvers, motorcycles occlude each other
+        at irregular angles.
+        The linear Kalman filter in ByteTrack predicts straight-line
+        motion and loses track of vehicles executing sharp turns,
+        degrading the observation quality used by downstream
+        multi-agent controllers.
+
+  \item \textbf{High false-positive accident alerts.}
+        With a fixed confidence threshold, sudden braking, sharp
+        lane changes, and cluster occlusions are misclassified as
+        accidents, causing continuous spurious alerts to operators.
+\end{enumerate}
+
+Both failures share a common root cause: thresholds and motion models
+are \emph{static}, unable to adapt to the dynamic conditions of
+rush-hour density, nighttime low-contrast lighting, or wet-road glare.
+
+% [GAP]
+% TODO: reference Table~\ref{tab:related_comparison} if you add one in Sec. II
+Prior systems do not bridge this gap.
+Commercial platforms such as Hikvision AID~\cite{Hikvision_AID} target
+highway car-only scenarios.
+Academic trackers (StrongSORT, BoTrack) focus on pedestrian and vehicle
+benchmarks with Kalman-based linear motion assumptions.
+Context-aware detection work adjusts thresholds for weather or
+illumination changes but does not consider class-conditioned motion
+dynamics or dual downstream task requirements.
+% TODO: expand with 2–3 more citations from Sec. II once related work is written.
+
+% [SOLUTION — plain English]
+We address these limitations with a \emph{context-aware adaptive
+perception} pipeline.
+A lightweight context estimator continuously reads four signals
+--- vehicle density, time of day, image brightness, and recent
+false-positive rate --- and uses them to adjust detection confidence
+and tracking hyperparameters in real time.
+A class-conditioned motion model replaces linear Kalman prediction
+with the constant turn-rate and velocity (CTRV) model for motorcycles,
+explicitly capturing weaving dynamics.
+Finally, a dual-task track reliability score assigns each track a
+quality value, enabling a single pipeline to serve both high-precision
+accident alerting and high-recall signal-control observations without
+task-specific retuning.
+
+% [CONTRIBUTIONS]
+\noindent\textbf{Contributions.}
+The main contributions of this paper are:
+
+\begin{itemize}
+  \item \textbf{C1 — Context Estimator + Adaptive Parameter Controller:}
+        a real-time module that reads four traffic context signals and
+        dynamically adjusts YOLO confidence threshold, ByteTrack buffer
+        length, and motion model selection, eliminating manually tuned
+        fixed thresholds.
+
+  \item \textbf{C2 — Class-Conditioned CTRV Motion Model:}
+        a motorcycle-specific motion model integrated into ByteTrack
+        that replaces the linear Kalman filter with CTRV prediction
+        (state: $[x, y, v, \theta, \omega]^\top$), reducing track
+        fragmentation during high-curvature maneuvers.
+
+  \item \textbf{C3 — Dual-Task Track Reliability Score:}
+        a lightweight scoring function that combines track age,
+        detection consistency, motion smoothness, and class stability
+        into a single reliability metric, with task-specific thresholds
+        that balance precision for accident detection and recall for
+        MAPPO-based multi-agent observations.
+\end{itemize}
+
+% [OUTLINE]
+The remainder of this paper is organized as follows.
+Section~\ref{sec:related} reviews related work in accident detection,
+multi-object tracking, and adaptive perception.
+Section~\ref{sec:method} presents the proposed pipeline in detail.
+Section~\ref{sec:experiments} describes the experimental setup and
+datasets.
+Section~\ref{sec:results} reports ablation and comparative results.
+Section~\ref{sec:conclusion} concludes with limitations and future work.

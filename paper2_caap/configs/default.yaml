@@ -1,0 +1,70 @@
+# configs/default.yaml
+# ─────────────────────────────────────────────────────────────────────
+# Default configuration for the adaptive perception pipeline.
+# Override per-experiment by creating configs/exp1_C1.yaml etc.
+# ─────────────────────────────────────────────────────────────────────
+
+# ── Model weights ─────────────────────────────────────────────────────
+weights:
+  yolov8: "weights/yolov8_vn.pt"          # TODO: path after training
+  efficientnet: "weights/efficientnet_severity.pt"  # TODO: path after training
+
+# ── Detector ──────────────────────────────────────────────────────────
+detector:
+  default_conf: 0.45         # overridden by AdaptiveController each frame
+  img_size: 640
+
+# ── ByteTrack ─────────────────────────────────────────────────────────
+tracker:
+  track_thresh: 0.5          # high-confidence detection threshold
+  track_buffer: 30           # overridden by AdaptiveController each frame
+  match_thresh: 0.8
+  frame_rate: 30
+
+# ── Adaptive Controller ───────────────────────────────────────────────
+adaptive_controller:
+  density_threshold: 30      # TODO: tune from VN footage
+  brightness_night: 80.0
+  peak_hours_start: 7
+  peak_hours_end: 20
+
+# ── CTRV Model ────────────────────────────────────────────────────────
+ctrv:
+  dt: 1.0                    # time step (1 frame)
+  Q_diag: [1.0, 1.0, 0.5, 0.1, 0.05]   # process noise diagonal
+  R_diag: [10.0, 10.0]                  # measurement noise diagonal
+
+# ── Track Reliability ─────────────────────────────────────────────────
+reliability:
+  weights:
+    age: 0.20
+    consistency: 0.30
+    smoothness: 0.30
+    class_stability: 0.20
+  thresholds:
+    accident: 0.70           # TODO: tune via ablation
+    mappo: 0.40              # TODO: tune via ablation
+  window_size: 10
+
+# ── Accident Classifier ───────────────────────────────────────────────
+accident_classifier:
+  input_size: 224
+  batch_size: 1
+
+# ── Telegram Alert ────────────────────────────────────────────────────
+telegram:
+  token: "TODO_BOT_TOKEN"    # set via environment variable, never hardcode
+  chat_id: "TODO_CHAT_ID"
+  rate_limit_seconds: 10     # minimum seconds between alerts
+
+# ── Dataset paths ─────────────────────────────────────────────────────
+data:
+  video_dir: "data/raw/videos/"
+  annotation_dir: "data/annotations/"
+  processed_dir: "data/processed/"
+
+# ── Experiment flags (toggle components for ablation) ─────────────────
+ablation:
+  use_C1_adaptive: true      # set false for baseline
+  use_C2_ctrv: true          # set false for Exp0, Exp1
+  use_C3_reliability: true   # set false for Exp0, Exp1, Exp2

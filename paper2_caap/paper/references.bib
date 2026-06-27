@@ -1,0 +1,138 @@
+% ================================================================
+% references.bib  —  Paper 2: Context-Aware Adaptive Perception
+% Format : BibTeX  |  Style: IEEEtran
+% Key    : AuthorYYYY_keyword  (e.g., Zhang2022_bytetrack)
+% ================================================================
+% TODO marks = fields that still need to be verified / completed
+
+
+% ── Core trackers ────────────────────────────────────────────────────
+
+@inproceedings{Zhang2022_bytetrack,
+  author    = {Zhang, Yifu and Sun, Peize and Jiang, Yi and
+               Yu, Dongdong and Weng, Fucheng and Yuan, Zehuan and
+               Luo, Ping and Liu, Wenyu and Wang, Xinggang},
+  title     = {{ByteTrack}: Multi-Object Tracking by Associating
+               Every Detection Box},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  year      = {2022},
+  pages     = {1--21},   % TODO: verify exact pages
+  doi       = {TODO},
+}
+
+@inproceedings{Bewley2016_sort,
+  author    = {Bewley, Alex and Ge, Zongyuan and Ott, Lionel and
+               Ramos, Fabio and Upcroft, Ben},
+  title     = {Simple Online and Realtime Tracking},
+  booktitle = {IEEE International Conference on Image Processing (ICIP)},
+  year      = {2016},
+  doi       = {TODO},
+}
+
+
+% ── Detectors ────────────────────────────────────────────────────────
+
+@misc{Jocher2023_yolov8,
+  author       = {Jocher, Glenn and Chaurasia, Ayush and Qiu, Jing},
+  title        = {{Ultralytics YOLOv8}},
+  howpublished = {\url{https://github.com/ultralytics/ultralytics}},
+  year         = {2023},
+}
+
+
+% ── Classifiers ──────────────────────────────────────────────────────
+
+@inproceedings{Tan2019_efficientnet,
+  author    = {Tan, Mingxing and Le, Quoc V.},
+  title     = {{EfficientNet}: Rethinking Model Scaling for
+               Convolutional Neural Networks},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  year      = {2019},
+  pages     = {6105--6114},
+}
+
+
+% ── Motion models ────────────────────────────────────────────────────
+
+@inproceedings{Schubert2008_ctrv,
+  author    = {Schubert, Robin and Richter, Eric and Wanielik, Gerd},
+  title     = {Comparison and Evaluation of Advanced Motion Models
+               for Vehicle Tracking},
+  booktitle = {International Conference on Information Fusion (FUSION)},
+  year      = {2008},
+  pages     = {1--6},  % TODO: verify
+  doi       = {TODO},
+}
+
+
+% ── Datasets ─────────────────────────────────────────────────────────
+
+@inproceedings{Shah2018_cadp,
+  author    = {Shah, Ankit P. and Lamare, Jean-Baptiste and
+               Nguyen-Anh, Tuan and Hauptmann, Alexander},
+  title     = {{CADP}: A Novel Dataset for {CCTV} Traffic Camera
+               Based Accident Analysis},
+  booktitle = {IEEE International Conference on Advanced Video and
+               Signal Based Surveillance (AVSS)},
+  year      = {2018},
+  doi       = {TODO},
+}
+
+@inproceedings{Che2019_d2city,
+  author    = {Che, Zhengzhu and Li, Guang and Li, Tracy and
+               Jiang, Bo and Shi, Xuecheng and Zhang, Xinshuo and
+               others},
+  title     = {{D2-City}: A Large-Scale Dashcam Video Dataset of
+               Diverse Traffic Scenarios},
+  year      = {2019},
+  booktitle = {TODO: verify venue},
+  doi       = {TODO},
+}
+
+
+% ── MARL / Signal Control ────────────────────────────────────────────
+
+@article{Yu2022_mappo,
+  author  = {Yu, Chao and Velu, Akash and Vinitsky, Eugene and
+             Gao, Jiaxuan and Wang, Yu and Bayen, Alexandre and
+             Wu, Yi},
+  title   = {The Surprising Effectiveness of {PPO} in Cooperative
+             Multi-Agent Games},
+  journal = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year    = {2022},
+  volume  = {35},
+  doi     = {TODO},
+}
+
+
+% ── MOT Metrics ──────────────────────────────────────────────────────
+
+@article{Bernardin2008_mota,
+  author  = {Bernardin, Keni and Stiefelhagen, Rainer},
+  title   = {Evaluating Multiple Object Tracking Performance:
+             The {CLEAR MOT} Metrics},
+  journal = {EURASIP Journal on Image and Video Processing},
+  year    = {2008},
+  volume  = {2008},
+  pages   = {1--10},
+  doi     = {10.1155/2008/246309},
+}
+
+
+% ── Commercial prior art ─────────────────────────────────────────────
+
+@misc{Hikvision_AID,
+  author       = {{Hikvision Digital Technology Co., Ltd.}},
+  title        = {Intelligent Traffic Incident Detection System},
+  howpublished = {\url{https://www.hikvision.com}},
+  year         = {2023},
+  note         = {Commercial system; cited as prior art.},
+}
+
+
+% ── TODO: add these when found ───────────────────────────────────────
+% - Vietnam road accident statistics (WHO or Ministry of Transport)
+% - FastTracker 2025 (occlusion-aware tracker)
+% - 2–3 adaptive threshold / domain-adaptive detection papers (T-ITS 2021–2024)
+% - StrongSORT or BoTrack
+% - MOTChallenge benchmark paper

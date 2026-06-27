@@ -1,0 +1,114 @@
+% ── Section V: Results ───────────────────────────────────────────────
+% Length  : ~1.5 pages
+% Fill AFTER running experiments in Month 4.
+% Structure:
+%   5.1  Ablation Study Results    (main table)
+%   5.2  Comparison with Prior Systems
+%   5.3  Qualitative Results       (figures)
+%   5.4  Runtime Analysis
+% ─────────────────────────────────────────────────────────────────────
+
+\section{Results}
+\label{sec:results}
+
+% ── 5.1 ─────────────────────────────────────────────────────────────
+\subsection{Ablation Study}
+\label{subsec:ablation_results}
+
+Table~\ref{tab:ablation_results} reports the quantitative results
+of the four ablation configurations on the VN-MixedTraffic test set.
+
+\begin{table}[h]
+  \centering
+  \caption{Ablation results on VN-MixedTraffic test set.
+           \textbf{Bold} = best. $\uparrow$ higher is better,
+           $\downarrow$ lower is better.}
+  \label{tab:ablation_results}
+  \begin{tabular}{lcccc}
+    \toprule
+    Config & MOTA$\uparrow$ & IDF1$\uparrow$ & Acc-F1$\uparrow$ & FP Rate$\downarrow$ \\
+    \midrule
+    Baseline (Exp~0) & -- & -- & -- & -- \\
+    Exp~1 (+C1)      & -- & -- & -- & -- \\
+    Exp~2 (+C1,C2)   & -- & -- & -- & -- \\
+    Exp~3 (Proposed) & \textbf{--} & \textbf{--} & \textbf{--} & \textbf{--} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% TODO: analysis paragraphs
+%   - What does adding C1 alone buy?  (FP rate should drop most here)
+%   - What does adding C2 add?        (MOTA and IDF1 should improve most here)
+%   - What does adding C3 complete?   (Acc-F1 should improve most here)
+
+
+% ── 5.2 ─────────────────────────────────────────────────────────────
+\subsection{Comparison with Prior Systems}
+\label{subsec:comparison}
+
+\begin{table}[h]
+  \centering
+  \caption{Comparison with prior methods.}
+  \label{tab:comparison}
+  \begin{tabular}{lccccc}
+    \toprule
+    Method & Mixed & Class-cond. & Adaptive & Severity & MOTA$\uparrow$ \\
+    \midrule
+    Hikvision AID~\cite{Hikvision_AID}  & --         & --         & --         & --         & N/A \\
+    ByteTrack~\cite{Zhang2022_bytetrack} & \checkmark & --         & --         & --         & --  \\
+    YOLO-only                            & \checkmark & --         & --         & --         & --  \\
+    Proposed                             & \checkmark & \checkmark & \checkmark & \checkmark & \textbf{--} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% TODO: narrative — what each comparison reveals
+
+
+% ── 5.3 ─────────────────────────────────────────────────────────────
+\subsection{Qualitative Results}
+\label{subsec:qualitative}
+
+% TODO: include 2 figures
+%   fig5_qualitative_tracking.pdf — side-by-side: baseline vs proposed,
+%                                   track IDs over weaving sequence
+%   fig6_failure_cases.pdf        — motivation: annotated frames showing
+%                                   baseline FP and track loss
+
+Fig.~\ref{fig:qualitative} illustrates representative tracking sequences
+comparing the baseline and the proposed method.
+% \begin{figure}[t]
+%   \centering
+%   \includegraphics[width=\linewidth]{figures/fig5_qualitative_tracking.pdf}
+%   \caption{Tracking comparison on a dense motorcycle scene.
+%            (a)~Baseline: track fragmentation visible (ID switches).
+%            (b)~Proposed: stable IDs maintained across weaving.}
+%   \label{fig:qualitative}
+% \end{figure}
+
+
+% ── 5.4 ─────────────────────────────────────────────────────────────
+\subsection{Runtime Analysis}
+\label{subsec:runtime}
+
+\begin{table}[h]
+  \centering
+  \caption{Runtime analysis (TODO: hardware spec).}
+  \label{tab:runtime}
+  \begin{tabular}{lcc}
+    \toprule
+    Component & Latency (ms) & \% of total \\
+    \midrule
+    YOLOv8 inference    & -- & -- \\
+    Context Estimator   & -- & -- \\
+    Modified ByteTrack  & -- & -- \\
+    Reliability Scorer  & -- & -- \\
+    EfficientNet-B0     & -- & -- \\
+    \midrule
+    \textbf{Total}      & \textbf{--} & 100\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% TODO: note real-time threshold (30 FPS = 33 ms/frame)
+%       confirm pipeline meets real-time requirement

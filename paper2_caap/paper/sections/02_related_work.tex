@@ -1,0 +1,73 @@
+% ── Section II: Related Work ─────────────────────────────────────────
+% Length  : ~1.5 pages
+% Structure:
+%   2.1  Accident Detection in Traffic Surveillance
+%   2.2  Multi-Object Tracking in Urban Scenes
+%   2.3  Context-Aware and Adaptive Perception
+%   2.4  Positioning paragraph (gap this paper fills)
+%
+% Writing tip: end each subsection by pointing to its insufficiency
+%              → feeds naturally into Sec. 2.4 and the Introduction gap.
+% ─────────────────────────────────────────────────────────────────────
+
+\section{Related Work}
+\label{sec:related}
+
+% ── 2.1 ─────────────────────────────────────────────────────────────
+\subsection{Accident Detection in Traffic Surveillance}
+\label{subsec:rw_accident}
+
+% TODO — suggested citations:
+%   - CADP dataset (Shah et al. 2018) ~\cite{Shah2018_cadp}
+%   - D2-City (Che et al. 2019)       ~\cite{Che2019_d2city}
+%   - EfficientNet (Tan & Le 2019)    ~\cite{Tan2019_efficientnet}
+%   - Hikvision AID commercial        ~\cite{Hikvision_AID}
+%   - Recent accident detection surveys (find 2–3 from IEEE T-ITS 2022–2025)
+%
+% Angle: most work uses fixed classifiers on pre-segmented clips;
+%        none operate adaptively under changing traffic conditions.
+
+
+% ── 2.2 ─────────────────────────────────────────────────────────────
+\subsection{Multi-Object Tracking in Urban Traffic Scenes}
+\label{subsec:rw_mot}
+
+% TODO — suggested citations:
+%   - ByteTrack (Zhang et al. 2022)   ~\cite{Zhang2022_bytetrack}
+%   - SORT (Bewley et al. 2016)       — find BibTeX
+%   - StrongSORT                      — find BibTeX
+%   - MOTChallenge benchmark          — find BibTeX
+%   - CTRV model (Schubert et al. 2008) ~\cite{Schubert2008_ctrv}
+%
+% Angle: all mainstream trackers use linear Kalman motion;
+%        none condition the motion model on vehicle class;
+%        motorcycle weaving behavior is not addressed.
+
+
+% ── 2.3 ─────────────────────────────────────────────────────────────
+\subsection{Context-Aware and Adaptive Perception}
+\label{subsec:rw_adaptive}
+
+% TODO — suggested citations:
+%   - Adaptive NMS / threshold papers (search IEEE T-ITS 2021–2024)
+%   - Domain adaptation in detection (night, rain, fog)
+%   - FastTracker 2025 (occlusion-aware) — note: not class-conditioned
+%
+% Angle: existing adaptive methods address environment shift
+%        (weather, illumination) but not traffic-state-driven
+%        parameter control or multi-task downstream serving.
+
+
+% ── 2.4 ─────────────────────────────────────────────────────────────
+\subsection{Discussion and Positioning}
+\label{subsec:rw_gap}
+
+% TODO — synthesize the three subsections into 1 clear paragraph:
+%   "To the best of our knowledge, no prior work simultaneously
+%    addresses (i) perception-level context adaptation,
+%    (ii) class-conditioned motion modeling for motorcycles, and
+%    (iii) dual-task downstream serving in mixed-traffic scenarios."
+%
+% Optional: add a comparison table here
+%   Table columns: System | Mixed traffic | Class-cond. | Adaptive param. | Dual-task
+%   Rows: Hikvision AID, ByteTrack, YOLO-only, FastTracker, Proposed

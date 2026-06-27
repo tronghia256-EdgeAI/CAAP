@@ -1,0 +1,102 @@
+% ── Section IV: Experiments ──────────────────────────────────────────
+% Length  : ~1.5 pages
+% Structure:
+%   4.1  Datasets
+%   4.2  Evaluation Metrics
+%   4.3  Implementation Details (hardware, hyperparams)
+%   4.4  Ablation Study Design
+%   4.5  Comparison Baselines
+% ─────────────────────────────────────────────────────────────────────
+
+\section{Experiments}
+\label{sec:experiments}
+
+% ── 4.1 ─────────────────────────────────────────────────────────────
+\subsection{Datasets}
+\label{subsec:datasets}
+
+\paragraph{VN-MixedTraffic (primary, self-collected).}
+% TODO: describe collection setup, camera specs, location
+%       Number of clips, total duration, resolution, fps
+%       Class distribution table (car / motorcycle / bus / truck / accident)
+%       Accident severity split: minor / severe (after relabeling)
+%       Note: dataset not publicly released to protect IP.
+
+\paragraph{CADP~\cite{Shah2018_cadp} (benchmark).}
+% TODO: brief description, used for comparison only (not training)
+
+\paragraph{D2-City~\cite{Che2019_d2city} (benchmark).}
+% TODO: brief description, used for comparison only (not training)
+
+
+% ── 4.2 ─────────────────────────────────────────────────────────────
+\subsection{Evaluation Metrics}
+\label{subsec:metrics}
+
+\paragraph{Tracking.}
+% MOTA  (Multiple Object Tracking Accuracy) ~\cite{Bernardin2008_mota}
+% IDF1  (ID F1 Score)
+% Track Fragmentation Rate (TFR): number of track ID switches / ground-truth tracks
+% TODO: define each formula briefly
+
+\paragraph{Detection \& Severity Classification.}
+% Precision, Recall, F1, mAP@0.5
+% 3-class confusion matrix (non-accident / minor / severe)
+
+\paragraph{System Efficiency.}
+% Latency (ms per frame), FPS
+% Tested on: TODO hardware spec
+
+
+% ── 4.3 ─────────────────────────────────────────────────────────────
+\subsection{Implementation Details}
+\label{subsec:impl}
+
+% TODO:
+%   Detector  : YOLOv8-? (nano / small / medium — specify after benchmarking)
+%               Trained for ? epochs, img size ?, batch size ?
+%   Tracker   : ByteTrack with modified kalman_filter.py for CTRV branch
+%   Classifier: EfficientNet-B0, pretrained on ImageNet, fine-tuned on VN dataset
+%   Hardware  : GPU model, CPU model, RAM
+%   Framework : PyTorch 2.x, Python 3.x, CUDA ?
+%   CTRV dt   : 1/fps (adaptive to camera frame rate)
+%   Weights C1: w1=0.2, w2=0.3, w3=0.3, w4=0.2 (tuned via grid search)
+
+
+% ── 4.4 ─────────────────────────────────────────────────────────────
+\subsection{Ablation Study Design}
+\label{subsec:ablation_design}
+
+Table~\ref{tab:ablation_design} shows the four experimental
+configurations used in the ablation study.
+
+\begin{table}[h]
+  \centering
+  \caption{Ablation configurations. \checkmark~=~component active.}
+  \label{tab:ablation_design}
+  \begin{tabular}{lcccp{3.2cm}}
+    \toprule
+    Configuration & C1 & C2 & C3 & Description \\
+    \midrule
+    Baseline (Exp~0) & --           & --           & --           & YOLOv8 + ByteTrack original \\
+    Exp~1            & \checkmark   & --           & --           & + Context adaptation \\
+    Exp~2            & \checkmark   & \checkmark   & --           & + CTRV motion model \\
+    Exp~3 (Proposed) & \checkmark   & \checkmark   & \checkmark   & Full pipeline \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Each configuration is evaluated on the same VN-MixedTraffic test split
+using the metrics defined in Section~\ref{subsec:metrics}.
+
+
+% ── 4.5 ─────────────────────────────────────────────────────────────
+\subsection{Comparison Baselines}
+\label{subsec:baselines}
+
+% TODO: describe what you compare against and WHY those were chosen
+%   1. ByteTrack original     — direct baseline (C2 and C3 missing)
+%   2. YOLO-only (no tracker) — shows tracking's value for FP reduction
+%   3. Hikvision AID          — commercial reference (car-only, no severity)
+%   Note: Hikvision is cited as prior art only; numeric comparison may be
+%         approximate if their system specs are not published.
