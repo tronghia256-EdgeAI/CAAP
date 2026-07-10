@@ -19,17 +19,8 @@ __pycache__/
 venv/
 .venv/
 
-# ── LaTeX build artifacts ────────────────────────────────────────────
-paper/*.aux
-paper/*.log
-paper/*.out
-paper/*.toc
-paper/*.bbl
-paper/*.blg
-paper/*.synctex.gz
-paper/*.fls
-paper/*.fdb_latexmk
-paper/main.pdf      # PDF is a build artifact; keep .tex in version control
+# ── Paper (local only, not version controlled) ───────────────────────
+paper/
 
 # ── OS ────────────────────────────────────────────────────────────────
 .DS_Store
@@ -38,3 +29,8 @@ Thumbs.db
 # ── Secrets ───────────────────────────────────────────────────────────
 .env
 secrets.yaml
+
+# ── Local working notes & tooling (not shared) ───────────────────────
+CLAUDE.md
+SCOPE.md
+.claude/
