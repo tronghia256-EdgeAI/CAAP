@@ -52,9 +52,10 @@ accident_classifier:
   batch_size: 1
 
 # ── Telegram Alert ────────────────────────────────────────────────────
+# Credentials live in configs/tele_api.yaml, which is gitignored.
+# Copy configs/tele_api.example.yaml -> configs/tele_api.yaml and fill it in.
 telegram:
-  token: "TODO_BOT_TOKEN"    # set via environment variable, never hardcode
-  chat_id: "TODO_CHAT_ID"
+  credentials_file: "configs/tele_api.yaml"
   rate_limit_seconds: 10     # minimum seconds between alerts
 
 # ── Dataset paths ─────────────────────────────────────────────────────

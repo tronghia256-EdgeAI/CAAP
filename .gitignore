@@ -22,6 +22,9 @@ venv/
 # ── Paper (local only, not version controlled) ───────────────────────
 paper/
 
+# ── Third-party sources cloned locally (ByteTrack, etc.) ─────────────
+lib/
+
 # ── OS ────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
@@ -29,6 +32,8 @@ Thumbs.db
 # ── Secrets ───────────────────────────────────────────────────────────
 .env
 secrets.yaml
+# real credentials; tele_api.example.yaml stays committed as a template
+configs/tele_api.yaml
 
 # ── Local working notes & tooling (not shared) ───────────────────────
 CLAUDE.md
