@@ -8,10 +8,21 @@ The score combines four components:
 
   S(τ) = w1·age(τ) + w2·consistency(τ) + w3·smoothness(τ) + w4·class_stability(τ)
 
-  age(τ)             : normalised consecutive confirmed-detection count
+  age(τ)             : normalised track age (saturates at MAX_AGE_FRAMES)
   consistency(τ)     : detection hit rate over last WINDOW_SIZE frames
-  smoothness(τ)      : inverse of predicted-vs-detected IoU variance
+  smoothness(τ)      : MEAN predicted-vs-detected IoU over the window
   class_stability(τ) : fraction of frames with the dominant class label
+
+Design note — smoothness deviates from the original "inverse of IoU
+variance" idea on purpose: pure variance scores a *consistently badly
+predicted* track as "smooth". Mean IoU is monotone in prediction quality
+and already punishes erratic motion (erratic → prediction misses → low
+IoU). Mention this in the paper's method section.
+
+Cold start: with fewer than MIN_HISTORY samples, the history-based
+components return a neutral 0.5 — combined with the near-zero age
+component this keeps brand-new tracks below τ_acc by construction,
+which is exactly the false-alert suppression C3 exists for.
 
 Two task-specific thresholds split the output:
   τ_acc   : high threshold → precision branch (accident detection)
@@ -19,11 +30,12 @@ Two task-specific thresholds split the output:
 
 Author  : Trọng Nghĩa
 Paper   : Context-Aware Adaptive Perception for Mixed Traffic
-Target  : IEEE T-ITS
+Target  : ICRA 2027 (primary) / IEEE IV 2027 (backup)
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Dict, List
 
@@ -48,9 +60,12 @@ THRESHOLD_ACCIDENT = 0.70   # τ_acc   : precision branch
 THRESHOLD_MAPPO    = 0.40   # τ_mappo : recall branch
 
 
-# ── Window size for consistency / class stability ────────────────────
+# ── Window / normalisation constants ─────────────────────────────────
 
-WINDOW_SIZE = 10   # last N frames
+WINDOW_SIZE = 10       # last N frames (matches ClassAwareSTrack deques)
+MAX_AGE_FRAMES = 30    # 1 s @ 30 fps saturates the age component
+MIN_HISTORY = 3        # below this → neutral 0.5 (cold start)
+NEUTRAL = 0.5
 
 
 # ── Data structures ──────────────────────────────────────────────────
@@ -82,9 +97,22 @@ class TrackReliabilityScorer:
     Usage:
         scorer = TrackReliabilityScorer()
         scores = scorer.score_all(tracks)
-        accident_tracks = [t for t, s in scores.items() if s.reliable_for_accident]
-        mappo_tracks    = [t for t, s in scores.items() if s.reliable_for_mappo]
+        accident_ids = [tid for tid, s in scores.items() if s.reliable_for_accident]
+        mappo_ids    = [tid for tid, s in scores.items() if s.reliable_for_mappo]
     """
+
+    def __init__(self,
+                 weights: dict | None = None,
+                 max_age_frames: int = MAX_AGE_FRAMES) -> None:
+        w = weights or {}
+        self.w_age = w.get("age", W_AGE)
+        self.w_consistency = w.get("consistency", W_CONSISTENCY)
+        self.w_smoothness = w.get("smoothness", W_SMOOTHNESS)
+        self.w_class_stability = w.get("class_stability", W_CLASS_STABILITY)
+        total = (self.w_age + self.w_consistency
+                 + self.w_smoothness + self.w_class_stability)
+        assert abs(total - 1.0) < 1e-6, f"weights must sum to 1, got {total}"
+        self.max_age_frames = max_age_frames
 
     def score_all(self, tracks: List) -> Dict[int, ReliabilityScore]:
         """
@@ -92,13 +120,12 @@ class TrackReliabilityScorer:
             tracks: list of active track objects.
                     Each track must expose: .track_id, .age,
                     .hit_history (List[bool]), .iou_history (List[float]),
-                    .class_history (List[str]).
+                    .class_history (List of class ids).
 
         Returns:
             Dict mapping track_id → ReliabilityScore.
         """
-        # TODO: iterate over tracks and call .score() for each
-        raise NotImplementedError
+        return {t.track_id: self.score(t) for t in tracks}
 
     def score(self, track) -> ReliabilityScore:
         """Score a single track."""
@@ -107,10 +134,10 @@ class TrackReliabilityScorer:
         smooth_c = self._smoothness_component(track)
         cls_c   = self._class_stability_component(track)
 
-        total = (W_AGE * age_c
-                 + W_CONSISTENCY * cons_c
-                 + W_SMOOTHNESS * smooth_c
-                 + W_CLASS_STABILITY * cls_c)
+        total = (self.w_age * age_c
+                 + self.w_consistency * cons_c
+                 + self.w_smoothness * smooth_c
+                 + self.w_class_stability * cls_c)
 
         return ReliabilityScore(
             total=float(np.clip(total, 0.0, 1.0)),
@@ -123,31 +150,28 @@ class TrackReliabilityScorer:
     # ── Component calculators ────────────────────────────────────────
 
     def _age_component(self, track) -> float:
-        """
-        Normalised track age.
-        Older tracks → higher score.
-        TODO: define max_age for normalisation (e.g., 30 frames = 1.0)
-        """
-        raise NotImplementedError
+        """Normalised track age, saturating at max_age_frames."""
+        return float(min(track.age / self.max_age_frames, 1.0))
 
     def _consistency_component(self, track) -> float:
-        """
-        Detection hit rate over the last WINDOW_SIZE frames.
-        hit_history: list of bool (True = detected, False = predicted-only).
-        """
-        raise NotImplementedError
+        """Detection hit rate over the last WINDOW_SIZE frames."""
+        hist = list(track.hit_history)
+        if len(hist) < MIN_HISTORY:
+            return NEUTRAL
+        return float(np.mean(hist))
 
     def _smoothness_component(self, track) -> float:
-        """
-        Inverse of IoU variance between predicted and detected boxes.
-        iou_history: list of float IoU values per frame.
-        Low variance → high smoothness → high score.
-        """
-        raise NotImplementedError
+        """Mean predicted-vs-detected IoU (see module docstring for why
+        this replaces inverse IoU variance)."""
+        hist = list(track.iou_history)
+        if len(hist) < MIN_HISTORY:
+            return NEUTRAL
+        return float(np.mean(hist))
 
     def _class_stability_component(self, track) -> float:
-        """
-        Fraction of frames where the detected class equals the mode class.
-        class_history: list of class label strings.
-        """
-        raise NotImplementedError
+        """Fraction of frames where the detected class equals the mode class."""
+        hist = list(track.class_history)
+        if len(hist) < MIN_HISTORY:
+            return NEUTRAL
+        mode_count = Counter(hist).most_common(1)[0][1]
+        return mode_count / len(hist)
