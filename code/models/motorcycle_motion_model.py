@@ -21,6 +21,10 @@ Prediction (dt = 1 frame by default):
   theta_{k+1} = theta_k + omega_k * dt
   omega_{k+1} = omega_k
 
+Euler discretization (as above) is used instead of the exact-integral CTRV
+form, which sidesteps the omega -> 0 singularity; at 30 fps with dt = 1 frame
+the discretization error is negligible.
+
 Reference:
   Schubert, R., Richter, E., & Wanielik, G. (2008).
   "Comparison and Evaluation of Advanced Motion Models for Vehicle Tracking."
@@ -28,7 +32,7 @@ Reference:
 
 Author  : Trọng Nghĩa
 Paper   : Context-Aware Adaptive Perception for Mixed Traffic
-Target  : IEEE T-ITS
+Target  : ICRA 2027 (primary) / IEEE IV 2027 (backup)
 """
 
 from __future__ import annotations
@@ -41,12 +45,33 @@ import numpy as np
 STATE_DIM  = 5   # [px, py, v, theta, omega]
 MEASURE_DIM = 2  # [px, py]  (observation from detection bbox center)
 
-# Process noise (diagonal, TODO: tune from real data)
-# Larger Q → model trusts measurements more
-Q_DIAG = [1.0, 1.0, 0.5, 0.1, 0.05]  # TODO: tune
+# Process noise (diagonal). Tuned on synthetic trajectories (tests/test_ctrv.py);
+# re-tune on VN footage later. Units per frame at 30 fps:
+#   theta noise 1e-3 rad² ≈ 1.8°/frame std — the original placeholder (0.1 rad²
+#   ≈ 18°/frame) drowned the heading estimate in process noise and made
+#   predictions jitter worse than the linear KF.
+Q_DIAG = [0.5, 0.5, 0.1, 1e-3, 1e-4]  # TODO: re-tune on real footage
 
 # Measurement noise (diagonal, TODO: tune from real data)
 R_DIAG = [10.0, 10.0]  # TODO: tune
+
+# Initial covariance diagonal: position is observed directly (small),
+# v / theta / omega are unobservable from a single detection (huge).
+P0_DIAG = [10.0, 10.0, 100.0, np.pi ** 2, 1.0]
+
+# Linear observation matrix: we observe only the bbox center [px, py].
+H = np.zeros((MEASURE_DIM, STATE_DIM))
+H[0, 0] = 1.0
+H[1, 1] = 1.0
+
+# Minimum displacement (px) between init and first update for the heading
+# bootstrap to fire — below this, direction is noise, keep the EKF prior.
+BOOTSTRAP_MIN_DISP = 1.0
+
+
+def wrap_angle(theta: float) -> float:
+    """Wrap an angle to [-pi, pi)."""
+    return (theta + np.pi) % (2.0 * np.pi) - np.pi
 
 
 # ── Main class ───────────────────────────────────────────────────────
@@ -64,10 +89,17 @@ class CTRVMotionModel:
         model.update(bbox)         # update with new detection
     """
 
-    def __init__(self, dt: float = 1.0) -> None:
+    def __init__(
+        self,
+        dt: float = 1.0,
+        q_diag: list[float] | None = None,
+        r_diag: list[float] | None = None,
+    ) -> None:
         """
         Args:
-            dt: time step in frames (default 1.0).
+            dt    : time step in frames (default 1.0).
+            q_diag: process noise diagonal (default Q_DIAG; see configs/default.yaml).
+            r_diag: measurement noise diagonal (default R_DIAG).
         """
         self.dt = dt
 
@@ -76,8 +108,15 @@ class CTRVMotionModel:
         self.P: np.ndarray | None = None   # (5, 5)
 
         # Process and measurement noise covariance matrices
-        self.Q = np.diag(Q_DIAG)           # (5, 5)
-        self.R = np.diag(R_DIAG)           # (2, 2)
+        self.Q = np.diag(q_diag if q_diag is not None else Q_DIAG)  # (5, 5)
+        self.R = np.diag(r_diag if r_diag is not None else R_DIAG)  # (2, 2)
+
+        # Width/height of the last matched detection — held constant while
+        # the track is lost; association only needs a well-placed box.
+        self.wh: np.ndarray | None = None  # (2,)
+
+        # True until the first update() — triggers the heading bootstrap.
+        self._bootstrap = False
 
     # ── Public API ───────────────────────────────────────────────────
 
@@ -88,23 +127,35 @@ class CTRVMotionModel:
         Args:
             bbox: [x1, y1, x2, y2] in pixels.
         """
-        # TODO: compute cx, cy from bbox
-        # TODO: initialise self.x = [cx, cy, 0, 0, 0]
-        # TODO: initialise self.P = np.eye(STATE_DIM) * large_value
-        raise NotImplementedError
+        cx, cy = self._bbox_to_state(bbox)
+        self.x = np.array([cx, cy, 0.0, 0.0, 0.0])
+        self.P = np.diag(P0_DIAG).astype(float)
+        self.wh = np.array([bbox[2] - bbox[0], bbox[3] - bbox[1]], dtype=float)
+        self._bootstrap = True
 
-    def predict(self) -> np.ndarray:
+    def predict(self, lost: bool = False) -> np.ndarray:
         """
         Apply CTRV prediction step.
+
+        Args:
+            lost: True while the track has no detections (ByteTrack Lost
+                  state). The full CTRV dynamics still apply — coasting
+                  ALONG THE ARC through occlusions is exactly where CTRV
+                  beats the linear model (a weaving motorcycle keeps
+                  turning while hidden). Note ByteTrack's linear KF also
+                  keeps its positional velocities when lost; it only zeroes
+                  the aspect-ratio velocity mean[7], which CTRV does not
+                  model (wh is held fixed instead). `lost` is kept in the
+                  signature for future damping experiments.
 
         Returns:
             Predicted bbox [x1, y1, x2, y2] for association.
         """
-        # TODO: implement F = Jacobian of CTRV at current state
-        # TODO: self.x = f(self.x, self.dt)
-        # TODO: self.P = F @ self.P @ F.T + self.Q
-        # TODO: convert predicted state back to bbox
-        raise NotImplementedError
+        F = self._F_jacobian(self.x)
+        self.x = self._f(self.x)
+        self.x[3] = wrap_angle(self.x[3])
+        self.P = F @ self.P @ F.T + self.Q
+        return self._state_to_bbox(self.x, self.wh)
 
     def update(self, bbox: np.ndarray) -> None:
         """
@@ -113,30 +164,76 @@ class CTRVMotionModel:
         Args:
             bbox: [x1, y1, x2, y2] in pixels.
         """
-        # TODO: extract measurement z = [cx, cy] from bbox
-        # TODO: Kalman gain K
-        # TODO: update self.x and self.P
-        raise NotImplementedError
+        z = self._bbox_to_state(bbox)
+
+        if self._bootstrap:
+            # Heading bootstrap: theta/v are unobservable from a single
+            # detection. Set them directly from the first displacement
+            # instead of letting the EKF grope for ~10 frames through a
+            # diagonal (zero cross-term) P.
+            dz = z - self.x[:2]
+            disp = float(np.linalg.norm(dz))
+            if disp > BOOTSTRAP_MIN_DISP:
+                self.x[2] = disp / self.dt                 # v
+                self.x[3] = np.arctan2(dz[1], dz[0])       # theta
+                # v/theta were just set directly — declare them independent
+                # by clearing their rows/columns too. Overwriting only the
+                # diagonal would leave stale cross-covariances (|corr| > 1)
+                # and P would lose positive definiteness on the next update.
+                for i, var in ((2, 10.0), (3, 0.5)):
+                    self.P[i, :] = 0.0
+                    self.P[:, i] = 0.0
+                    self.P[i, i] = var
+            self._bootstrap = False
+
+        # Standard linear-observation EKF update.
+        y = z - H @ self.x                       # innovation
+        S = H @ self.P @ H.T + self.R            # innovation covariance
+        K = self.P @ H.T @ np.linalg.inv(S)      # Kalman gain (5, 2)
+
+        self.x = self.x + K @ y
+        self.x[3] = wrap_angle(self.x[3])
+
+        # Joseph form: preserves symmetry / positive-definiteness of P
+        # over thousands of steps (plain (I-KH)P accumulates asymmetry).
+        I_KH = np.eye(STATE_DIM) - K @ H
+        self.P = I_KH @ self.P @ I_KH.T + K @ self.R @ K.T
+
+        # Refresh box size from the matched detection.
+        self.wh = np.array([bbox[2] - bbox[0], bbox[3] - bbox[1]], dtype=float)
 
     # ── Private helpers ──────────────────────────────────────────────
 
     def _f(self, x: np.ndarray) -> np.ndarray:
-        """CTRV nonlinear process function."""
-        # TODO: implement the 5 prediction equations
-        raise NotImplementedError
+        """CTRV nonlinear process function (Euler discretization)."""
+        px, py, v, theta, omega = x
+        return np.array([
+            px + v * np.cos(theta) * self.dt,
+            py + v * np.sin(theta) * self.dt,
+            v,
+            theta + omega * self.dt,
+            omega,
+        ])
 
     def _F_jacobian(self, x: np.ndarray) -> np.ndarray:
         """Jacobian of _f with respect to state x (5×5)."""
-        # TODO: compute analytically
-        # Reference: Schubert et al. 2008, Appendix
-        raise NotImplementedError
+        _, _, v, theta, _ = x
+        dt = self.dt
+        F = np.eye(STATE_DIM)
+        F[0, 2] = np.cos(theta) * dt      # ∂px'/∂v
+        F[0, 3] = -v * np.sin(theta) * dt  # ∂px'/∂theta
+        F[1, 2] = np.sin(theta) * dt      # ∂py'/∂v
+        F[1, 3] = v * np.cos(theta) * dt   # ∂py'/∂theta
+        F[3, 4] = dt                       # ∂theta'/∂omega
+        return F
 
     def _bbox_to_state(self, bbox: np.ndarray) -> np.ndarray:
         """Convert [x1,y1,x2,y2] to observation [cx, cy]."""
-        # TODO: cx = (x1+x2)/2,  cy = (y1+y2)/2
-        raise NotImplementedError
+        bbox = np.asarray(bbox, dtype=float)
+        return np.array([(bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0])
 
     def _state_to_bbox(self, x: np.ndarray, wh: np.ndarray) -> np.ndarray:
         """Convert state [cx, cy, ...] back to [x1,y1,x2,y2]."""
-        # TODO: needs stored width/height from last detection
-        raise NotImplementedError
+        cx, cy = x[0], x[1]
+        w, h = wh[0], wh[1]
+        return np.array([cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0])

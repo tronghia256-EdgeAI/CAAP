@@ -3,65 +3,238 @@ code/tracker/adaptive_bytetrack.py
 ────────────────────────────────────
 Modified ByteTrack that integrates C1 + C2.
 
-Wraps the original ByteTrack (ifzhang/ByteTrack) and adds:
+Wraps the vendored ByteTrack (code/tracker/vendor/, see PATCHES.md) and adds:
   1. Receives Params from AdaptiveController each frame → applies conf + buffer
-  2. Routes each track to CTRVMotionModel (motorcycle) or default Kalman (others)
+     (Params.yolo_conf drives the tracker's track_thresh, NOT the YOLO
+      inference threshold — BYTE's second association stage needs the
+      low-score detections, so the detector always runs at conf ≈ 0.1).
+  2. Routes each track to CTRVMotionModel (motorcycle) or default Kalman
+     (others). The choice is made once, when the track is activated.
+  3. Maintains per-track history fields (hit/iou/class) consumed by the
+     C3 TrackReliabilityScorer.
 
-Step-by-step reading order before implementing this file:
-  1. ByteTrack/yolox/tracker/byte_tracker.py   -- main tracker class
-  2. ByteTrack/yolox/tracker/kalman_filter.py  -- linear Kalman implementation
-  3. ByteTrack/yolox/tracker/basetrack.py      -- track state machine
+Limitation (by design of the vendor `strack_cls` hook): CTRV settings are
+class-level on ClassAwareSTrack, so only one AdaptiveBYTETracker should be
+live at a time. Ablation runs are sequential — call reset() between runs.
 
 Author  : Trọng Nghĩa
 """
 
 from __future__ import annotations
 
-# TODO: once ByteTrack is cloned, add:
-# from ByteTrack.yolox.tracker.byte_tracker import BYTETracker, STrack
-# from ..models import CTRVMotionModel, Params
+from collections import deque
+from types import SimpleNamespace
+
+import numpy as np
+
+from code.models.motorcycle_motion_model import CTRVMotionModel
+from code.tracker.vendor import BYTETracker, STrack, BaseTrack, TrackState
+from code.tracker.vendor import matching
+
+# Project class id for motorcycles (see code/detection contract).
+MOTORCYCLE_CLASS_ID = 1
+
+# Window for the C3 history deques (reliability scorer reads these).
+HISTORY_WINDOW = 10
 
 
-class AdaptiveBYTETracker:
+class ClassAwareSTrack(STrack):
+    """
+    STrack with a class-conditioned motion model (C2) and C3 history fields.
+
+    Motorcycle tracks get a per-track CTRV EKF; every other class keeps the
+    vendored linear Kalman filter (vectorized shared_kalman fast path).
+    """
+
+    # ── Class-level config, set by AdaptiveBYTETracker each update() ──
+    ctrv_enabled: bool = False           # ablation flag (C2 on/off)
+    motion_model_this_frame: str = "ctrv"  # from Params.motion_model
+    ctrv_dt: float = 1.0
+    ctrv_q_diag: list | None = None
+    ctrv_r_diag: list | None = None
+
+    def __init__(self, tlwh, score, class_id=None):
+        super().__init__(tlwh, score, class_id)
+        self.ctrv: CTRVMotionModel | None = None
+        # C3 history fields (consumed by TrackReliabilityScorer)
+        self.hit_history: deque = deque(maxlen=HISTORY_WINDOW)
+        self.iou_history: deque = deque(maxlen=HISTORY_WINDOW)
+        self.class_history: deque = deque(maxlen=HISTORY_WINDOW)
+
+    # ── Properties ────────────────────────────────────────────────────
+
+    @property
+    def age(self) -> int:
+        """Track age in frames (0 for a brand-new track)."""
+        return self.frame_id - self.start_frame
+
+    @property
+    def tlwh(self):
+        """CTRV tracks derive their box from the EKF state + stored wh."""
+        if self.ctrv is not None and self.ctrv.x is not None:
+            tlbr = self.ctrv._state_to_bbox(self.ctrv.x, self.ctrv.wh)
+            return self.tlbr_to_tlwh(tlbr)
+        return STrack.tlwh.fget(self)
+
+    # ── Track lifecycle overrides ─────────────────────────────────────
+
+    def activate(self, kalman_filter, frame_id):
+        # Parent initializes the linear KF state (harmless for CTRV tracks —
+        # their box comes from the EKF via the tlwh override) plus ids/state.
+        super().activate(kalman_filter, frame_id)
+        if self._should_use_ctrv():
+            self.ctrv = CTRVMotionModel(
+                dt=self.ctrv_dt,
+                q_diag=self.ctrv_q_diag,
+                r_diag=self.ctrv_r_diag,
+            )
+            self.ctrv.init(self.tlwh_to_tlbr(self._tlwh))
+        self.hit_history.append(True)
+        self.class_history.append(self.class_id)
+
+    def re_activate(self, new_track, frame_id, new_id=False):
+        self._record_history(new_track)
+        if self.ctrv is not None:
+            self.ctrv.update(self.tlwh_to_tlbr(new_track.tlwh))
+            # Mirror the parent's bookkeeping (state machine unchanged).
+            self.tracklet_len = 0
+            self.state = TrackState.Tracked
+            self.is_activated = True
+            self.frame_id = frame_id
+            if new_id:
+                self.track_id = self.next_id()
+            self.score = new_track.score
+        else:
+            super().re_activate(new_track, frame_id, new_id)
+
+    def update(self, new_track, frame_id):
+        self._record_history(new_track)
+        if self.ctrv is not None:
+            self.ctrv.update(self.tlwh_to_tlbr(new_track.tlwh))
+            self.frame_id = frame_id
+            self.tracklet_len += 1
+            self.state = TrackState.Tracked
+            self.is_activated = True
+            self.score = new_track.score
+        else:
+            super().update(new_track, frame_id)
+
+    # ── Prediction dispatch ───────────────────────────────────────────
+
+    def predict(self):
+        if self.ctrv is not None:
+            self.ctrv.predict(lost=self.state != TrackState.Tracked)
+        else:
+            super().predict()
+
+    @staticmethod
+    def multi_predict(stracks):
+        """Split: CTRV tracks get per-track EKF prediction, the rest keep
+        the vectorized shared-Kalman fast path."""
+        linear = [st for st in stracks if getattr(st, "ctrv", None) is None]
+        STrack.multi_predict(linear)
+        for st in stracks:
+            if getattr(st, "ctrv", None) is not None:
+                st.ctrv.predict(lost=st.state != TrackState.Tracked)
+
+    # ── Private ───────────────────────────────────────────────────────
+
+    def _should_use_ctrv(self) -> bool:
+        """Decided once, at activation time. A track activated under a
+        non-CTRV regime keeps the linear model for its lifetime."""
+        return (
+            self.ctrv_enabled
+            and self.class_id == MOTORCYCLE_CLASS_ID
+            and self.motion_model_this_frame == "ctrv"
+        )
+
+    def _record_history(self, new_track) -> None:
+        """Record predicted-vs-detected IoU BEFORE the state update — this
+        measures prediction quality, which C3 uses as its smoothness signal."""
+        iou = float(matching.ious([self.tlbr], [new_track.tlbr])[0, 0])
+        self.iou_history.append(iou)
+        self.hit_history.append(True)
+        self.class_history.append(new_track.class_id)
+
+
+class AdaptiveBYTETracker(BYTETracker):
     """
     ByteTrack wrapper with:
-      - Dynamic confidence threshold (from Params)
-      - Dynamic buffer length     (from Params)
+      - Dynamic confidence threshold (from Params → track_thresh, D3)
+      - Dynamic buffer length        (from Params → max_time_lost)
       - Class-conditioned motion model (CTRV for motorcycle, Kalman for others)
 
     Usage:
-        tracker = AdaptiveBYTETracker(args)
-        tracks = tracker.update(detections, params)
+        tracker = AdaptiveBYTETracker(config, ctrv_enabled=True)
+        tracks = tracker.update(detections_n6, params)   # params may be None
     """
 
-    def __init__(self, args) -> None:
-        # TODO: init original BYTETracker with args
-        # TODO: keep a dict {track_id: CTRVMotionModel} for motorcycle tracks
-        raise NotImplementedError
+    strack_cls = ClassAwareSTrack
 
-    def update(self, detections, params):  # params: Params
+    def __init__(self, config: dict | None = None, ctrv_enabled: bool = True,
+                 img_size: tuple[int, int] = (720, 1280)) -> None:
+        config = config or {}
+        tr = config.get("tracker", {})
+        args = SimpleNamespace(
+            track_thresh=tr.get("track_thresh", 0.5),
+            track_buffer=tr.get("track_buffer", 30),
+            match_thresh=tr.get("match_thresh", 0.8),
+            mot20=False,
+        )
+        self.frame_rate = tr.get("frame_rate", 30)
+        super().__init__(args, frame_rate=self.frame_rate)
+
+        self.ctrv_enabled = ctrv_enabled
+        self.img_size = img_size
+
+        # Push CTRV config to the track class (single-tracker limitation —
+        # see module docstring).
+        ctrv_cfg = config.get("ctrv", {})
+        ClassAwareSTrack.ctrv_enabled = ctrv_enabled
+        ClassAwareSTrack.ctrv_dt = ctrv_cfg.get("dt", 1.0)
+        ClassAwareSTrack.ctrv_q_diag = ctrv_cfg.get("Q_diag")
+        ClassAwareSTrack.ctrv_r_diag = ctrv_cfg.get("R_diag")
+
+    def update(self, detections, params=None):  # params: Params | None
         """
         Args:
-            detections : output from YOLOv8 inference
-            params     : Params from AdaptiveController
+            detections : N×6 numpy [x1, y1, x2, y2, score, class_id] in
+                         frame-native pixels (from code/detection/detector.py).
+            params     : Params from AdaptiveController, or None to run with
+                         the fixed constructor thresholds (baseline / Exp1).
 
         Returns:
-            List of active STrack objects with reliability hooks added.
+            List of active ClassAwareSTrack objects.
         """
-        # TODO:
-        # 1. Apply params.yolo_conf as detection filter threshold
-        # 2. Apply params.buffer_len to tracker lost-track buffer
-        # 3. For each newly created motorcycle track → init CTRVMotionModel
-        # 4. For each predict step   → dispatch to CTRV or Kalman by class
-        # 5. Return updated tracks
-        raise NotImplementedError
+        if params is not None:
+            # D3: yolo_conf drives the tracker's high/low split, not the
+            # detector. det_thresh mirrors upstream's "+ 0.1" rule.
+            self.args.track_thresh = params.yolo_conf
+            self.det_thresh = params.yolo_conf + 0.1
+            self.max_time_lost = int(self.frame_rate / 30.0 * params.buffer_len)
+            ClassAwareSTrack.motion_model_this_frame = params.motion_model
+        else:
+            ClassAwareSTrack.motion_model_this_frame = "ctrv"
+        ClassAwareSTrack.ctrv_enabled = self.ctrv_enabled
 
-    # ── Private ──────────────────────────────────────────────────────
+        detections = np.asarray(detections, dtype=float)
+        if detections.size == 0:
+            detections = np.empty((0, 6))
 
-    def _predict_with_class_model(self, track, params) -> None:
-        """Select and apply the correct motion model for this track."""
-        # TODO: if track.class == 'motorcycle' and params.motion_model != 'standard'
-        #           use CTRVMotionModel
-        #       else
-        #           use original Kalman
-        raise NotImplementedError
+        # img_info == img_size → scale == 1: coords stay frame-native.
+        output = super().update(detections, self.img_size, self.img_size)
+
+        # C3 bookkeeping: tracks not matched this frame were predicted-only.
+        for t in self.tracked_stracks + self.lost_stracks:
+            if t.frame_id != self.frame_id:
+                t.hit_history.append(False)
+
+        return output
+
+    def reset(self) -> None:
+        """Full reset so sequential ablation runs are independent."""
+        self.tracked_stracks = []
+        self.lost_stracks = []
+        self.removed_stracks = []
+        self.frame_id = 0
+        BaseTrack._count = 0
