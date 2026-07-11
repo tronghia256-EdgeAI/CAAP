@@ -1,0 +1,11 @@
+# Runtime dependencies — CAAP adaptive perception pipeline
+# NOTE: lap / cython_bbox / yolox are intentionally absent — the ByteTrack
+# tracker files are vendored into code/tracker/vendor/ with pure numpy/scipy
+# replacements (see code/tracker/vendor/PATCHES.md).
+numpy>=1.24
+scipy>=1.10
+opencv-python>=4.8
+ultralytics>=8.0        # YOLOv8 (pulls torch)
+pyyaml>=6.0
+python-telegram-bot>=20.0
+timm>=0.9.0             # EfficientNet-B0 severity classifier
