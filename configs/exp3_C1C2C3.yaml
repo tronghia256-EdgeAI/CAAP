@@ -1,0 +1,5 @@
+# configs/exp3_C1C2C3.yaml — Ablation Exp 3 (proposed method: C1 + C2 + C3)
+ablation:
+  use_C1_adaptive: true
+  use_C2_ctrv: true
+  use_C3_reliability: true

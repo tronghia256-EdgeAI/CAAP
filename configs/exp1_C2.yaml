@@ -1,0 +1,7 @@
+# configs/exp1_C2.yaml — Ablation Exp 1 (+C2 CTRV motion model)
+# Matches CLAUDE.md §5: Exp1 adds C2 on top of the baseline — C2 is the
+# first implemented contribution and is independently testable.
+ablation:
+  use_C1_adaptive: false
+  use_C2_ctrv: true
+  use_C3_reliability: false
