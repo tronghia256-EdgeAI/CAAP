@@ -121,7 +121,7 @@ class Pipeline:
         if build_detector:
             det_cfg = cfg.get("detector", {})
             detector = Detector(
-                weights_path=cfg.get("weights", {}).get("yolov8", ""),
+                weights_path=cfg.get("weights", {}).get("yolo11", ""),
                 img_size=det_cfg.get("img_size", 640),
             )
 

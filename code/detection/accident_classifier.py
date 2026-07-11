@@ -5,7 +5,7 @@ EfficientNet-B0 severity classifier.
 
 3-class output: non-accident / minor / severe
 
-Input: cropped ROI from a track flagged as accident by YOLOv8.
+Input: cropped ROI from a track flagged as accident by YOLO11.
 Output: severity label + confidence.
 
 Blocker isolation: if the fine-tuned weights are missing, the classifier

@@ -1,5 +1,5 @@
 # configs/baseline.yaml — Ablation Exp 0
-# YOLOv8 + ByteTrack original, no adaptive components
+# YOLO11 + ByteTrack original, no adaptive components
 
 ablation:
   use_C1_adaptive: false

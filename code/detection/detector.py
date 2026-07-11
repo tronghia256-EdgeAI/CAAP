@@ -1,7 +1,7 @@
 """
 code/detection/detector.py
 ───────────────────────────
-YOLOv8 detector wrapper.
+YOLO11 (Ultralytics) detector wrapper.
 
 Provides a thin interface so the rest of the pipeline does not
 import ultralytics directly everywhere (lazy import — tracker tests
@@ -14,7 +14,7 @@ stage *needs* the low-score detections, so filtering here would
 silently disable half the algorithm.
 
 Fallback (D6): if the VN-trained weights are missing, fall back to
-COCO-pretrained yolov8n and remap COCO ids → project ids
+COCO-pretrained yolo11n and remap COCO ids → project ids
 (car 2→0, motorcycle 3→1, bus 5→2, truck 7→3). COCO has no accident
 class, so the accident branch is disabled upstream in that case.
 
@@ -37,17 +37,17 @@ DETECTOR_CONF = 0.1   # fixed low conf — see module docstring (D3)
 # Prefer the already-downloaded copy in weights/ (gitignored); a bare
 # model name makes ultralytics auto-download to the CWD.
 COCO_FALLBACK_WEIGHTS = (
-    "weights/yolov8n.pt" if Path("weights/yolov8n.pt").exists() else "yolov8n.pt"
+    "weights/yolo11n.pt" if Path("weights/yolo11n.pt").exists() else "yolo11n.pt"
 )
 COCO_TO_PROJECT = {2: 0, 3: 1, 5: 2, 7: 3}   # car, motorcycle, bus, truck
 
 
 class Detector:
     """
-    Wraps YOLOv8 inference.
+    Wraps YOLO11 inference.
 
     Usage:
-        detector = Detector(weights='weights/yolov8_vn.pt')
+        detector = Detector(weights='weights/yolo11_vn.pt')
         detections = detector.detect(frame)     # N×6 numpy
     """
 

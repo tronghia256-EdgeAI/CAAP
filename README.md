@@ -31,7 +31,7 @@ pytest tests/ -q
 # Run an ablation experiment on the synthetic benchmark (no weights/footage needed)
 python -m code.scripts.run_experiment --config configs/exp1_C2.yaml --synthetic --save-metrics
 
-# Run on real footage (COCO yolov8n fallback engages if VN weights are absent)
+# Run on real footage (COCO yolo11n fallback engages if VN weights are absent)
 python -m code.scripts.run_experiment --config configs/baseline.yaml --video data/raw/videos/<clip>.mp4 --save-metrics
 ```
 
@@ -43,7 +43,7 @@ python -m code.scripts.run_experiment --config configs/baseline.yaml --video dat
 
 | Config file | C1 | C2 | C3 | Maps to |
 |---|---|---|---|---|
-| `configs/baseline.yaml` | ✗ | ✗ | ✗ | Exp 0 — vanilla YOLOv8 + ByteTrack |
+| `configs/baseline.yaml` | ✗ | ✗ | ✗ | Exp 0 — vanilla YOLO11 + ByteTrack |
 | `configs/exp1_C2.yaml` | ✗ | ✓ | ✗ | Exp 1 — +CTRV motion model |
 | `configs/exp2_C1C2.yaml` | ✓ | ✓ | ✗ | Exp 2 — +context adaptation |
 | `configs/exp3_C1C2C3.yaml` / `default.yaml` | ✓ | ✓ | ✓ | Exp 3 — proposed method |
@@ -73,7 +73,7 @@ CAAP/
 │   │   ├── adaptive_bytetrack.py   ← ClassAwareSTrack + AdaptiveBYTETracker
 │   │   └── vendor/                 ← ByteTrack files, compat-patched
 │   │                                  (PATCHES.md — association unchanged)
-│   ├── detection/                  ← YOLOv8 wrapper (COCO fallback),
+│   ├── detection/                  ← YOLO11 wrapper (COCO fallback),
 │   │                                  EfficientNet-B0 severity classifier
 │   ├── alert/                      ← Telegram bot (rate-limited, dry_run)
 │   ├── evaluation/metrics.py       ← self-implemented MOTA/IDF1/frag,
@@ -93,7 +93,7 @@ CAAP/
 | Missing | Effect | Fallback in place |
 |---|---|---|
 | VN footage + annotations | final ablation numbers, C1 threshold calibration | synthetic benchmark covers all code paths |
-| `weights/yolov8_vn.pt` | accident class detection | COCO yolov8n auto-fallback (car/motorcycle/bus/truck) |
+| `weights/yolo11_vn.pt` | accident class detection | COCO yolo11n auto-fallback (car/motorcycle/bus/truck) |
 | `weights/efficientnet_severity.pt` | severity classification | branch auto-disables with a logged warning |
 
 ## Data policy (IP protection)

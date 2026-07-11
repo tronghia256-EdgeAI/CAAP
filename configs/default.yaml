@@ -6,7 +6,7 @@
 
 # ── Model weights ─────────────────────────────────────────────────────
 weights:
-  yolov8: "weights/yolov8_vn.pt"          # TODO: path after training
+  yolo11: "weights/yolo11_vn.pt"          # TODO: path after training
   efficientnet: "weights/efficientnet_severity.pt"  # TODO: path after training
 
 # ── Detector ──────────────────────────────────────────────────────────
