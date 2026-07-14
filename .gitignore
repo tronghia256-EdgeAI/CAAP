@@ -13,7 +13,7 @@ experiments/*/logs/
 # Footage-derived artifacts (IP protection): rendered clips are real
 # imagery; detections/track dumps are large per-run binaries.
 experiments/**/*.mp4
-experiments/**/detections.npz
+experiments/**/detections*.npz
 experiments/**/tracks_*.json
 
 # ── Python ────────────────────────────────────────────────────────────
