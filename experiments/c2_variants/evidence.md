@@ -96,3 +96,20 @@ quantization noise floor.
 Unlike gate-widening, ALL THREE checks agree → `ctrv.nsa_noise: true`
 enabled by default in exp configs. Linear-KF classes unaffected
 (class-conditioned, consistent with the C2 story).
+
+## C3 threshold sanity check (2026-07-14, Phase 1.3)
+
+Exp3 replay (C1+C2+C3, NSA) on the 9000-frame cache; per-track mean S(τ)
+for tracks >= 10 frames (n = 3610):
+p5 = 0.650, p25 = 0.728, median = 0.790, p95 = 0.883.
+
+- τ_mappo = 0.40 admits 100% of established tracks — by design it only
+  suppresses newborns (cold-start keeps 1–2-frame tracks below 0.45 by
+  construction). Recall-first branch behaves as intended.
+- τ_acc = 0.70 sits at ~p16: rejects the weakest ~16% of established
+  tracks plus all newborns. Ghost tracks are now only 25/3213 (0.8%,
+  down from 40 pre-NSA), so most rejected tracks are weak-but-real
+  far-field ones — acceptable for a precision-first alert branch.
+
+Verdict: thresholds are sane; no change. FINAL values need the labeled
+accident clips (precision/recall sweep on GT) — deferred to Phase 3.
