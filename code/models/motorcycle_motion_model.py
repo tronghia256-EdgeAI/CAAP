@@ -104,6 +104,7 @@ class CTRVMotionModel:
         q_diag: list[float] | None = None,
         r_diag: list[float] | None = None,
         scale_adaptive: bool = False,
+        nsa: bool = False,
     ) -> None:
         """
         Args:
@@ -115,9 +116,17 @@ class CTRVMotionModel:
                     small objects get a tight filter and near large ones
                     a looser one. Angular entries (θ, ω) are unaffected —
                     heading dynamics do not depend on apparent size.
+                    NOTE: measured harmful on NKKN replay (see
+                    experiments/c2_variants/evidence.md); kept for ablation.
+            nsa   : Noise-Scale-Adaptive measurement noise (StrongSORT):
+                    R̃ = (1 − score)·R per update — a 0.9-confidence
+                    detection is trusted ~10× more than a 0.1 one.
+                    Detection score is a direct proxy for localization
+                    quality, unlike box size (see scale_adaptive note).
         """
         self.dt = dt
         self.scale_adaptive = scale_adaptive
+        self.nsa = nsa
         self._noise_scale2 = 1.0   # (box_size/REF)² — refreshed per box
 
         # State vector and covariance (initialised in .init())
@@ -175,12 +184,14 @@ class CTRVMotionModel:
         self.P = F @ self.P @ F.T + self._Q_eff()
         return self._state_to_bbox(self.x, self.wh)
 
-    def update(self, bbox: np.ndarray) -> None:
+    def update(self, bbox: np.ndarray, score: float | None = None) -> None:
         """
         EKF update step with a new detection.
 
         Args:
-            bbox: [x1, y1, x2, y2] in pixels.
+            bbox : [x1, y1, x2, y2] in pixels.
+            score: matched-detection confidence (0–1). Only used when
+                   nsa=True; None keeps the plain R.
         """
         z = self._bbox_to_state(bbox)
 
@@ -206,6 +217,10 @@ class CTRVMotionModel:
 
         # Standard linear-observation EKF update.
         R_eff = self._R_eff()
+        if self.nsa and score is not None:
+            # NSA (StrongSORT): confident detections shrink R. Floor at
+            # 0.05 so a score of 1.0 cannot make R singular.
+            R_eff = R_eff * float(np.clip(1.0 - score, 0.05, 1.0))
         y = z - H @ self.x                       # innovation
         S = H @ self.P @ H.T + R_eff             # innovation covariance
         K = self.P @ H.T @ np.linalg.inv(S)      # Kalman gain (5, 2)

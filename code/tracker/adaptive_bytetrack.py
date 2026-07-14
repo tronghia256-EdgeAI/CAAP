@@ -53,6 +53,7 @@ class ClassAwareSTrack(STrack):
     ctrv_q_diag: list | None = None
     ctrv_r_diag: list | None = None
     ctrv_scale_adaptive: bool = False
+    ctrv_nsa: bool = False
 
     def __init__(self, tlwh, score, class_id=None):
         super().__init__(tlwh, score, class_id)
@@ -94,6 +95,7 @@ class ClassAwareSTrack(STrack):
                 q_diag=self.ctrv_q_diag,
                 r_diag=self.ctrv_r_diag,
                 scale_adaptive=self.ctrv_scale_adaptive,
+                nsa=self.ctrv_nsa,
             )
             self.ctrv.init(self.tlwh_to_tlbr(self._tlwh))
         self.hit_history.append(True)
@@ -103,7 +105,8 @@ class ClassAwareSTrack(STrack):
     def re_activate(self, new_track, frame_id, new_id=False):
         self._record_history(new_track)
         if self.ctrv is not None:
-            self.ctrv.update(self.tlwh_to_tlbr(new_track.tlwh))
+            self.ctrv.update(self.tlwh_to_tlbr(new_track.tlwh),
+                             score=float(new_track.score))
             # Mirror the parent's bookkeeping (state machine unchanged).
             self.tracklet_len = 0
             self.state = TrackState.Tracked
@@ -118,7 +121,8 @@ class ClassAwareSTrack(STrack):
     def update(self, new_track, frame_id):
         self._record_history(new_track)
         if self.ctrv is not None:
-            self.ctrv.update(self.tlwh_to_tlbr(new_track.tlwh))
+            self.ctrv.update(self.tlwh_to_tlbr(new_track.tlwh),
+                             score=float(new_track.score))
             self.frame_id = frame_id
             self.tracklet_len += 1
             self.state = TrackState.Tracked
@@ -218,6 +222,7 @@ class AdaptiveBYTETracker(BYTETracker):
         ClassAwareSTrack.ctrv_r_diag = ctrv_cfg.get("R_diag")
         ClassAwareSTrack.ctrv_scale_adaptive = ctrv_cfg.get(
             "scale_adaptive", False)
+        ClassAwareSTrack.ctrv_nsa = ctrv_cfg.get("nsa_noise", False)
 
     def _first_association_cost(self, strack_pool, detections):
         """P11 hook override: IoU cost + CTRV uncertainty gate.

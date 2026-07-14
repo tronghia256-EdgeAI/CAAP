@@ -9,3 +9,8 @@ ablation:
 # -52% vs baseline on NKKN 9000-frame replay, no ID-transfer inflation).
 tracker:
   uncertainty_gating: true
+
+# NSA measurement noise for CTRV (validated 2026-07-14: moto re-id
+# 125 -> 108 on NKKN replay, flip rate DOWN 23.7% -> 22.0%).
+ctrv:
+  nsa_noise: true

@@ -156,6 +156,42 @@ class TestScaleAdaptiveNoise:
             zb.update(z)
         np.testing.assert_allclose(za.x, zb.x)
 
+    def test_nsa_default_off_is_bit_identical(self):
+        """nsa=False (and nsa=True with score=None) must reproduce the
+        original filter exactly."""
+        plain = CTRVMotionModel()
+        off = CTRVMotionModel(nsa=False)
+        on_no_score = CTRVMotionModel(nsa=True)
+        for m in (plain, off, on_no_score):
+            m.init(np.array([100, 100, 120, 130]))
+        for k in range(15):
+            for m in (plain, off, on_no_score):
+                m.predict()
+            z = np.array([100 + 2*k, 100 + k, 120 + 2*k, 130 + k], float)
+            plain.update(z)
+            off.update(z, score=0.9)          # nsa off → score ignored
+            on_no_score.update(z)             # nsa on, no score → plain R
+        np.testing.assert_allclose(off.x, plain.x)
+        np.testing.assert_allclose(on_no_score.x, plain.x)
+
+    def test_nsa_confident_detection_trusted_more(self):
+        """With NSA on, a high-score detection pulls the state harder and
+        leaves a smaller posterior variance than a low-score one."""
+        hi = CTRVMotionModel(nsa=True)
+        lo = CTRVMotionModel(nsa=True)
+        for m in (hi, lo):
+            m.init(np.array([100, 100, 120, 130]))
+            m.update(np.array([102, 100, 122, 130]), score=0.8)  # bootstrap
+            m.predict()
+        z = np.array([120, 110, 140, 140], float)   # offset detection
+        hi.update(z, score=0.95)
+        lo.update(z, score=0.15)
+        z_c = np.array([130.0, 125.0])              # detection center
+        d_hi = np.linalg.norm(hi.x[:2] - z_c)
+        d_lo = np.linalg.norm(lo.x[:2] - z_c)
+        assert d_hi < d_lo, "high-score update should land closer to z"
+        assert hi.P[0, 0] < lo.P[0, 0]
+
     def test_small_far_object_gets_tighter_filter(self):
         """Same trajectory, small vs large box: the small object's
         position uncertainty must stay smaller after coasting."""

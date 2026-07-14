@@ -37,6 +37,10 @@ ctrv:
   dt: 1.0                    # time step (1 frame)
   Q_diag: [0.5, 0.5, 0.1, 0.001, 0.0001]  # process noise diagonal (tuned on synthetic; re-tune on VN footage)
   R_diag: [10.0, 10.0]                  # measurement noise diagonal
+  # NSA (StrongSORT-style): R scaled by (1 - det score) per update.
+  # Validated 2026-07-14: moto re-id 125 -> 108, flip rate down (22.0%).
+  nsa_noise: true
+  # scale_adaptive: measured harmful (see c2_variants/evidence.md); OFF.
 
 # ── Track Reliability ─────────────────────────────────────────────────
 reliability:

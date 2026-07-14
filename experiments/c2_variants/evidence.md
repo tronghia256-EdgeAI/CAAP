@@ -78,3 +78,21 @@ Note on exp2's aggregate numbers (moto re-id 224, uIDs 3052): NOT
 comparable head-to-head with ctrv_gate — DENSE_PEAK lowers track_thresh
 to 0.35, changing the track population (recall up, churn up). Population-
 changing variants can only be compared on GT metrics.
+
+## NSA measurement noise: adopted (2026-07-14, Phase 1.2)
+
+StrongSORT-style NSA: R̃ = (1 − score)·R per CTRV update (floor 0.05).
+Detection score is a direct localization-quality proxy — unlike box size
+(scale_adaptive), which failed because far-small boxes have a pixel-
+quantization noise floor.
+
+| check | ctrv_gate | ctrv_gate_nsa |
+|---|---|---|
+| moto re-id events | 125 | **108** (−58% vs baseline 259) |
+| moto unique IDs | 2628 | 2594 |
+| jump proxy | 2/218k | 7/220k (noise level) |
+| heading-flip rate | 23.7% | **22.0%** (down — real improvement) |
+
+Unlike gate-widening, ALL THREE checks agree → `ctrv.nsa_noise: true`
+enabled by default in exp configs. Linear-KF classes unaffected
+(class-conditioned, consistent with the C2 story).

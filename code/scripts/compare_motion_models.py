@@ -73,6 +73,8 @@ VARIANTS = {
     "ctrv_gate_snoise": (CONFIG_CTRV, {"uncertainty_gating": True,
                                        "scale_adaptive": True}),
     "c1_ctrv_gate": (CONFIG_C1C2, {}),   # Exp2: adaptive params + C2
+    "ctrv_gate_nsa": (CONFIG_CTRV, {"uncertainty_gating": True,
+                                    "nsa": True}),
 }
 
 GAP_MAX = 40        # frames: max death→birth gap for a re-id event
@@ -199,6 +201,8 @@ def run_replay(det_npz: str, out_dir: Path, variants: list[str]) -> list[str]:
             "uncertainty_gating", pipe.tracker.uncertainty_gating)
         ClassAwareSTrack.ctrv_scale_adaptive = overrides.get(
             "scale_adaptive", ClassAwareSTrack.ctrv_scale_adaptive)
+        ClassAwareSTrack.ctrv_nsa = overrides.get(
+            "nsa", ClassAwareSTrack.ctrv_nsa)
         # Replay has no valid wall clock; the footage is 08:00 rush hour.
         # (Dummy frames give brightness 128 → never NIGHT, correct for
         # this daytime clip; density comes from real tracks, so C1's
