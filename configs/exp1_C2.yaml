@@ -5,3 +5,9 @@ ablation:
   use_C1_adaptive: false
   use_C2_ctrv: true
   use_C3_reliability: false
+
+# C2 uncertainty gating: lost motorcycle tracks may re-associate inside
+# the CTRV innovation ellipse (validated 2026-07-14: moto re-id events
+# -52% vs baseline on NKKN 9000-frame replay, no ID-transfer inflation).
+tracker:
+  uncertainty_gating: true

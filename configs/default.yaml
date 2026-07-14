@@ -20,6 +20,10 @@ tracker:
   track_buffer: 30           # overridden by AdaptiveController each frame
   match_thresh: 0.8
   frame_rate: 30
+  # C2 uncertainty gating: lost motorcycle tracks may re-associate inside
+  # the CTRV innovation ellipse (validated 2026-07-14: moto re-id events
+  # -52% vs baseline on NKKN 9000-frame replay, no ID-transfer inflation).
+  uncertainty_gating: true
 
 # ── Adaptive Controller ───────────────────────────────────────────────
 adaptive_controller:
@@ -37,10 +41,11 @@ ctrv:
 # ── Track Reliability ─────────────────────────────────────────────────
 reliability:
   weights:
-    age: 0.20
-    consistency: 0.30
-    smoothness: 0.30
-    class_stability: 0.20
+    age: 0.10
+    consistency: 0.20
+    smoothness: 0.25
+    class_stability: 0.15
+    det_conf: 0.30            # anti-ghost: mean matched-det confidence
   thresholds:
     accident: 0.70           # TODO: tune via ablation
     mappo: 0.40              # TODO: tune via ablation

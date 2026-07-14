@@ -15,19 +15,21 @@ from code.models.track_reliability import (
     TrackReliabilityScorer,
     THRESHOLD_ACCIDENT,
     THRESHOLD_MAPPO,
-    W_AGE, W_CONSISTENCY, W_SMOOTHNESS, W_CLASS_STABILITY,
+    W_AGE, W_CONSISTENCY, W_SMOOTHNESS, W_CLASS_STABILITY, W_DET_CONF,
 )
 from code.tracker import AdaptiveBYTETracker
 from tests.synthetic import weaving, to_detections, CLASS_MOTORCYCLE
 
 
-def mock_track(track_id=1, age=30, hits=None, ious=None, classes=None):
+def mock_track(track_id=1, age=30, hits=None, ious=None, classes=None,
+               scores=None):
     return SimpleNamespace(
         track_id=track_id,
         age=age,
         hit_history=hits if hits is not None else [True] * 10,
         iou_history=ious if ious is not None else [0.9] * 10,
         class_history=classes if classes is not None else [1] * 10,
+        score_history=scores if scores is not None else [0.8] * 10,
     )
 
 
@@ -63,15 +65,30 @@ class TestComponents:
         t = mock_track(classes=[1, 1, 1, 1, 1, 1, 1, 0, 0, 1])  # 8/10 mode
         assert s._class_stability_component(t) == pytest.approx(0.8)
 
+    def test_det_conf_is_mean_score(self):
+        s = TrackReliabilityScorer()
+        t = mock_track(scores=[0.9, 0.8, 0.7])
+        assert s._det_conf_component(t) == pytest.approx(0.8)
+
+    def test_det_conf_neutral_without_history_field(self):
+        """Graceful degradation for track objects lacking score_history."""
+        s = TrackReliabilityScorer()
+        t = mock_track()
+        del t.score_history
+        assert s._det_conf_component(t) == 0.5
+
     def test_cold_start_neutral(self):
         s = TrackReliabilityScorer()
-        t = mock_track(age=1, hits=[True], ious=[0.9], classes=[1])
+        t = mock_track(age=1, hits=[True], ious=[0.9], classes=[1],
+                       scores=[0.9])
         assert s._consistency_component(t) == 0.5
         assert s._smoothness_component(t) == 0.5
         assert s._class_stability_component(t) == 0.5
+        assert s._det_conf_component(t) == 0.5
 
     def test_weights_sum_to_one(self):
-        assert abs(W_AGE + W_CONSISTENCY + W_SMOOTHNESS + W_CLASS_STABILITY - 1.0) < 1e-6
+        assert abs(W_AGE + W_CONSISTENCY + W_SMOOTHNESS + W_CLASS_STABILITY
+                   + W_DET_CONF - 1.0) < 1e-6
 
     def test_custom_weights_validated(self):
         with pytest.raises(AssertionError):
@@ -89,7 +106,8 @@ class TestDualTaskSplit:
     def test_flickering_baby_track_fails_both(self):
         s = TrackReliabilityScorer()
         t = mock_track(age=2, hits=[True, False, True],
-                       ious=[0.2, 0.1, 0.3], classes=[1, 0, 2])
+                       ious=[0.2, 0.1, 0.3], classes=[1, 0, 2],
+                       scores=[0.2, 0.15, 0.2])
         score = s.score(t)
         assert score.total < THRESHOLD_MAPPO
         assert not score.reliable_for_accident
@@ -102,21 +120,41 @@ class TestDualTaskSplit:
         t = mock_track(age=12,                       # age_c = 0.4
                        hits=[True] * 6 + [False] * 4,  # cons = 0.6
                        ious=[0.5] * 10,                # smooth = 0.5
-                       classes=[1] * 8 + [0] * 2)      # cls = 0.8
+                       classes=[1] * 8 + [0] * 2,      # cls = 0.8
+                       scores=[0.5] * 10)              # conf = 0.5
         score = s.score(t)
-        # total = .2*.4 + .3*.6 + .3*.5 + .2*.8 = 0.57
-        assert score.total == pytest.approx(0.57)
+        # total = .10*.4 + .20*.6 + .25*.5 + .15*.8 + .30*.5 = 0.555
+        assert score.total == pytest.approx(0.555)
         assert score.reliable_for_mappo
         assert not score.reliable_for_accident
 
     def test_brand_new_track_below_accident_by_construction(self):
         """Cold start: however clean, a 1-frame track cannot pass τ_acc."""
         s = TrackReliabilityScorer()
-        t = mock_track(age=0, hits=[True], ious=[], classes=[1])
+        t = mock_track(age=0, hits=[True], ious=[], classes=[1], scores=[0.9])
         score = s.score(t)
-        # 0.2*0 + (0.3+0.3+0.2)*0.5 = 0.40 < 0.70
-        assert score.total == pytest.approx(0.40)
+        # 0.10*0 + (0.20+0.25+0.15+0.30)*0.5 = 0.45 < 0.70
+        assert score.total == pytest.approx(0.45)
         assert not score.reliable_for_accident
+
+    def test_ghost_track_blind_spot_closed(self):
+        """The real-footage failure mode this component exists for: a track
+        sustained purely by low-score detections matches EVERY frame, so
+        age/consistency/class are all perfect — only det_conf can (and
+        must) keep it out of the accident branch."""
+        s = TrackReliabilityScorer()
+        ghost = mock_track(age=60,                    # old → age_c = 1.0
+                           hits=[True] * 10,          # matched every frame
+                           ious=[0.7] * 10,           # plausibly smooth
+                           classes=[1] * 10,          # class-stable
+                           scores=[0.2] * 10)         # ...on garbage dets
+        score = s.score(ghost)
+        # .10 + .20 + .25*.7 + .15 + .30*.2 = 0.685 < τ_acc = 0.70
+        assert not score.reliable_for_accident
+        # ...while the same track on real detections passes:
+        real = mock_track(age=60, hits=[True] * 10, ious=[0.7] * 10,
+                          classes=[1] * 10, scores=[0.75] * 10)
+        assert s.score(real).reliable_for_accident
 
     def test_score_all_returns_dict(self):
         s = TrackReliabilityScorer()

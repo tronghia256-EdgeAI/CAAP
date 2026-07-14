@@ -27,7 +27,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from code.models.motorcycle_motion_model import CTRVMotionModel
+from code.models.motorcycle_motion_model import CTRVMotionModel, H as CTRV_H
 from code.tracker.vendor import BYTETracker, STrack, BaseTrack, TrackState
 from code.tracker.vendor import matching
 
@@ -52,6 +52,7 @@ class ClassAwareSTrack(STrack):
     ctrv_dt: float = 1.0
     ctrv_q_diag: list | None = None
     ctrv_r_diag: list | None = None
+    ctrv_scale_adaptive: bool = False
 
     def __init__(self, tlwh, score, class_id=None):
         super().__init__(tlwh, score, class_id)
@@ -60,6 +61,11 @@ class ClassAwareSTrack(STrack):
         self.hit_history: deque = deque(maxlen=HISTORY_WINDOW)
         self.iou_history: deque = deque(maxlen=HISTORY_WINDOW)
         self.class_history: deque = deque(maxlen=HISTORY_WINDOW)
+        # Matched-detection confidence per hit. Catches "ghost" tracks
+        # sustained purely by low-score detections through BYTE's second
+        # association — those match every frame (hit_history all True),
+        # so only the detection score separates them from real objects.
+        self.score_history: deque = deque(maxlen=HISTORY_WINDOW)
 
     # ── Properties ────────────────────────────────────────────────────
 
@@ -87,10 +93,12 @@ class ClassAwareSTrack(STrack):
                 dt=self.ctrv_dt,
                 q_diag=self.ctrv_q_diag,
                 r_diag=self.ctrv_r_diag,
+                scale_adaptive=self.ctrv_scale_adaptive,
             )
             self.ctrv.init(self.tlwh_to_tlbr(self._tlwh))
         self.hit_history.append(True)
         self.class_history.append(self.class_id)
+        self.score_history.append(float(self.score))
 
     def re_activate(self, new_track, frame_id, new_id=False):
         self._record_history(new_track)
@@ -155,6 +163,7 @@ class ClassAwareSTrack(STrack):
         self.iou_history.append(iou)
         self.hit_history.append(True)
         self.class_history.append(new_track.class_id)
+        self.score_history.append(float(new_track.score))
 
 
 class AdaptiveBYTETracker(BYTETracker):
@@ -163,6 +172,11 @@ class AdaptiveBYTETracker(BYTETracker):
       - Dynamic confidence threshold (from Params → track_thresh, D3)
       - Dynamic buffer length        (from Params → max_time_lost)
       - Class-conditioned motion model (CTRV for motorcycle, Kalman for others)
+      - Optional CTRV uncertainty gating (`tracker.uncertainty_gating`):
+        lost motorcycle tracks may re-associate to same-class detections
+        that fall inside the EKF's innovation ellipse even when box IoU
+        is ~0 — the covariance grows along the predicted arc during an
+        occlusion, which is exactly where the reappearing detection lands.
 
     Usage:
         tracker = AdaptiveBYTETracker(config, ctrv_enabled=True)
@@ -170,6 +184,13 @@ class AdaptiveBYTETracker(BYTETracker):
     """
 
     strack_cls = ClassAwareSTrack
+
+    # χ²(0.95, 2 dof): standard Mahalanobis gate for a 2-D measurement.
+    GATE_CHI2 = 5.991
+    # Rescued matches enter the cost matrix at >= GATE_BASE_COST, so any
+    # genuine IoU overlap (cost < 0.5 in the first association) always
+    # outranks a gate rescue — the gate only fills in where IoU failed.
+    GATE_BASE_COST = 0.5
 
     def __init__(self, config: dict | None = None, ctrv_enabled: bool = True,
                  img_size: tuple[int, int] = (720, 1280)) -> None:
@@ -186,6 +207,7 @@ class AdaptiveBYTETracker(BYTETracker):
 
         self.ctrv_enabled = ctrv_enabled
         self.img_size = img_size
+        self.uncertainty_gating = bool(tr.get("uncertainty_gating", False))
 
         # Push CTRV config to the track class (single-tracker limitation —
         # see module docstring).
@@ -194,6 +216,48 @@ class AdaptiveBYTETracker(BYTETracker):
         ClassAwareSTrack.ctrv_dt = ctrv_cfg.get("dt", 1.0)
         ClassAwareSTrack.ctrv_q_diag = ctrv_cfg.get("Q_diag")
         ClassAwareSTrack.ctrv_r_diag = ctrv_cfg.get("R_diag")
+        ClassAwareSTrack.ctrv_scale_adaptive = ctrv_cfg.get(
+            "scale_adaptive", False)
+
+    def _first_association_cost(self, strack_pool, detections):
+        """P11 hook override: IoU cost + CTRV uncertainty gate.
+
+        For each LOST CTRV track, detections of the same class whose
+        center lies inside the EKF innovation ellipse (Mahalanobis
+        d² < χ²₀.₉₅) get their cost capped at
+            GATE_BASE_COST + (1 − GATE_BASE_COST) · d²/χ²
+        i.e. rescued costs live in [0.5, 1): they lose to any real IoU
+        overlap and merely make a match *possible* where IoU alone is 0.
+        Tracked (non-lost) tracks and linear-KF tracks are untouched.
+        """
+        dists = matching.iou_distance(strack_pool, detections)
+        if not self.uncertainty_gating or not len(detections):
+            return dists
+
+        det_centers = np.array(
+            [[d.tlwh[0] + d.tlwh[2] / 2.0, d.tlwh[1] + d.tlwh[3] / 2.0]
+             for d in detections])
+        det_classes = np.array([d.class_id for d in detections])
+
+        for i, tr in enumerate(strack_pool):
+            if tr.ctrv is None or tr.state != TrackState.Lost:
+                continue
+            P, R = tr.ctrv.P, tr.ctrv._R_eff()
+            S = CTRV_H @ P @ CTRV_H.T + R          # innovation covariance
+            try:
+                S_inv = np.linalg.inv(S)
+            except np.linalg.LinAlgError:
+                continue
+            mu = tr.ctrv.x[:2]
+            diff = det_centers - mu                 # (N, 2)
+            d2 = np.einsum("nj,jk,nk->n", diff, S_inv, diff)
+            inside = (d2 < self.GATE_CHI2) & (det_classes == tr.class_id)
+            if not inside.any():
+                continue
+            rescue = (self.GATE_BASE_COST
+                      + (1.0 - self.GATE_BASE_COST) * d2 / self.GATE_CHI2)
+            dists[i, inside] = np.minimum(dists[i, inside], rescue[inside])
+        return dists
 
     def update(self, detections, params=None):  # params: Params | None
         """

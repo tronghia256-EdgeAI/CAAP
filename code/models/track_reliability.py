@@ -4,14 +4,24 @@ track_reliability.py
 C3 Component: Dual-Task Track Reliability Scorer
 
 Assigns a scalar reliability score S ∈ [0, 1] to each active track.
-The score combines four components:
+The score combines five components:
 
-  S(τ) = w1·age(τ) + w2·consistency(τ) + w3·smoothness(τ) + w4·class_stability(τ)
+  S(τ) = w1·age(τ) + w2·consistency(τ) + w3·smoothness(τ)
+       + w4·class_stability(τ) + w5·det_conf(τ)
 
   age(τ)             : normalised track age (saturates at MAX_AGE_FRAMES)
   consistency(τ)     : detection hit rate over last WINDOW_SIZE frames
   smoothness(τ)      : MEAN predicted-vs-detected IoU over the window
   class_stability(τ) : fraction of frames with the dominant class label
+  det_conf(τ)        : mean matched-detection confidence over the window
+
+Why det_conf exists (found on real footage, 2026-07-14): BYTE's second
+association can sustain a track indefinitely on sub-threshold detections
+(shadows, road texture). Such "ghost" tracks are matched every frame, so
+consistency is high and hit_history is blind to them — on the NKKN
+segment, 40 tracks (~1% of track-frames) lived with <30% high-confidence
+support. Only the matched detection score separates them from real
+objects, so it is a first-class component.
 
 Design note — smoothness deviates from the original "inverse of IoU
 variance" idea on purpose: pure variance scores a *consistently badly
@@ -43,14 +53,20 @@ import numpy as np
 
 
 # ── Weights (must sum to 1.0) ────────────────────────────────────────
-# TODO: verify empirically; initial guess from domain intuition
+# TODO: verify empirically; initial guess from domain intuition.
+# det_conf carries the highest weight: it is the only component a ghost
+# track cannot fake (see module docstring) — sized so that a maximally
+# plausible ghost (perfect age/consistency/class, smooth 0.7, conf 0.2)
+# lands at 0.685, under τ_acc = 0.70.
 
-W_AGE             = 0.20
-W_CONSISTENCY     = 0.30
-W_SMOOTHNESS      = 0.30
-W_CLASS_STABILITY = 0.20
+W_AGE             = 0.10
+W_CONSISTENCY     = 0.20
+W_SMOOTHNESS      = 0.25
+W_CLASS_STABILITY = 0.15
+W_DET_CONF        = 0.30
 
-assert abs(W_AGE + W_CONSISTENCY + W_SMOOTHNESS + W_CLASS_STABILITY - 1.0) < 1e-6
+assert abs(W_AGE + W_CONSISTENCY + W_SMOOTHNESS + W_CLASS_STABILITY
+           + W_DET_CONF - 1.0) < 1e-6
 
 
 # ── Downstream thresholds ────────────────────────────────────────────
@@ -78,6 +94,7 @@ class ReliabilityScore:
     consistency_component: float
     smoothness_component: float
     class_stability_component: float
+    det_conf_component: float
 
     # Downstream flags
     reliable_for_accident: bool = field(init=False)
@@ -109,8 +126,9 @@ class TrackReliabilityScorer:
         self.w_consistency = w.get("consistency", W_CONSISTENCY)
         self.w_smoothness = w.get("smoothness", W_SMOOTHNESS)
         self.w_class_stability = w.get("class_stability", W_CLASS_STABILITY)
-        total = (self.w_age + self.w_consistency
-                 + self.w_smoothness + self.w_class_stability)
+        self.w_det_conf = w.get("det_conf", W_DET_CONF)
+        total = (self.w_age + self.w_consistency + self.w_smoothness
+                 + self.w_class_stability + self.w_det_conf)
         assert abs(total - 1.0) < 1e-6, f"weights must sum to 1, got {total}"
         self.max_age_frames = max_age_frames
 
@@ -120,7 +138,8 @@ class TrackReliabilityScorer:
             tracks: list of active track objects.
                     Each track must expose: .track_id, .age,
                     .hit_history (List[bool]), .iou_history (List[float]),
-                    .class_history (List of class ids).
+                    .class_history (List of class ids),
+                    .score_history (List[float], matched det confidences).
 
         Returns:
             Dict mapping track_id → ReliabilityScore.
@@ -133,11 +152,13 @@ class TrackReliabilityScorer:
         cons_c  = self._consistency_component(track)
         smooth_c = self._smoothness_component(track)
         cls_c   = self._class_stability_component(track)
+        conf_c  = self._det_conf_component(track)
 
         total = (self.w_age * age_c
                  + self.w_consistency * cons_c
                  + self.w_smoothness * smooth_c
-                 + self.w_class_stability * cls_c)
+                 + self.w_class_stability * cls_c
+                 + self.w_det_conf * conf_c)
 
         return ReliabilityScore(
             total=float(np.clip(total, 0.0, 1.0)),
@@ -145,6 +166,7 @@ class TrackReliabilityScorer:
             consistency_component=cons_c,
             smoothness_component=smooth_c,
             class_stability_component=cls_c,
+            det_conf_component=conf_c,
         )
 
     # ── Component calculators ────────────────────────────────────────
@@ -175,3 +197,11 @@ class TrackReliabilityScorer:
             return NEUTRAL
         mode_count = Counter(hist).most_common(1)[0][1]
         return mode_count / len(hist)
+
+    def _det_conf_component(self, track) -> float:
+        """Mean matched-detection confidence — the anti-ghost signal (see
+        module docstring). Tracks without a score_history score neutral."""
+        hist = list(getattr(track, "score_history", []))
+        if len(hist) < MIN_HISTORY:
+            return NEUTRAL
+        return float(np.clip(np.mean(hist), 0.0, 1.0))

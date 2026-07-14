@@ -68,6 +68,15 @@ H[1, 1] = 1.0
 # bootstrap to fire — below this, direction is noise, keep the EKF prior.
 BOOTSTRAP_MIN_DISP = 1.0
 
+# Scale-adaptive noise: Q/R are calibrated in pixels for an object of
+# REF_BOX_SIZE = sqrt(w*h) px. A motorcycle 3× closer to the camera is
+# ~3× larger AND moves ~3× more px/frame, so pixel-space noise should
+# scale with apparent size — variances scale with the SQUARE of the
+# ratio. The scale factor is clamped so extreme boxes can't blow up or
+# collapse the filter.
+REF_BOX_SIZE = 40.0
+SCALE_CLAMP = (0.25, 4.0)   # scale s ∈ [.25, 4] → variance factor s² ∈ [1/16, 16]
+
 
 def wrap_angle(theta: float) -> float:
     """Wrap an angle to [-pi, pi)."""
@@ -94,14 +103,22 @@ class CTRVMotionModel:
         dt: float = 1.0,
         q_diag: list[float] | None = None,
         r_diag: list[float] | None = None,
+        scale_adaptive: bool = False,
     ) -> None:
         """
         Args:
             dt    : time step in frames (default 1.0).
             q_diag: process noise diagonal (default Q_DIAG; see configs/default.yaml).
             r_diag: measurement noise diagonal (default R_DIAG).
+            scale_adaptive: scale the PIXEL-space noise entries (px, py, v
+                    in Q; both in R) with (box_size/REF_BOX_SIZE)² so far
+                    small objects get a tight filter and near large ones
+                    a looser one. Angular entries (θ, ω) are unaffected —
+                    heading dynamics do not depend on apparent size.
         """
         self.dt = dt
+        self.scale_adaptive = scale_adaptive
+        self._noise_scale2 = 1.0   # (box_size/REF)² — refreshed per box
 
         # State vector and covariance (initialised in .init())
         self.x: np.ndarray | None = None   # (5,)
@@ -131,6 +148,7 @@ class CTRVMotionModel:
         self.x = np.array([cx, cy, 0.0, 0.0, 0.0])
         self.P = np.diag(P0_DIAG).astype(float)
         self.wh = np.array([bbox[2] - bbox[0], bbox[3] - bbox[1]], dtype=float)
+        self._refresh_noise_scale()
         self._bootstrap = True
 
     def predict(self, lost: bool = False) -> np.ndarray:
@@ -154,7 +172,7 @@ class CTRVMotionModel:
         F = self._F_jacobian(self.x)
         self.x = self._f(self.x)
         self.x[3] = wrap_angle(self.x[3])
-        self.P = F @ self.P @ F.T + self.Q
+        self.P = F @ self.P @ F.T + self._Q_eff()
         return self._state_to_bbox(self.x, self.wh)
 
     def update(self, bbox: np.ndarray) -> None:
@@ -187,8 +205,9 @@ class CTRVMotionModel:
             self._bootstrap = False
 
         # Standard linear-observation EKF update.
+        R_eff = self._R_eff()
         y = z - H @ self.x                       # innovation
-        S = H @ self.P @ H.T + self.R            # innovation covariance
+        S = H @ self.P @ H.T + R_eff             # innovation covariance
         K = self.P @ H.T @ np.linalg.inv(S)      # Kalman gain (5, 2)
 
         self.x = self.x + K @ y
@@ -197,12 +216,39 @@ class CTRVMotionModel:
         # Joseph form: preserves symmetry / positive-definiteness of P
         # over thousands of steps (plain (I-KH)P accumulates asymmetry).
         I_KH = np.eye(STATE_DIM) - K @ H
-        self.P = I_KH @ self.P @ I_KH.T + K @ self.R @ K.T
+        self.P = I_KH @ self.P @ I_KH.T + K @ R_eff @ K.T
 
-        # Refresh box size from the matched detection.
+        # Refresh box size from the matched detection + the noise scale.
         self.wh = np.array([bbox[2] - bbox[0], bbox[3] - bbox[1]], dtype=float)
+        self._refresh_noise_scale()
 
     # ── Private helpers ──────────────────────────────────────────────
+
+    def _refresh_noise_scale(self) -> None:
+        """Recompute (box_size/REF)², clamped — see SCALE_CLAMP."""
+        if not self.scale_adaptive or self.wh is None:
+            self._noise_scale2 = 1.0
+            return
+        size = float(np.sqrt(max(self.wh[0] * self.wh[1], 1.0)))
+        s = np.clip(size / REF_BOX_SIZE, *SCALE_CLAMP)
+        self._noise_scale2 = float(s * s)
+
+    def _Q_eff(self) -> np.ndarray:
+        """Process noise with pixel-space entries (px, py, v) scaled;
+        angular entries (θ, ω) are scale-free."""
+        if self._noise_scale2 == 1.0:
+            return self.Q
+        Q = self.Q.copy()
+        Q[0, 0] *= self._noise_scale2
+        Q[1, 1] *= self._noise_scale2
+        Q[2, 2] *= self._noise_scale2
+        return Q
+
+    def _R_eff(self) -> np.ndarray:
+        """Measurement noise (both entries are pixel-space)."""
+        if self._noise_scale2 == 1.0:
+            return self.R
+        return self.R * self._noise_scale2
 
     def _f(self, x: np.ndarray) -> np.ndarray:
         """CTRV nonlinear process function (Euler discretization)."""

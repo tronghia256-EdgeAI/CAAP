@@ -159,6 +159,12 @@ class BYTETracker(object):
         self.max_time_lost = self.buffer_size
         self.kalman_filter = KalmanFilter()
 
+    def _first_association_cost(self, strack_pool, detections):
+        # P11: extracted from update() so subclasses can refine the cost
+        # matrix of the FIRST association (e.g. motion-uncertainty gating
+        # for lost tracks). Upstream behaviour: plain IoU distance.
+        return matching.iou_distance(strack_pool, detections)
+
     def update(self, output_results, img_info, img_size):
         self.frame_id += 1
         activated_starcks = []
@@ -212,7 +218,9 @@ class BYTETracker(object):
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
         self.strack_cls.multi_predict(strack_pool)
-        dists = matching.iou_distance(strack_pool, detections)
+        # PATCH (see PATCHES.md): cost computation extracted into an
+        # overridable method. Base behaviour is identical to upstream.
+        dists = self._first_association_cost(strack_pool, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
         matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)

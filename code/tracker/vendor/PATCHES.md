@@ -31,3 +31,4 @@ of this repo must work without the ByteTrack clone present.
 | P8 | matching.py | removed functions unused by `byte_tracker.py` (`merge_matches`, `_indices_to_matches`, `v_iou_distance`, `embedding_distance`, `gate_cost_matrix`, `fuse_motion`, `fuse_iou`) and their `cv2`/`cdist`/`time` imports | none (dead code for this pipeline) |
 | P9 | kalman_filter.py | copied verbatim | none |
 | P10 | basetrack.py | copied verbatim | none |
+| P11 | byte_tracker.py | first-association cost extracted into overridable `BYTETracker._first_association_cost(strack_pool, detections)` (base = plain `matching.iou_distance`, identical to upstream) | none with default; enables `AdaptiveBYTETracker` to add CTRV uncertainty gating for lost motorcycle tracks without copying `update()` |

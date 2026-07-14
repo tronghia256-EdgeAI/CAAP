@@ -39,7 +39,13 @@ DETECTOR_CONF = 0.1   # fixed low conf — see module docstring (D3)
 COCO_FALLBACK_WEIGHTS = (
     "weights/yolo11n.pt" if Path("weights/yolo11n.pt").exists() else "yolo11n.pt"
 )
-COCO_TO_PROJECT = {2: 0, 3: 1, 5: 2, 7: 3}   # car, motorcycle, bus, truck
+
+# Canonical project class ids. The id→id remap is built from the loaded
+# model's class NAMES, so any model whose labels use these names works
+# regardless of its internal ordering (COCO's car=2/motorcycle=3, or a
+# custom-trained model with e.g. Accident=0/bus=1/car=2/...).
+PROJECT_CLASSES = {"car": 0, "motorcycle": 1, "bus": 2, "truck": 3,
+                   "accident": 4}
 
 
 class Detector:
@@ -57,7 +63,6 @@ class Detector:
         self.img_size = img_size
         if Path(weights_path).exists():
             self.model = YOLO(weights_path)
-            self.using_coco_fallback = False
         else:
             logger.warning(
                 "Weights %s not found — falling back to COCO-pretrained %s. "
@@ -66,7 +71,20 @@ class Detector:
                 weights_path, COCO_FALLBACK_WEIGHTS,
             )
             self.model = YOLO(COCO_FALLBACK_WEIGHTS)
-            self.using_coco_fallback = True
+        # COCO-ness is a property of the loaded model, not of which path
+        # it came from (an 80-class model has no accident class).
+        self.using_coco_fallback = len(self.model.names) == 80
+        # Name-based id remap (see PROJECT_CLASSES). Classes the project
+        # does not know (person, bicycle, ...) are dropped in detect().
+        self.remap = {
+            mid: PROJECT_CLASSES[name.lower()]
+            for mid, name in self.model.names.items()
+            if name.lower() in PROJECT_CLASSES
+        }
+        if not self.remap:
+            raise ValueError(
+                f"model classes {self.model.names} share no names with "
+                f"project classes {list(PROJECT_CLASSES)}")
 
     def detect(self, frame: np.ndarray) -> np.ndarray:
         """
@@ -87,11 +105,10 @@ class Detector:
         conf = boxes.conf.cpu().numpy()
         cls = boxes.cls.cpu().numpy().astype(int)
 
-        if self.using_coco_fallback:
-            keep = np.array([c in COCO_TO_PROJECT for c in cls])
-            if not keep.any():
-                return np.empty((0, 6))
-            xyxy, conf = xyxy[keep], conf[keep]
-            cls = np.array([COCO_TO_PROJECT[c] for c in cls[keep]])
+        keep = np.array([c in self.remap for c in cls])
+        if not keep.any():
+            return np.empty((0, 6))
+        xyxy, conf = xyxy[keep], conf[keep]
+        cls = np.array([self.remap[c] for c in cls[keep]])
 
         return np.column_stack([xyxy, conf, cls]).astype(float)
