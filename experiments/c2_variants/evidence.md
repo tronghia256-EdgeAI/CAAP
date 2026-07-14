@@ -56,3 +56,25 @@ python -m code.scripts.compare_motion_models \
     --replay experiments/c2_real_vnweights_full/detections.npz \
     --out-dir experiments/c2_variants
 ```
+
+## Exp2 replay: buffer hypothesis rejected (2026-07-14, Phase 1.1)
+
+Hypothesis: the 23 gap>=30 re-id events die because the lost-track buffer
+(30) removes tracks before reappearance; C1's DENSE_PEAK buffer (45)
+should bridge them. Probe confirmed C1 engaged (3602/9000 frames in
+DENSE_PEAK, density p90 = 52) — yet **0/23 events were bridged** in the
+exp2 replay (`c1_ctrv_gate` variant): 16 fragmented identically (tracks
+present at both endpoints, different ids), 7 not tracked at the death
+point at all.
+
+Mechanism: after 30+ coasting frames the CTRV prediction has diverged
+beyond the chi2=5.99 gate, so keeping the track alive longer changes
+nothing — the binding constraint is COAST ACCURACY at long gaps, not
+track lifetime. Widening the gate is not an option (see
+gate_sweep/evidence.md). The long-gap group therefore waits for a
+better predictor (IMM, post-GT) or appearance cues (out of scope).
+
+Note on exp2's aggregate numbers (moto re-id 224, uIDs 3052): NOT
+comparable head-to-head with ctrv_gate — DENSE_PEAK lowers track_thresh
+to 0.35, changing the track population (recall up, churn up). Population-
+changing variants can only be compared on GT metrics.

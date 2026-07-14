@@ -61,13 +61,18 @@ NEWBORN_FLASH = 5   # frames a newly born track is drawn thick + starred
 
 # Tracker variants for --replay: config + attribute overrides applied to
 # the built pipeline (tracker-only replay from cached detections, so a
-# variant sweep costs seconds, not detector-hours).
+# variant sweep costs seconds, not detector-hours). Overrides NOT listed
+# fall through to the config file's value — exp configs enable
+# uncertainty_gating by default, so plain-CTRV must disable it explicitly.
+CONFIG_C1C2 = "configs/exp2_C1C2.yaml"
+
 VARIANTS = {
-    "baseline":   (CONFIG_BASELINE, {}),
-    "ctrv":       (CONFIG_CTRV, {}),
-    "ctrv_gate":  (CONFIG_CTRV, {"uncertainty_gating": True}),
+    "baseline":     (CONFIG_BASELINE, {}),
+    "ctrv":         (CONFIG_CTRV, {"uncertainty_gating": False}),
+    "ctrv_gate":    (CONFIG_CTRV, {"uncertainty_gating": True}),
     "ctrv_gate_snoise": (CONFIG_CTRV, {"uncertainty_gating": True,
                                        "scale_adaptive": True}),
+    "c1_ctrv_gate": (CONFIG_C1C2, {}),   # Exp2: adaptive params + C2
 }
 
 GAP_MAX = 40        # frames: max death→birth gap for a re-id event
@@ -189,10 +194,16 @@ def run_replay(det_npz: str, out_dir: Path, variants: list[str]) -> list[str]:
         pipe = Pipeline.from_config(config, dry_run_alerts=True,
                                     build_detector=False)
         pipe.reset()
+        # Overrides beat the config; absent keys keep the config's value.
         pipe.tracker.uncertainty_gating = overrides.get(
-            "uncertainty_gating", False)
+            "uncertainty_gating", pipe.tracker.uncertainty_gating)
         ClassAwareSTrack.ctrv_scale_adaptive = overrides.get(
-            "scale_adaptive", False)
+            "scale_adaptive", ClassAwareSTrack.ctrv_scale_adaptive)
+        # Replay has no valid wall clock; the footage is 08:00 rush hour.
+        # (Dummy frames give brightness 128 → never NIGHT, correct for
+        # this daytime clip; density comes from real tracks, so C1's
+        # DENSE_PEAK row engages during platoon surges.)
+        pipe.context_estimator.hour_override = 8
 
         frames_out, t0 = [], time.perf_counter()
         for d in dets:
