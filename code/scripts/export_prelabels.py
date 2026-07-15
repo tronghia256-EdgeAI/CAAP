@@ -114,6 +114,15 @@ def extract_frames(video: str, segments: dict[str, tuple[int, int]],
     cap.release()
     if n < last:
         raise RuntimeError(f"video ended at frame {n}, needed {last}")
+    # One zip per segment: CVAT (cloud or local) takes it as task data
+    # directly — much easier than drag-dropping 600 individual files.
+    for name in segments:
+        img_dir = out_root / name / "img1"
+        zpath = out_root / f"{name}_images.zip"
+        with zipfile.ZipFile(zpath, "w", zipfile.ZIP_STORED) as z:
+            for jpg in sorted(img_dir.glob("*.jpg")):
+                z.write(jpg, jpg.name)
+        print(f"  {name:9s} images zipped -> {zpath}")
 
 
 def main() -> None:

@@ -1,67 +1,56 @@
-# Hướng dẫn label Ground Truth (GT) bằng CVAT
+# Hướng dẫn label Ground Truth (GT) bằng CVAT cloud
 
-**Cho:** Nghĩa + Lành · **Thời gian ước tính:** 2–4 giờ/người ·
-**Deliverable:** `data/annotations/NKKN_gt/` (gitignored — KHÔNG commit)
+**Cho:** Nghĩa + Lành · **Mục tiêu trước mắt: CHỈ đoạn `dense`** (~1.5–2h tổng)
+· **Deliverable:** `data/annotations/NKKN_gt/dense/gt/gt.txt` (gitignored — KHÔNG commit)
 
 ## Tại sao làm việc này
 
 Mọi số liệu hiện tại (re-id events −60%) là **proxy không có GT** — đủ để
-phát triển, không đủ để đưa vào paper. Có GT trên 1800 frames này là có
-MOTA/IDF1 thật cho bảng ablation chính, và là thước đo duy nhất không bị
-Goodhart (gate sweep đã chứng minh proxy có thể bị game).
+phát triển, không đủ để đưa vào paper. Có GT là có MOTA/IDF1 thật cho bảng
+ablation chính, và là thước đo duy nhất không bị Goodhart (gate sweep đã
+chứng minh proxy có thể bị game).
 
 Mô hình làm việc: **tracker đã label sẵn ~95% đúng** (pre-labels), người
 chỉ **sửa chỗ sai** — nhanh hơn label từ đầu 5–10×.
 
-## Dữ liệu đã chuẩn bị sẵn (chạy `python -m code.scripts.export_prelabels`)
+## Phạm vi: dense trước, phần còn lại tuỳ sức
+
+Đoạn `dense` (frames 10700–11300, ~47 xe/frame) là nơi track fragmentation
+xảy ra — đúng chỗ C2 claim cải thiện, nên **1 đoạn này đủ cho bảng MOTA
+sơ bộ của paper**. `mixed` và `freeflow` (đã chuẩn bị sẵn y hệt) chỉ làm
+thêm sau nếu còn thời gian — chất lượng 1 đoạn hơn 3 đoạn vội.
+
+## Dữ liệu đã chuẩn bị sẵn (sinh bởi `python -m code.scripts.export_prelabels`)
 
 ```
 data/annotations/prelabels/
-├── freeflow/img1/*.jpg   600 frames, ~12 xe/frame  (dễ nhất, làm trước)
-├── mixed/img1/*.jpg      600 frames, ~26 xe/frame
-├── dense/img1/*.jpg      600 frames, ~47 xe/frame  (khó nhất)
-├── freeflow_annotations.zip   ← pre-labels MOT 1.1, import vào CVAT
-├── mixed_annotations.zip
-└── dense_annotations.zip
+├── dense_images.zip          ← 600 frames, upload làm task data
+├── dense_annotations.zip     ← pre-labels MOT 1.1, import đè lên task
+└── (mixed_*, freeflow_* — để dành làm sau)
 ```
 
-Gợi ý chia việc: người mới dùng CVAT bắt đầu bằng **freeflow** để quen
-tay (~30 phút), sau đó một người nhận **dense**, người kia **mixed**.
+Lưu ý riêng tư: chỉ upload frames giao thông thường này lên CVAT cloud
+(workspace riêng, không public). **Dataset accident và model weights
+tuyệt đối không upload đi đâu.**
 
-## Bước 1 — Cài CVAT (local, 1 lần, ~20 phút)
+## Bước 1 — Tài khoản (~3 phút, 1 lần)
 
-Dataset là IP của nhóm → **dùng CVAT local qua Docker**, không upload
-frames lên app.cvat.ai (cloud của bên thứ ba).
-
-1. Cài [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-   (Windows: cần bật WSL2 khi installer hỏi).
-2. Terminal:
-   ```bash
-   git clone https://github.com/cvat-ai/cvat
-   cd cvat
-   docker compose up -d          # lần đầu tải image ~10 phút
-   docker exec -it cvat_server python3 manage.py createsuperuser
-   ```
-3. Mở `http://localhost:8080`, đăng nhập bằng tài khoản vừa tạo.
+1. Mở `https://app.cvat.ai` → **Sign up** (miễn phí).
+2. (Tuỳ chọn) tạo Organization và mời người kia để 2 người cùng thấy task.
 
 ## Bước 2 — Tạo Project + Labels (1 lần)
 
-1. **Projects → Create new project**, tên `NKKN GT`.
+1. **Projects → +**, tên `NKKN GT`.
 2. Thêm đúng 5 labels, **tên phải khớp từng ký tự** (thứ tự không quan
-   trọng, tên thì có):
-   `car`, `motorcycle`, `bus`, `truck`, `accident`
+   trọng, tên thì có): `car`, `motorcycle`, `bus`, `truck`, `accident`
 
-## Bước 3 — Tạo Task cho từng segment
+## Bước 3 — Tạo Task + nạp pre-labels (~5 phút)
 
-Lặp cho `freeflow`, `mixed`, `dense`:
-
-1. **Tasks → Create new task**, tên = tên segment, Project = `NKKN GT`.
-2. **Select files** → chọn toàn bộ 600 file trong
-   `data/annotations/prelabels/<segment>/img1/` → Submit.
-   (CVAT sắp frame theo tên file — tên đã đánh số sẵn `000001.jpg`…)
-3. Mở task → **Actions → Upload annotations → định dạng "MOT 1.1"** →
-   chọn `data/annotations/prelabels/<segment>_annotations.zip`.
-4. Mở job → thấy boxes phủ sẵn lên xe là import thành công.
+1. **Tasks → +**, tên `dense`, Project = `NKKN GT`.
+2. Phần **Select files**: kéo thả `dense_images.zip` → **Submit & Open**.
+3. Trong trang task: **Actions → Upload annotations → "MOT 1.1"** →
+   chọn `dense_annotations.zip`.
+4. Mở job → thấy boxes phủ sẵn lên xe là thành công.
 
 ## Bước 4 — Sửa pre-labels (phần việc chính)
 
@@ -90,13 +79,14 @@ chỗ sai**. Đừng rà từng box từng frame — pre-labels phần lớn đ�
 - **Xe đậu bên lề:** có label (detector thấy chúng, bỏ ra sẽ thành FP oan).
 - **accident:** clip này không có tai nạn; đừng gán class accident.
 
+Nhớ **Save (Ctrl+S)** thường xuyên — cloud không tự lưu từng thao tác.
+
 ## Bước 5 — Export GT đã sửa
 
-Với từng task: **Actions → Export task dataset → định dạng "MOT 1.1"**
-→ lưu và giải nén về:
+**Actions → Export task dataset → "MOT 1.1"** → tải về, giải nén thành:
 
 ```
-data/annotations/NKKN_gt/<segment>/gt/gt.txt
+data/annotations/NKKN_gt/dense/gt/gt.txt
 ```
 
 ## Bước 6 — Kiểm tra (Nghĩa chạy, ~1 phút)
@@ -115,12 +105,13 @@ python -m code.scripts.import_gt \
 ```
 
 Segment ↔ frame tuyệt đối (cho `--segment`):
-`freeflow 6400 7000` · `mixed 2500 3100` · `dense 10700 11300`
+`dense 10700 11300` · `mixed 2500 3100` · `freeflow 6400 7000`
 
 ## Nếu kẹt
 
-- Docker không chạy → fallback tạm: label duy nhất đoạn `dense` là đủ
-  cho bảng MOTA sơ bộ (ưu tiên chất lượng 1 đoạn hơn 3 đoạn vội).
-- CVAT hotkeys đầy đủ: `https://docs.cvat.ai/docs/manual/` (mục
+- Hotkeys CVAT đầy đủ: `https://docs.cvat.ai/docs/manual/` (mục
   "Shortcuts"). Ba phím dùng nhiều nhất: `F`/`D` (tiến/lùi frame),
   `M` (merge track), `N` (vẽ box mới).
+- Muốn riêng tư tuyệt đối (không dùng cloud): CVAT chạy local được qua
+  Docker (`github.com/cvat-ai/cvat`, `docker compose up -d`) — quy trình
+  từ Bước 2 trở đi giống hệt.
