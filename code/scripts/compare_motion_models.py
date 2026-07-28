@@ -61,21 +61,43 @@ NEWBORN_FLASH = 5   # frames a newly born track is drawn thick + starred
 
 # Tracker variants for --replay: config + attribute overrides applied to
 # the built pipeline (tracker-only replay from cached detections, so a
-# variant sweep costs seconds, not detector-hours). Overrides NOT listed
-# fall through to the config file's value — exp configs enable
-# uncertainty_gating by default, so plain-CTRV must disable it explicitly.
+# variant sweep costs seconds, not detector-hours).
+#
+# EVERY toggled feature must be listed explicitly on EVERY variant.
+# Overrides that are omitted fall through to the config file, and the exp
+# configs turn features on by default — which silently collapses an
+# ablation arm into its own control. That is exactly what happened to
+# `nsa`: configs/exp1_C2.yaml gained `ctrv.nsa_noise: true`, so `ctrv`
+# and `ctrv_gate` inherited NSA, `ctrv_gate` and `ctrv_gate_nsa` became
+# the same configuration, and their dumps came out identical on all
+# 13726 frames. Fall-through is never the right default here.
 CONFIG_C1C2 = "configs/exp2_C1C2.yaml"
+CONFIG_C1C2C3 = "configs/exp3_C1C2C3.yaml"
 
 VARIANTS = {
     "baseline":     (CONFIG_BASELINE, {}),
-    "ctrv":         (CONFIG_CTRV, {"uncertainty_gating": False}),
-    "ctrv_gate":    (CONFIG_CTRV, {"uncertainty_gating": True}),
+    # Gating x NSA is a full 2x2: on real GT the two are not additive —
+    # gating without NSA raises ID switches (over-smoothed predictions get
+    # rescued onto the wrong detection), which is the same wrong-merge
+    # mechanism the gate sweep found through the re-id proxy.
+    "ctrv":         (CONFIG_CTRV, {"uncertainty_gating": False,
+                                   "nsa": False}),
+    "ctrv_nsa":     (CONFIG_CTRV, {"uncertainty_gating": False,
+                                   "nsa": True}),
+    "ctrv_gate":    (CONFIG_CTRV, {"uncertainty_gating": True,
+                                   "nsa": False}),
     "ctrv_gate_snoise": (CONFIG_CTRV, {"uncertainty_gating": True,
+                                       "nsa": False,
                                        "scale_adaptive": True}),
     "c1_ctrv_gate": (CONFIG_C1C2, {}),   # Exp2: adaptive params + C2
+    "c1c2c3":       (CONFIG_C1C2C3, {}),  # Exp3: proposed method
     "ctrv_gate_nsa": (CONFIG_CTRV, {"uncertainty_gating": True,
                                     "nsa": True}),
 }
+
+# Worst-case window for latency reporting: ~47 tracks/frame vs a global
+# mean of 25, and the segment with human GT.
+DENSE_SEG = (10700, 11300)
 
 GAP_MAX = 40        # frames: max death→birth gap for a re-id event
 IOU_MIN = 0.3       # min IoU(last box, first box) for a re-id event
@@ -191,6 +213,18 @@ def run_replay(det_npz: str, out_dir: Path, variants: list[str]) -> list[str]:
     dummy = np.full((450, 800, 3), 128, dtype=np.uint8)
 
     out_dir.mkdir(parents=True, exist_ok=True)
+    latency: dict[str, dict] = {}
+    if len(variants) > 1:
+        # Measured the hard way: running all seven variants in one process
+        # put `baseline` at 13.19 ms in position 1 and 4.07 ms in position 7
+        # — same code, 3.2x apart — because of cold-start warm-up plus any
+        # external CPU load. The gradient is larger than the differences
+        # being measured, and it flatters whatever runs last. Tracking
+        # output is unaffected (replay is deterministic); only timings are.
+        print("  NOTE: latency from a multi-variant run is position-biased "
+              "and must not be quoted.\n"
+              "        For real numbers run one variant per process — see "
+              "experiments/latency/evidence.md", flush=True)
     for name in variants:
         config, overrides = VARIANTS[name]
         pipe = Pipeline.from_config(config, dry_run_alerts=True,
@@ -209,19 +243,44 @@ def run_replay(det_npz: str, out_dir: Path, variants: list[str]) -> list[str]:
         # DENSE_PEAK row engages during platoon surges.)
         pipe.context_estimator.hour_override = 8
 
-        frames_out, t0 = [], time.perf_counter()
+        frames_out, lat, t0 = [], [], time.perf_counter()
         for d in dets:
             result = pipe.process(dummy, detections=d)
+            lat.append(float(result["latency_ms"]))
             frames_out.append([
                 (int(t.track_id), int(t.class_id),
                  [round(float(v), 1) for v in t.tlbr])
                 for t in result["tracks_mappo"]
             ])
         fps = n / (time.perf_counter() - t0)
+        # Latency here EXCLUDES detection (replay feeds cached boxes), so
+        # it isolates the cost this paper's contributions actually add.
+        # The dense window is reported separately because it is the worst
+        # case: ~47 tracks/frame against a global mean of 25.
+        # Trustworthy only in a single-variant run on an idle machine.
+        lat_a = np.sort(np.asarray(lat))
+        dense_a = np.sort(np.asarray(lat[DENSE_SEG[0]:DENSE_SEG[1]])) \
+            if len(lat) >= DENSE_SEG[1] else lat_a
+        stats = {
+            "fps_replay": round(fps, 1),
+            "latency_ms_mean": round(float(lat_a.mean()), 3),
+            "latency_ms_p50": round(float(np.percentile(lat_a, 50)), 3),
+            "latency_ms_p95": round(float(np.percentile(lat_a, 95)), 3),
+            "latency_ms_p95_dense": round(float(np.percentile(dense_a, 95)), 3),
+        }
+        latency[name] = stats
         with open(out_dir / f"tracks_{name}.json", "w",
                   encoding="utf-8") as f:
-            json.dump({**meta, "variant": name, "frames": frames_out}, f)
-        print(f"  {name}: {n} frames replayed ({fps:.0f} fps)", flush=True)
+            json.dump({**meta, "variant": name, "frames": frames_out,
+                       "latency": stats}, f)
+        print(f"  {name}: {n} frames replayed ({fps:.0f} fps) | "
+              f"tracker latency mean {stats['latency_ms_mean']:.2f} ms, "
+              f"p95 {stats['latency_ms_p95']:.2f} ms "
+              f"(dense p95 {stats['latency_ms_p95_dense']:.2f} ms)",
+              flush=True)
+
+    with open(out_dir / "latency.json", "w", encoding="utf-8") as f:
+        json.dump(latency, f, indent=2)
     return variants
 
 
