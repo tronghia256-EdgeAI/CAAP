@@ -210,24 +210,51 @@ def main() -> None:
         json.dumps({"merge": rows, "split": split_rows}, indent=2),
         encoding="utf-8")
 
+    header = ("\n| correction | GT IDs | " + " | ".join(
+        f"{v} moto IDF1" for v in VARIANTS) + " | C2 − baseline |\n"
+        + "|---|---|" + "---|" * (len(VARIANTS) + 1))
+
+    def row_line(label: str, ids: int, s: dict) -> str:
+        margin = s["ctrv_gate_nsa"]["moto_idf1"] - s["baseline"]["moto_idf1"]
+        return (f"| {label} | {ids} | "
+                + " | ".join(f"{s[v]['moto_idf1']:.3f}" for v in VARIANTS)
+                + f" | {margin:+.3f} |")
+
     lines = [
-        "# Circularity-bias sensitivity on `dense` GT\n",
-        "Pre-labels were seeded from `ctrv_gate_nsa`, so fragmentations the",
-        "annotator missed survive as agreement and flatter that row. Below,",
-        "the top-K still-flagged merge candidates are applied to the GT and",
-        "everything is re-scored. K is a bracket, not a claim that all K are",
-        "real errors.\n",
-        "\n| K applied | GT IDs | " + " | ".join(
-            f"{v} moto IDF1" for v in VARIANTS) + " | C2 − baseline |",
-        "|---|---|" + "---|" * (len(VARIANTS) + 1),
+        "# Annotation-bias sensitivity on `dense` GT\n",
+        "The ground truth can be wrong in two opposite directions, and they",
+        "do **not** matter equally. Both are reported here; quoting only the",
+        "first would understate the risk to the headline result.\n",
+        "\n## Under-merging: fragmentations the annotator did not join\n",
+        "Pre-labels were seeded from `ctrv_gate_nsa`, so a fragmentation it",
+        "produced and the annotator missed survives as agreement. Applying",
+        "the top-K flagged merge candidates:\n",
+        header,
     ]
     for r in rows:
-        s = r["scores"]
-        margin = s["ctrv_gate_nsa"]["moto_idf1"] - s["baseline"]["moto_idf1"]
-        lines.append(
-            f"| {r['k']} | {r['gt_ids']} | "
-            + " | ".join(f"{s[v]['moto_idf1']:.3f}" for v in VARIANTS)
-            + f" | {margin:+.3f} |")
+        lines.append(row_line(str(r["k"]), r["gt_ids"], r["scores"]))
+    lines += [
+        "\nThe margin barely moves. This direction is not the problem.\n",
+        "\n## Over-merging: distinct vehicles chained into one identity\n",
+        "The damaging direction. An over-merged identity rewards a tracker",
+        "that bridges the gap between two vehicles and penalises one that",
+        "correctly refuses — which is exactly what C2's uncertainty gate",
+        "does. Splitting joins whose box moves more than the given number of",
+        "box-diagonals (raw, across the gap) or rescales by more than it:\n",
+        header,
+    ]
+    for r in split_rows:
+        ids = len({t for f in split_gt(gt0, tracks, r["limit"],
+                                       r["limit"])[0].values()
+                   for t, _, _ in f})
+        lines.append(row_line(f"split @{r['limit']:.1f} ({r['cuts']} cuts)",
+                              ids, r["scores"]))
+    lines += [
+        "\nThe margin collapses, the baseline *improves* and the proposed",
+        "method *degrades* — the signature of a ground truth that rewards",
+        "over-merging. See `WRONG_MERGES.md` for the verified cases and what",
+        "to do about them.\n",
+    ]
     (out_dir / "sensitivity.md").write_text("\n".join(lines) + "\n",
                                             encoding="utf-8")
     print(f"\nwrote {out_dir/'sensitivity.md'}")
