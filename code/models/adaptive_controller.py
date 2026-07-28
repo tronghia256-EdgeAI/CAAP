@@ -67,20 +67,32 @@ HYSTERESIS_FRAMES  = 15    # consecutive frames before a condition switch
 
 
 # ── Parameter table (one row per condition) ──────────────────────────
-# TODO: all numeric values are initial guesses — tune via ablation
+# DENSE_PEAK is tuned against human GT (experiments/c1_sweep/). The other
+# two rows are still initial guesses, and deliberately stay that way:
+#   DEFAULT holds only 21 of the 600 GT frames, so fitting it there would
+#           be fitting noise
+#   NIGHT   has never once executed — the only labelled footage is an
+#           08:00 clip, and replay feeds a constant-brightness dummy frame
+# Both need footage that exercises them before they mean anything.
 
 PARAM_TABLE: dict[TrafficCondition, Params] = {
+    # Tuned on the `dense` GT segment: the shipped guess (0.35 / 45) cost
+    # MOTA 0.917 -> 0.731 by flooding the tracker with weak detections
+    # (FP 1388 -> 6254). 0.50 / 30 is the grid optimum and is strictly
+    # better than the guess at every point tested. Note it coincides with
+    # the tracker's fixed default, i.e. the best this row can currently do
+    # is decline to differentiate — see experiments/c1_sweep/evidence.md.
     TrafficCondition.DENSE_PEAK: Params(
-        yolo_conf=0.35,
-        buffer_len=45,
+        yolo_conf=0.50,
+        buffer_len=30,
         motion_model="ctrv",
     ),
-    TrafficCondition.NIGHT: Params(
+    TrafficCondition.NIGHT: Params(      # TODO: untuned — needs night footage
         yolo_conf=0.55,
         buffer_len=20,
         motion_model="conservative",
     ),
-    TrafficCondition.DEFAULT: Params(
+    TrafficCondition.DEFAULT: Params(    # TODO: untuned — needs `mixed` GT
         yolo_conf=0.45,
         buffer_len=30,
         motion_model="standard",

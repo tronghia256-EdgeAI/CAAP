@@ -159,8 +159,20 @@ class TestHysteresis:
 
 class TestParamTable:
     def test_dense_peak_row(self):
+        """Tuned against `dense` GT — see experiments/c1_sweep/evidence.md.
+        The shipped guess was 0.35 / 45, which cost MOTA 0.917 -> 0.731."""
         p = PARAM_TABLE[TrafficCondition.DENSE_PEAK]
-        assert p == Params(yolo_conf=0.35, buffer_len=45, motion_model="ctrv")
+        assert p == Params(yolo_conf=0.50, buffer_len=30, motion_model="ctrv")
+
+    def test_dense_peak_is_stricter_than_default(self):
+        """Records a finding, not a design intent: C1 was built on the
+        premise that dense traffic wants a *lower* threshold to survive
+        occlusion. Measured against GT the opposite holds — lowering it
+        floods false positives — so the tuned DENSE_PEAK row is stricter
+        than DEFAULT. If `mixed` GT later overturns this, that is a real
+        result and this assertion should flip with it."""
+        assert (PARAM_TABLE[TrafficCondition.DENSE_PEAK].yolo_conf
+                > PARAM_TABLE[TrafficCondition.DEFAULT].yolo_conf)
 
     def test_night_row(self):
         p = PARAM_TABLE[TrafficCondition.NIGHT]
