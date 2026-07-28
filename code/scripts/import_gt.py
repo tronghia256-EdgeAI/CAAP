@@ -35,7 +35,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from code.evaluation.metrics import FrameList, compute_tracking_metrics
+import numpy as np
+
+from code.evaluation.metrics import (FrameList, compute_detection_metrics,
+                                     compute_tracking_metrics)
 
 CLASS_NAMES = {0: "car", 1: "motorcycle", 2: "bus", 3: "truck",
                4: "accident"}
@@ -90,6 +93,57 @@ def tracks_json_slice(path: str | Path, start: int, end: int) -> dict[int, list]
     return frames
 
 
+def gt_to_det_arrays(gt: dict[int, list], num_frames: int) -> list:
+    """GT frames -> per-frame [x1, y1, x2, y2, class_id] for detection metrics."""
+    return [np.array([[*box, cls] for _, box, cls in gt.get(k, ())],
+                     dtype=float).reshape(-1, 5)
+            for k in range(1, num_frames + 1)]
+
+
+def npz_to_det_arrays(path: str | Path, start: int, end: int,
+                      conf_min: float = 0.0) -> list:
+    """Cached detector dump -> per-frame [x1, y1, x2, y2, conf, class_id].
+
+    This is the *detector's* raw output, before the tracker's track_thresh
+    filter, so it measures the ceiling every tracker row is working under:
+    a vehicle the detector never proposes cannot be tracked by anything
+    downstream.
+    """
+    z = np.load(path)
+    out = []
+    for i in range(start, end):
+        d = np.asarray(z[f"f{i}"], dtype=float).reshape(-1, 6)
+        out.append(d[d[:, 4] >= conf_min] if conf_min > 0 else d)
+    return out
+
+
+def tracks_to_det_arrays(pred: dict[int, list], num_frames: int) -> list:
+    """Tracker output -> detection arrays. Confidence is not carried in the
+    dumps, so every box scores 1.0: P/R/F1 stay meaningful, mAP does not
+    (a single-point PR curve), and the caller is told so."""
+    return [np.array([[*box, 1.0, cls] for _, box, cls in pred.get(k, ())],
+                     dtype=float).reshape(-1, 6)
+            for k in range(1, num_frames + 1)]
+
+
+def evaluate_detection(gt: dict[int, list], preds: list, n: int,
+                       label: str, show_map: bool = True,
+                       note: str = "") -> None:
+    """One row of the detection table.
+
+    mAP is only printed when it means something. It is threshold-free by
+    definition, so a confidence-filtered prediction set yields a truncated
+    PR curve, not a different mAP — printing one per cut-off would invite
+    reading the drop as a quality change when it is just truncation.
+    """
+    g = gt_to_det_arrays(gt, n)
+    m = compute_detection_metrics(preds, g)
+    map_cell = f"{m.map50:>10.3f}" if show_map else f"{'-':>10}"
+    print(f"{label:<28}{m.precision:>10.3f}{m.recall:>10.3f}"
+          f"{m.f1:>10.3f}{map_cell}"
+          + (f"   {note}" if note else ""))
+
+
 def evaluate(gt: dict[int, list], pred: dict[int, list]) -> None:
     n = max(max(gt, default=0), max(pred, default=0))
     print(f"{'class':<12}{'MOTA':>8}{'IDF1':>8}{'IDsw':>6}{'frag':>6}"
@@ -112,10 +166,43 @@ def main() -> None:
     ap.add_argument("--pred", help="MOT gt.txt to score against --gt")
     ap.add_argument("--pred-tracks", help="tracks_*.json dump to score")
     ap.add_argument("--segment", nargs=2, type=int, metavar=("START", "END"),
-                    help="absolute frame range for --pred-tracks")
+                    help="absolute frame range for --pred-tracks / --det-npz")
+    ap.add_argument("--detection", action="store_true",
+                    help="report Precision/Recall/F1/mAP@0.5 instead of "
+                         "tracking metrics")
+    ap.add_argument("--det-npz", help="cached detector dump to score in "
+                                      "--detection mode (carries confidences)")
+    ap.add_argument("--conf", nargs="*", type=float,
+                    default=[0.10, 0.30, 0.50, 0.70],
+                    help="confidence cut-offs for P/R/F1 in --detection mode")
     args = ap.parse_args()
 
     gt = load_mot(args.gt)
+
+    if args.detection:
+        n = max(gt) if gt else 0
+        print(f"{'source':<28}{'P':>10}{'R':>10}{'F1':>10}{'mAP@.5':>10}")
+        if args.det_npz:
+            assert args.segment, "--det-npz needs --segment START END"
+            # mAP once, over every detection: this is the detector ceiling
+            # each tracker row works under. P/R/F1 then per operating point.
+            evaluate_detection(
+                gt, npz_to_det_arrays(args.det_npz, *args.segment), n,
+                "detector (all dets)", note="<- mAP = detector ceiling")
+            for c in args.conf:
+                evaluate_detection(
+                    gt, npz_to_det_arrays(args.det_npz, *args.segment, c), n,
+                    f"detector @conf>={c:.2f}", show_map=False)
+        if args.pred_tracks:
+            assert args.segment, "--pred-tracks needs --segment START END"
+            pred = tracks_json_slice(args.pred_tracks, *args.segment)
+            evaluate_detection(gt, tracks_to_det_arrays(pred, n), n,
+                               Path(args.pred_tracks).stem, show_map=False,
+                               note="<- after tracking")
+        if not (args.det_npz or args.pred_tracks):
+            ap.error("--detection needs --det-npz and/or --pred-tracks")
+        return
+
     if args.pred:
         pred = load_mot(args.pred)
     elif args.pred_tracks:
