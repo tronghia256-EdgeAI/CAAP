@@ -17,6 +17,22 @@
 5. Mở Job → thấy box phủ sẵn trên xe = xong setup
 ```
 
+## Làm theo checklist, đừng tua từ đầu
+
+```
+Mở  data/annotations/prelabels/dense/review_queue.md
+→ 137 chỗ đáng ngờ, có sẵn số frame + việc cần làm, ~57 phút
+→ làm mục MERGE trước (đúng thứ C2 claim), tick [x] khi xong
+→ số frame trong file gõ thẳng vào ô frame của CVAT được
+
+Chưa có file? chạy:  python -m code.scripts.gt_review_queue --segment dense
+```
+
+Checklist **không phải GT** — nó chỉ chỉ chỗ đáng ngờ, đúng/sai vẫn do
+mắt bạn quyết. Bỏ qua 1 dòng không sao; sửa bừa 1 dòng mới hỏng.
+Nó cũng không bắt được xe bị miss hẳn → xong checklist thì tua nhanh
+1 lượt để soát loại đó.
+
 ## 5 phím là đủ
 
 | Phím | Làm gì |

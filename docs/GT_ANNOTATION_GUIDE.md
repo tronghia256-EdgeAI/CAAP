@@ -3,12 +3,43 @@
 **Cho:** Nghĩa + Lành · **Mục tiêu trước mắt: CHỈ đoạn `dense`** (~1.5–2h tổng)
 · **Deliverable:** `data/annotations/NKKN_gt/dense/gt/gt.txt` (gitignored — KHÔNG commit)
 
+## Trạng thái: `dense` ĐÃ XONG (28/7/2026)
+
+Kết quả trong `experiments/gt_ablation/evidence.md`. Việc label đã trả tiền
+ngay: GT phát hiện 3 thứ mà proxy không thể thấy — C1 đang **có hại** trên
+dense (FP 1388 → 6255), nhánh MAPPO của C3 **không lọc gì** (τ=0.40 nằm dưới
+score thấp nhất 0.435), và gating nếu không có NSA thì **làm IDsw tệ hơn**.
+C2 đầy đủ: IDF1 xe máy 0.844 → 0.933, IDsw −85%.
+
+## Việc tiếp theo: `mixed` — ĐÃ CHUẨN BỊ XONG, sẵn sàng label
+
+```
+data/annotations/prelabels/mixed_images.zip        ← upload làm task data
+data/annotations/prelabels/mixed_annotations.zip   ← import đè lên
+data/annotations/prelabels/mixed/review_queue.md   ← 131 chỗ, ~48 phút
+```
+
+**Pre-labels của `mixed` seed từ baseline, KHÔNG phải từ ctrv_gate_nsa** —
+khác `dense`, và đây là chủ ý. Hai lý do, một công đôi việc:
+
+1. **Test được C1.** `dense` không bao giờ tụt xuống dưới ngưỡng mật độ
+   (0/600 frame) nên C1 giữ nguyên một trạng thái suốt — không thể chứng
+   minh "thích ứng" gì cả. `mixed` chuyển trạng thái 264/336 frame, mật độ
+   trung bình 30.0 đúng ngay ngưỡng 30. Đây là đoạn duy nhất trả lời được
+   câu hỏi C1 có tác dụng không.
+2. **Xoá cảnh báo circularity.** GT của `dense` seed từ chính method được
+   đánh giá nên hàng đó lệch lên (đã đo: tối đa ~0.004 IDF1, xem
+   `experiments/gt_qa/sensitivity.md`). Seed từ baseline thì không còn lệch.
+
+Vì seed từ baseline (yếu hơn) nên sẽ có nhiều chỗ phải sửa hơn `dense` —
+67 MERGE thay vì 37. Đó là bình thường, không phải lỗi.
+
 ## Tại sao làm việc này
 
-Mọi số liệu hiện tại (re-id events −60%) là **proxy không có GT** — đủ để
-phát triển, không đủ để đưa vào paper. Có GT là có MOTA/IDF1 thật cho bảng
-ablation chính, và là thước đo duy nhất không bị Goodhart (gate sweep đã
-chứng minh proxy có thể bị game).
+Mọi số liệu proxy (re-id events −60%) là **không có GT** — đủ để phát triển,
+không đủ để đưa vào paper. Có GT là có MOTA/IDF1 thật cho bảng ablation
+chính, và là thước đo duy nhất không bị Goodhart (gate sweep đã chứng minh
+proxy có thể bị game).
 
 Mô hình làm việc: **tracker đã label sẵn ~95% đúng** (pre-labels), người
 chỉ **sửa chỗ sai** — nhanh hơn label từ đầu 5–10×.
@@ -54,8 +85,32 @@ tuyệt đối không upload đi đâu.**
 
 ## Bước 4 — Sửa pre-labels (phần việc chính)
 
-Cách làm hiệu quả: **xem playback (phím `F` tiến / `D` lùi), chỉ dừng ở
-chỗ sai**. Đừng rà từng box từng frame — pre-labels phần lớn đã đúng.
+**Đừng tua playback từ đầu tới cuối.** Có sẵn danh sách chỗ đáng ngờ:
+
+```bash
+python -m code.scripts.gt_review_queue --segment dense
+# -> data/annotations/prelabels/dense/review_queue.md   (checklist)
+#    data/annotations/prelabels/dense/review_queue.csv  (bản máy đọc)
+```
+
+File `review_queue.md` liệt kê **137 chỗ cần nhìn** thay vì 600 frame,
+mỗi dòng có sẵn số frame để gõ thẳng vào ô frame của CVAT và thao tác
+cần làm. Ước lượng ~57 phút. Mở file đó, làm từ trên xuống, tick `[x]`
+khi xong — **mục MERGE làm trước**, đó đúng là thứ C2 claim cải thiện.
+
+Ba điều cần nhớ về danh sách này:
+
+- Nó **không phải GT** và không quyết định đúng/sai. Nó chỉ nói "chỗ này
+  đáng ngờ" dựa trên hình dạng của track (chết giữa đường, box nhảy,
+  hai ID chồng nhau…). Nhìn ảnh rồi tự quyết định.
+- Bỏ qua một dòng **không làm hỏng GT**; sửa bừa một dòng thì có. Thấy
+  pre-label đã đúng thì tick và đi tiếp.
+- Nó không bắt được **xe bị miss hoàn toàn** (không có box nào từ đầu) —
+  detector không thấy thì danh sách cũng không thấy. Nên sau khi làm hết
+  checklist, tua nhanh 1 lượt playback để bắt loại này.
+
+Số frame trong file là **số của CVAT** (đếm từ 0), gõ thẳng được. Lần đầu
+nên đối chiếu 1 box để chắc mapping đúng.
 
 3 loại lỗi cần sửa, theo thứ tự quan trọng với paper:
 
