@@ -111,8 +111,13 @@ def init_decisions(cand_path: Path, out_path: Path, force: bool) -> None:
 
 # ── Applying verdicts ────────────────────────────────────────────────
 
-def load_decisions(path: Path) -> tuple[list[tuple[int, int]], dict]:
-    """-> ([(gt_id, cut_at_frame)] for CUT rows, tally)."""
+def load_decisions(path: Path, allow_partial: bool = False
+                   ) -> tuple[list[tuple[int, int]], dict]:
+    """-> ([(gt_id, cut_at_frame)] for CUT rows, tally).
+
+    allow_partial=True is for --bound, which is *about* the unreviewed rows and
+    so must read a half-filled sheet. --apply keeps refusing one.
+    """
     if not path.exists():
         raise SystemExit(f"{show(path)} not found — run "
                          f"--init first.")
@@ -131,13 +136,25 @@ def load_decisions(path: Path) -> tuple[list[tuple[int, int]], dict]:
             if d == CUT:
                 cuts.append((int(r["gt_id"]), int(r["cut_at_frame"])))
 
-    if blank:
+    if blank and not allow_partial:
         raise SystemExit(
             f"{len(blank)} candidates still blank (ranks "
             f"{', '.join(blank[:8])}{'...' if len(blank) > 8 else ''}).\n"
             f"Every row needs a verdict — a blank is not the same as KEEP, and "
             f"guessing on your behalf is the one thing this script must not do.")
-    return cuts, dict(tally)
+    tally = dict(tally)
+    tally["BLANK"] = len(blank)
+    return cuts, tally
+
+
+def unreviewed_cuts(path: Path) -> list[tuple[int, int]]:
+    """The cuts that would apply if every unreviewed row were judged CUT."""
+    out = []
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if not (r.get("decision") or "").strip():
+                out.append((int(r["gt_id"]), int(r["cut_at_frame"])))
+    return out
 
 
 def apply_cuts(gt_path: Path, cuts: list[tuple[int, int]],
@@ -192,6 +209,78 @@ def apply_cuts(gt_path: Path, cuts: list[tuple[int, int]],
     }
 
 
+# ── Bounding the answer with a partly-reviewed sheet ─────────────────
+
+def bound(gt_path: Path, decisions: Path, tracks_dir: Path,
+          segment: tuple[int, int]) -> dict:
+    """Margin under both extreme readings of the unreviewed rows.
+
+    This is what makes the review stoppable. Reviewing all 105 candidates to
+    three decimal places is only worth it if the answer is still in doubt --
+    so after each batch, score the ground truth twice: once treating every
+    unreviewed row as KEEP, once as CUT. The truth is between them by
+    construction, no matter what the remaining sheets turn out to show. When
+    both ends support the same statement, more reviewing cannot change it.
+    """
+    from code.evaluation.metrics import compute_tracking_metrics
+    from code.scripts.import_gt import load_mot, to_framelist, tracks_json_slice
+
+    MOTORCYCLE = 1
+    decided, tally = load_decisions(decisions, allow_partial=True)
+    pending = unreviewed_cuts(decisions)
+
+    gt0 = load_mot(gt_path)
+    n = max(gt0)
+    preds = {v: tracks_json_slice(str(tracks_dir / f"tracks_{v}.json"), *segment)
+             for v in ("baseline", "ctrv_gate_nsa")}
+
+    def moto_idf1(pred, gt):
+        return compute_tracking_metrics(to_framelist(pred, n, MOTORCYCLE),
+                                        to_framelist(gt, n, MOTORCYCLE)).idf1
+
+    out = {"reviewed": tally.get(CUT, 0) + tally.get(KEEP, 0),
+           "cut": tally.get(CUT, 0), "keep": tally.get(KEEP, 0),
+           "pending": len(pending), "ends": {}}
+
+    tmp = gt_path.with_name("_bound_tmp.txt")
+    try:
+        for end, cuts in (("keep", decided), ("cut", decided + pending)):
+            apply_cuts(gt_path, cuts, tmp)
+            gt = load_mot(tmp)
+            b = moto_idf1(preds["baseline"], gt)
+            c = moto_idf1(preds["ctrv_gate_nsa"], gt)
+            out["ends"][end] = {"baseline": b, "proposed": c, "margin": c - b,
+                                "gt_ids": len({t for f in gt.values()
+                                               for t, _, _ in f})}
+    finally:
+        tmp.unlink(missing_ok=True)
+    return out
+
+
+def print_bound(r: dict) -> None:
+    lo = min(r["ends"]["keep"]["margin"], r["ends"]["cut"]["margin"])
+    hi = max(r["ends"]["keep"]["margin"], r["ends"]["cut"]["margin"])
+    print(f"\nReviewed {r['reviewed']}/{r['reviewed'] + r['pending']}  "
+          f"({r['cut']} CUT, {r['keep']} KEEP, {r['pending']} pending)\n")
+    print(f"{'unreviewed read as':<20} {'GT ids':>7} {'baseline':>9} "
+          f"{'proposed':>9} {'margin':>8}")
+    print("-" * 58)
+    for end in ("keep", "cut"):
+        e = r["ends"][end]
+        print(f"{'all ' + end.upper():<20} {e['gt_ids']:>7} "
+              f"{e['baseline']:>9.3f} {e['proposed']:>9.3f} "
+              f"{e['margin']:>+8.3f}")
+    print("-" * 58)
+    print(f"Motorcycle IDF1 margin is between {lo:+.3f} and {hi:+.3f}, "
+          f"whatever the {r['pending']} unreviewed sheets show.")
+    if lo > 0:
+        print("The proposed method leads at BOTH ends: that conclusion is "
+              "already settled and no further review can overturn it.")
+    else:
+        print("The bracket still straddles zero — the lead is not yet "
+              "established. Keep reviewing.")
+
+
 # ── CLI ──────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -201,6 +290,13 @@ def main() -> None:
                     help="Write the blank decision sheet.")
     ap.add_argument("--apply", action="store_true",
                     help="Apply CUT verdicts and write gt_reviewed.txt.")
+    ap.add_argument("--bound", action="store_true",
+                    help="Score both extreme readings of the unreviewed rows. "
+                         "Tells you whether more reviewing can still change "
+                         "the answer. Works on a half-filled sheet.")
+    ap.add_argument("--tracks-dir", type=Path,
+                    default=REPO_ROOT / "experiments/gt_ablation")
+    ap.add_argument("--segment", nargs=2, type=int, default=[10700, 11300])
     ap.add_argument("--candidates", type=Path, default=CANDIDATES)
     ap.add_argument("--decisions", type=Path, default=DECISIONS)
     ap.add_argument("--gt", type=Path, default=GT_IN)
@@ -210,11 +306,16 @@ def main() -> None:
                     help="--init: overwrite an existing decision sheet.")
     args = ap.parse_args()
 
-    if args.init == args.apply:
-        raise SystemExit("Pass exactly one of --init or --apply.")
+    if sum([args.init, args.apply, args.bound]) != 1:
+        raise SystemExit("Pass exactly one of --init, --apply or --bound.")
 
     if args.init:
         init_decisions(args.candidates, args.decisions, args.force)
+        return
+
+    if args.bound:
+        print_bound(bound(args.gt, args.decisions, args.tracks_dir,
+                          tuple(args.segment)))
         return
 
     cuts, tally = load_decisions(args.decisions)

@@ -14,7 +14,8 @@ import csv
 
 import pytest
 
-from code.scripts.gt_apply_splits import CUT, KEEP, apply_cuts, load_decisions
+from code.scripts.gt_apply_splits import (CUT, KEEP, apply_cuts,
+                                          load_decisions, unreviewed_cuts)
 
 
 def write_gt(path, rows):
@@ -109,7 +110,7 @@ class TestDecisionSheet:
     def test_only_cut_rows_become_cuts(self, tmp_path):
         p = self._sheet(tmp_path, [CUT, KEEP, CUT])
         cuts, tally = load_decisions(p)
-        assert tally == {CUT: 2, KEEP: 1}
+        assert tally == {CUT: 2, KEEP: 1, "BLANK": 0}
         assert cuts == [(1, 11), (3, 13)]
 
     def test_blank_row_is_refused_rather_than_read_as_keep(self, tmp_path):
@@ -125,4 +126,25 @@ class TestDecisionSheet:
     def test_verdicts_are_case_insensitive(self, tmp_path):
         p = self._sheet(tmp_path, ["cut", " keep ", "Cut"])
         cuts, tally = load_decisions(p)
-        assert tally == {CUT: 2, KEEP: 1}
+        assert tally == {CUT: 2, KEEP: 1, "BLANK": 0}
+
+    def test_partial_mode_reads_a_half_filled_sheet(self, tmp_path):
+        p = self._sheet(tmp_path, [CUT, "", KEEP, ""])
+        cuts, tally = load_decisions(p, allow_partial=True)
+        assert tally == {CUT: 1, KEEP: 1, "BLANK": 2}
+        assert cuts == [(1, 11)]
+
+    def test_unreviewed_cuts_are_exactly_the_blanks(self, tmp_path):
+        p = self._sheet(tmp_path, [CUT, "", KEEP, ""])
+        # The two ends of the bound differ by precisely these, so a blank must
+        # never leak into the decided set nor a decided row into the pending
+        # one -- otherwise the bracket stops being a bracket.
+        assert unreviewed_cuts(p) == [(2, 12), (4, 14)]
+
+    def test_the_two_ends_partition_every_candidate(self, tmp_path):
+        p = self._sheet(tmp_path, [CUT, "", KEEP, ""])
+        decided, tally = load_decisions(p, allow_partial=True)
+        pending = unreviewed_cuts(p)
+        assert tally[CUT] + tally[KEEP] + tally["BLANK"] == 4
+        assert len(pending) == tally["BLANK"]
+        assert not set(decided) & set(pending)
