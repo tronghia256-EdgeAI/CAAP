@@ -249,10 +249,24 @@ C2 adds $0.85$\,ms per frame ($+22\%$) over the linear-filter baseline,
 and the ordering follows the computation: the EKF is the bulk of it,
 NSA is a single scaling of $\mathbf{R}$ and costs about two points, and
 the gate adds one Mahalanobis test per lost track.
-Against a YOLO11 inference cost of tens of milliseconds, C2 is not the
-term that decides real-time feasibility; even the worst-case p95 on the
-dense window ($14.1$\,ms) leaves headroom within the $33$\,ms budget at
-$30$\,fps.
+% REWRITTEN 27/8: the previous version asserted "a YOLO11 inference cost of
+% tens of milliseconds" and a 33 ms budget. Both were wrong -- the shipped
+% detector costs 130.7 ms and the source is 25 fps (40 ms). The verdict on C2
+% happened to survive, which is exactly why the premise had to be fixed rather
+% than left standing. See experiments/realtime/evidence.md.
+C2 is not the term that decides real-time feasibility, but the margin is
+narrower than tracker-side numbers suggest.
+Measured end to end on the same machine, the shipped detector
+(a YOLO11n \emph{segmentation} checkpoint at $640$\,px) costs
+$130.7$\,ms per frame --- $91\%$ of a $143.2$\,ms frame, against
+$10.1$\,ms for tracking (Table~\ref{tab:endtoend}).
+At $7.0$\,fps the pipeline misses the $40$\,ms budget set by the $25$\,fps
+source by $3.6\times$, so the operating point, not the tracker, is what
+stands between this system and real time.
+Section~\ref{sec:implementation} takes that apart: the segmentation head
+alone accounts for a $2.25\times$ factor over a detection head of the same
+scale for masks the pipeline never reads, and a detection head at $448$\,px
+reaches $37.6$\,fps within budget.
 
 \begin{table}[h]
   \centering

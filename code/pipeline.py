@@ -178,19 +178,36 @@ class Pipeline:
               'state'           : TrafficState this frame,
               'alerts'          : list of (Severity, confidence) fired this frame,
               'latency_ms'      : wall-clock processing time,
+              'stages_ms'       : per-stage breakdown {context, detect, track,
+                                  c3, accident}. 'detect' is 0.0 when
+                                  `detections` was supplied (replay runs), which
+                                  is exactly the gap between a replay latency
+                                  number and an end-to-end one.
             }
+
+        The stage timers are four perf_counter() calls on a path that already
+        costs milliseconds; they are always on so that a latency number can
+        never be reported without knowing what is inside it.
         """
         t0 = time.perf_counter()
+        stages: dict[str, float] = {}
 
         # C1: context → params (previous frame's tracks feed the estimator).
         state = self.context_estimator.estimate(frame, self._last_tracks)
         params = self.adaptive_controller.get_params(state) if self.use_c1 else None
+        t_ctx = time.perf_counter()
+        stages["context"] = (t_ctx - t0) * 1000.0
 
         # Detection (always low conf — D3) + tracking (C2).
         if detections is None:
             detections = self.detector.detect(frame)
+        t_det = time.perf_counter()
+        stages["detect"] = (t_det - t_ctx) * 1000.0
+
         tracks = self.tracker.update(detections, params)
         self._last_tracks = tracks
+        t_trk = time.perf_counter()
+        stages["track"] = (t_trk - t_det) * 1000.0
 
         # C3: dual-task reliability split.
         if self.use_c3:
@@ -203,6 +220,8 @@ class Pipeline:
             scores = {}
             tracks_accident = list(tracks)
             tracks_mappo = list(tracks)
+        t_c3 = time.perf_counter()
+        stages["c3"] = (t_c3 - t_trk) * 1000.0
 
         # Accident branch: severity classification + alert.
         alerts = []
@@ -228,6 +247,8 @@ class Pipeline:
             "state": state,
             "alerts": alerts,
             "latency_ms": (time.perf_counter() - t0) * 1000.0,
+            "stages_ms": {**stages,
+                          "accident": (time.perf_counter() - t_c3) * 1000.0},
         }
 
     def reset(self) -> None:

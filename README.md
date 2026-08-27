@@ -155,8 +155,17 @@ CAAP/
 | Missing | Effect | Fallback in place |
 |---|---|---|
 | GT for `mixed` / `freeflow` | C1 threshold calibration; a segment not seeded from the proposed method | `dense` GT done — C2 numbers are real, C1/C3 still uncalibrated |
-| `weights/yolo11_vn.pt` | accident class detection | COCO yolo11n auto-fallback (car/motorcycle/bus/truck) |
+| Accident footage | the whole accident branch: alert P/R/F1, severity confusion matrix, and C3's `tau_acc` — the one place C3's asymmetry can be tested | none. Co-author is collecting; go/no-go 20 Sep |
 | `weights/efficientnet_severity.pt` | severity classification | branch auto-disables with a logged warning |
+
+`weights/yolo11_vn.pt` is **present** and does carry an `Accident` class
+(id 0; `Detector` remaps by name, so its ordering does not matter). It is a
+`task='segment'` checkpoint while the pipeline only reads `.boxes` — whether
+that costs FPS for nothing is measured in the real-time benchmark.
+
+Not a blocker but the current gate on every headline number: the `dense` GT is
+over-merged (74/335 identities) and the re-review pass has not been run. See
+the warning above.
 
 ## Data policy (IP protection)
 

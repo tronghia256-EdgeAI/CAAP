@@ -43,6 +43,9 @@ paper/*.synctex.gz
 # ── Third-party sources cloned locally (ByteTrack, etc.) ─────────────
 lib/
 
+# OpenVINO's kernel compiler drops this in the repo root on export.
+kernel.errors.txt
+
 # ── OS ────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db

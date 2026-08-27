@@ -141,3 +141,21 @@ class TestAblationFlags:
     def test_latency_is_reported_per_frame(self, pipe):
         out = pipe.process(frame_of(128), detections=moving_moto(1)[0])
         assert out["latency_ms"] > 0.0
+
+    def test_stage_breakdown_accounts_for_the_whole_frame(self, pipe):
+        out = pipe.process(frame_of(128), detections=moving_moto(1)[0])
+        stages = out["stages_ms"]
+        assert set(stages) == {"context", "detect", "track", "c3", "accident"}
+        # The stages tile the frame: their sum is the total, up to the cost of
+        # the perf_counter calls between them.
+        assert sum(stages.values()) == pytest.approx(out["latency_ms"], abs=0.5)
+
+    def test_supplied_detections_report_zero_detect_time(self, pipe):
+        """The gap between a replay latency number and an end-to-end one.
+
+        Replay runs feed cached detections, so `detect` is genuinely free —
+        which is exactly why replay latency must not be quoted as real-time
+        throughput.
+        """
+        out = pipe.process(frame_of(128), detections=moving_moto(1)[0])
+        assert out["stages_ms"]["detect"] == pytest.approx(0.0, abs=0.05)

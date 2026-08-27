@@ -1,0 +1,164 @@
+% ── Section: Implementation and Real-Time Deployment ─────────────────
+% NEW 27/8/2026, written for the journal venue. A conference version had no
+% room for this; the journal does, and for JRTIP it is the section that
+% decides whether the paper belongs there at all.
+% Every number here comes from experiments/realtime/evidence.md.
+% Open: the accuracy axis of Table~\ref{tab:pareto} is not yet measured --
+% it needs a detection-head model trained on the same data (requested) and
+% the dense GT re-review (in progress). Do not submit with that gap.
+% ─────────────────────────────────────────────────────────────────────
+
+\section{Implementation and Real-Time Deployment}
+\label{sec:implementation}
+
+\subsection{Computational Cost of the Proposed Components}
+\label{subsec:complexity}
+
+The CTRV filter of Sec.~\ref{subsec:c2} replaces a linear Kalman filter on a
+$5$-dimensional state, so its per-track cost is dominated by the covariance
+propagation $\mathbf{F}\mathbf{P}\mathbf{F}^{\top}$ and the Joseph-form
+update: $\mathcal{O}(d^{3})$ with $d=5$, against $d=8$ for the
+constant-velocity filter it replaces on motorcycles.
+The Jacobian (Eq.~\ref{eq:ctrv_x}--\ref{eq:ctrv_theta}) is evaluated in closed
+form, adding no iteration.
+Total tracking cost is therefore $\mathcal{O}(n)$ in the number of tracks for
+prediction, plus the $\mathcal{O}(nm)$ association already present in
+ByteTrack for $n$ tracks and $m$ detections; the uncertainty gate adds one
+$2\times2$ Mahalanobis test per lost motorcycle track, and NSA a single scalar
+scaling of $\mathbf{R}$ per detection.
+The context estimator (C1) is four scalar statistics over the current frame
+and track set, and the reliability score (C3) is a weighted sum of five
+per-track quantities already maintained by the tracker; neither introduces a
+term that grows faster than $\mathcal{O}(n)$.
+
+Memory is likewise bounded: the tracker holds one $5\times5$ covariance per
+motorcycle track and one $8\times8$ per other vehicle, so at the $\sim$47
+tracks/frame of the \textsc{dense} window the filter state is under
+$20$\,kB in total.
+
+\subsection{End-to-End Latency}
+\label{subsec:endtoend}
+
+Sec.~\ref{subsec:runtime} reported tracker-side latency with the detector
+excluded, which isolates what the proposed modules cost but says nothing about
+throughput.
+Table~\ref{tab:endtoend} reports the whole path --- decode, context,
+detection, tracking, reliability scoring --- on the same CPU, one variant per
+process, warm-up frames discarded.
+
+\begin{table}[h]
+  \centering
+  \caption{End-to-end per-frame cost, detector included
+           (100 frames per row, one process per row, Intel Core i5-12500H,
+           CPU only). Source is $25$\,fps, so the real-time budget is
+           $40$\,ms.}
+  \label{tab:endtoend}
+  \begin{tabular}{lccccc}
+    \toprule
+    Configuration & detect & track & total & p95 & fps \\
+    \midrule
+    Exp~0 (baseline)     & 109.8 & 5.8 & 117.1 & 131.5 & 8.5 \\
+    Exp~1 (+C2)          & 109.5 & 9.5 & 120.4 & 135.0 & 8.3 \\
+    Exp~2 (+C1, C2)      & 110.9 & 7.8 & 120.1 & 140.8 & 8.3 \\
+    Exp~3 (+C1, C2, C3)  & 110.4 & 7.4 & 120.3 & 133.3 & 8.3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Two things change once the detector is inside the measurement.
+
+\paragraph{The proposed components are nearly free, and the detector is not}
+C2 costs $+22\%$ of tracker time (Table~\ref{tab:runtime}) but $+2.8\%$ of a
+frame --- $3.3$\,ms on $117$\,ms.
+C1 and C3 fall inside run-to-run noise.
+Detection accounts for $91\%$ of the frame in the shipped configuration.
+Any discussion of real-time feasibility for this pipeline is a discussion
+about the detector's operating point; the tracking contribution of this paper
+is not the term that decides it.
+
+\paragraph{The shipped configuration is not real-time, for an avoidable reason}
+At $8.3$\,fps the proposed configuration misses the $40$\,ms budget by
+$3\times$.
+The cause is not the detector's scale but its \emph{head}: the deployed
+checkpoint is a YOLO11n \emph{segmentation} model, while the pipeline consumes
+only bounding boxes.
+A detection head of the same scale costs $58.2$\,ms against $130.7$\,ms at
+$640$\,px --- a factor of $2.25$ spent computing a $160\times160\times32$
+prototype tensor that is discarded on every frame.
+
+\subsection{Reaching the Real-Time Budget}
+\label{subsec:pareto}
+
+Table~\ref{tab:pareto} sweeps the detector operating point with a detection
+head.
+The budget is met at $448$\,px and below.
+
+\begin{table}[h]
+  \centering
+  \caption{Detector operating points (detection head, PyTorch, CPU).
+           Accuracy column pending --- see the caveat below.}
+  \label{tab:pareto}
+  \begin{tabular}{lcccc}
+    \toprule
+    Input size & detect (ms) & total (ms) & p95 & fps \\
+    \midrule
+    $640$ & 58.2 & 62.9 & 69.6 & 15.9 \\
+    $448$ & 24.3 & 26.6 & \textbf{32.9} & \textbf{37.6} \\
+    $320$ & 17.3 & 19.5 & 24.7 & 51.4 \\
+    $256$ & 14.2 & 16.3 & 20.5 & 61.4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\todo{Accuracy axis. Table~\ref{tab:pareto} is half a Pareto curve: it has
+cost and no quality. Filling it needs (i) a detection-head model trained on
+the same data as the deployed segmentation checkpoint, and (ii) the
+\textsc{dense} ground-truth re-review, since no accuracy figure should be
+quoted before that lands. Do not submit without this.}
+
+\subsection{Export Backends}
+\label{subsec:backends}
+
+The usual route to CPU real-time is to export the network to an inference
+runtime.
+On this machine it is a regression in every combination we measured:
+OpenVINO costs $+25\%$ over PyTorch for both the segmentation head
+($163.9$ vs.\ $130.7$\,ms) and the detection head ($73.0$ vs.\ $58.2$\,ms),
+and ONNX Runtime $+75\%$ ($228.7$\,ms).
+Half precision is slower still ($79.3$\,ms), as expected on a CPU with no
+native half-precision path, where the conversion is real work and the
+arithmetic is not cheaper.
+
+The consistency of the OpenVINO penalty across both heads suggests the
+backend rather than one model, and the likely mechanism is that only the
+backbone traverses the exported graph while postprocessing remains in the
+framework --- giving up fused CPU kernels without replacing the dominant term.
+We report this as measured, with default export settings and no thread or
+stream tuning, rather than as a general claim about these runtimes.
+Integer quantization was not evaluated: it requires a calibration set from the
+detection training data, which we do not hold.
+
+The practical conclusion for deployment on commodity CPUs is the reverse of
+the usual advice: choosing the right \emph{head} was worth $2.25\times$, while
+changing the \emph{runtime} cost $25$--$75\%$.
+
+\subsection{Measurement Protocol}
+\label{subsec:protocol}
+
+Two protocol choices are worth stating because violating either produces
+differences larger than the ones under study.
+
+First, each configuration is timed in a separate process.
+Timing several in one run makes the measurement track position rather than
+configuration: the same baseline code measured $13.19$\,ms first and
+$4.07$\,ms last, a $3.2\times$ spread that exceeds every difference in
+Table~\ref{tab:endtoend} and flatters whichever configuration runs last.
+
+Second, warm-up frames are discarded rather than averaged in; the first frames
+pay for lazy initialization and kernel autotuning, and we measure a mean of
+$219$\,ms across them against $143$\,ms in steady state.
+
+We also caution that absolute end-to-end numbers are comparable within a sweep
+but not across sessions: the same detector on the same footage measured
+$109.8$\,ms in one sweep and $130.7$\,ms in another.
+Every comparison drawn above is within a single sweep.

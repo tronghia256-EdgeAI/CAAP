@@ -57,12 +57,26 @@ class Detector:
         detections = detector.detect(frame)     # N×6 numpy
     """
 
-    def __init__(self, weights_path: str, img_size: int = 640) -> None:
+    def __init__(self, weights_path: str, img_size: int = 640,
+                 task: str | None = None) -> None:
         from ultralytics import YOLO  # lazy: only pipeline runs need torch
 
         self.img_size = img_size
+        # `task` matters only for exported weights (.onnx, openvino dirs): a
+        # .pt carries its task, an export does not always. Guessing wrong is
+        # silent and total — a segment model read as `detect` parses its 32
+        # mask coefficients as class scores, yielding confidences above 1.0
+        # and boxes that the class remap then discards, so the pipeline sees
+        # zero detections while every layer still reports success.
+        kwargs = {"task": task} if task else {}
         if Path(weights_path).exists():
-            self.model = YOLO(weights_path)
+            if not task and Path(weights_path).suffix != ".pt":
+                logger.warning(
+                    "Loading exported weights %s without an explicit task; "
+                    "ultralytics will guess, and a wrong guess fails silently "
+                    "(zero detections, no error). Pass task= to be sure.",
+                    weights_path)
+            self.model = YOLO(weights_path, **kwargs)
         else:
             logger.warning(
                 "Weights %s not found — falling back to COCO-pretrained %s. "
