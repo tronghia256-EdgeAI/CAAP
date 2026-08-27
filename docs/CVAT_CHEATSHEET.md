@@ -33,6 +33,18 @@ mắt bạn quyết. Bỏ qua 1 dòng không sao; sửa bừa 1 dòng mới hỏ
 Nó cũng không bắt được xe bị miss hẳn → xong checklist thì tua nhanh
 1 lượt để soát loại đó.
 
+## ⚠️ ID trong file ≠ ID trên CVAT
+
+CVAT đánh số lại toàn bộ track thành `1..N` theo thứ tự export khi ghi
+MOT 1.1. Pre-label vào với ID của tracker (`5849`, `6413`…) thì export ra
+thành `1..335` liền mạch. Nên **đừng gõ ID từ file vào CVAT để tìm** — sẽ
+không ra, hoặc tệ hơn là ra nhầm xe.
+
+Tra theo **frame + vị trí pixel**: gõ số frame, nhìn đúng chỗ, click box →
+ID mà CVAT hiện mới là ID thật. Ảnh trong task là 800×450, cùng hệ toạ độ
+với cột `centre_after` / `box_after` trong
+`experiments/gt_qa/split_candidates/candidates.csv`.
+
 ## 5 phím là đủ
 
 | Phím | Làm gì |

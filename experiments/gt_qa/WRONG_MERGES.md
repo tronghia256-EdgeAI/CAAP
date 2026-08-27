@@ -4,6 +4,14 @@
 Read this before quoting motorcycle IDF1 $0.933$ or the $+0.089$ margin
 anywhere.
 
+> **Identity numbers below are internal to `gt.txt`.** CVAT renumbers every
+> track `1..N` in export order when writing MOT 1.1 — the pre-labels went in
+> with tracker ids (`5849`, `6413`, …) and came back `1..335` with no gaps.
+> These numbers do not exist in the CVAT UI. To find a case in CVAT, use the
+> frame number and pixel position in
+> `split_candidates/candidates.csv`, or the rendered sheets in
+> `split_candidates/`, which ring the box in red.
+
 ## What happened
 
 While building the qualitative figure I picked the most extreme example of
