@@ -1,0 +1,70 @@
+% ============================================================
+% Paper 2: Context-Aware Adaptive Perception for Mixed Traffic
+% Author : Trọng Nghĩa
+% Target : ICRA 2027 (primary) / IEEE IV 2027 (backup)
+%          CONFERENCE format — 6–8 pages incl. references.
+% NOTE   : Using IEEEtran [conference]. The official ICRA kit ships
+%          ieeeconf.cls — swap the documentclass line when the ICRA 2027
+%          author kit is released; the body is compatible with both.
+% ============================================================
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+% ── Packages ────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}           % professional tables (\toprule etc.)
+\usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{cite}               % IEEE-style [1]–[3] compression
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage[hidelinks]{hyperref}
+
+% Draft-only TODO marker — remove before submission.
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+% ── Metadata ────────────────────────────────────────────────
+\title{\LARGE \bf Context-Aware Adaptive Perception for Motorcycle-Dominant
+       Mixed Traffic: Dual-Task Detection and Tracking}
+
+% Names in ASCII to stay within T1 fontenc; add full Vietnamese
+% diacritics later via the vntex/T5 route if desired.
+% Student emails share the st.ueh.edu.vn domain → grouped {a, b}@domain
+% (standard IEEE idiom); mentor's email on its own line.
+\author{%
+\IEEEauthorblockN{Le~Trong~Nghia, Vo~Xuan~Lanh, and Nguyen~Thien~Bao}
+\IEEEauthorblockA{University of Economics Ho Chi Minh City (UEH),
+                  Ho Chi Minh City, Vietnam\\
+\texttt{\{nghiale.31241024698,~lanhvo.31241025950\}@st.ueh.edu.vn},
+\texttt{baont@ueh.edu.vn}}
+}
+
+% ── Document ────────────────────────────────────────────────
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+\pagestyle{empty}
+
+%% ── Abstract ──────────────────────────────────────────────
+\begin{abstract}
+  \input{sections/00_abstract}
+\end{abstract}
+
+%% ── Sections ──────────────────────────────────────────────
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_methodology}
+\input{sections/04_experiments}
+\input{sections/05_results}
+\input{sections/06_conclusion}
+
+%% ── References ────────────────────────────────────────────
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

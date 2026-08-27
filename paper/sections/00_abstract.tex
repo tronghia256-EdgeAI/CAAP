@@ -1,0 +1,38 @@
+% ── Abstract ─────────────────────────────────────────────────────────
+% Target: 150–200 words. [R] numbers filled after real-footage ablation.
+% ─────────────────────────────────────────────────────────────────────
+Perception pipelines for urban traffic surveillance typically rely on
+fixed detection thresholds and a single linear motion model, and both
+assumptions break down in motorcycle-dominant mixed traffic: dense
+weaving maneuvers fragment tracks, and static thresholds produce
+persistent false-positive accident alerts.
+%
+We propose a context-aware adaptive perception pipeline with three
+components: (C1)~a lightweight context estimator that reads traffic
+density, time of day, image brightness, and recent false-positive rate,
+and adjusts detector confidence, tracker buffer length, and motion-model
+selection online with hysteresis-stabilized switching; (C2)~a
+class-conditioned motion model that tracks motorcycles with a constant
+turn-rate and velocity (CTRV) extended Kalman filter while other vehicle
+classes retain the standard linear filter; and (C3)~a dual-task track
+reliability score that serves high-precision accident alerting and
+high-recall multi-agent signal-control observations from a single
+pipeline via two task-specific thresholds.
+%
+On hand-annotated ground truth from a self-collected Vietnamese urban
+dataset, C2 improves motorcycle identity preservation over a
+YOLO11+ByteTrack baseline for $0.85$\,ms of additional per-frame tracker
+latency, and improves both detection precision and recall simultaneously
+--- something no per-frame confidence threshold can do.
+We quantify the sensitivity of the identity gain to residual annotation
+error rather than reporting a single figure.
+We further show that C2's components are not separable: uncertainty-gated
+re-association \emph{alone} degrades identity, and only becomes effective
+once confidence-scaled measurement noise makes the filter's uncertainty
+estimate trustworthy.
+We report negatively on the remaining components --- context adaptation
+does not improve on a calibrated fixed threshold in the single traffic
+regime our annotated segment covers, and the reliability score is too
+weakly discriminative (AUC $0.609$) to filter usefully once C2 has
+removed most spurious tracks --- and identify what each would require to
+be validated.

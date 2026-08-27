@@ -15,6 +15,8 @@ experiments/*/logs/
 experiments/**/*.mp4
 experiments/**/detections*.npz
 experiments/**/tracks_*.json
+# QA sheets rendered from real frames (69 MB) — same IP rule as footage.
+experiments/**/split_candidates/
 
 # ── Python ────────────────────────────────────────────────────────────
 __pycache__/
@@ -24,8 +26,19 @@ __pycache__/
 venv/
 .venv/
 
-# ── Paper (local only, not version controlled) ───────────────────────
-paper/
+# ── Paper ─────────────────────────────────────────────────────────────
+# Source IS version controlled (9-week journal push needs history/backup).
+# Build artifacts and footage-derived figures are not.
+paper/**/*.pdf
+!paper/figures/fig1_pipeline_overview.pdf
+paper/**/*.png
+paper/**/*.jpg
+paper/*.aux
+paper/*.log
+paper/*.blg
+paper/*.bbl
+paper/*.out
+paper/*.synctex.gz
 
 # ── Third-party sources cloned locally (ByteTrack, etc.) ─────────────
 lib/

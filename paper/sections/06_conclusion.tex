@@ -1,0 +1,42 @@
+% ── Section VI: Conclusion & Future Work ─────────────────────────────
+% Conference budget: ~0.25 page.
+% ─────────────────────────────────────────────────────────────────────
+
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+We presented a context-aware adaptive perception pipeline for
+motorcycle-dominant mixed traffic that couples a lightweight
+traffic-context controller (C1), a class-conditioned CTRV motion model
+for motorcycles (C2), and a dual-task track reliability score (C3),
+serving accident alerting and MAPPO-based signal control from one
+pipeline.
+On annotated ground truth the class-conditioned motion mechanism leads on
+motorcycle identity preservation under every version of the ground truth
+we construct, for $+22\%$ tracker latency
+($3.93 \rightarrow 4.78$\,ms/frame), while C1 and C3 do not yet earn
+their place.
+
+\emph{Limitations.}
+The dataset is single-city, so cross-city generalization is untested;
+the context controller uses interpretable heuristic rules rather than
+learned adaptation; and CTRV extrapolates a stale turn rate when an
+occlusion coincides with a turn-rate sign flip
+(Sec.~\ref{subsec:synthetic}).
+Two limitations are specific to what our annotation covers.
+The annotated segment never leaves a single traffic regime, so it can
+measure C1's cost but not its premise; and it contains no accidents, so
+the precision branch that motivates C3's dual-task formulation is
+untested.
+Finally, the annotation itself carries two biases toward the proposed
+method: pre-labels were seeded from it, and $22\%$ of annotated identities
+show signs of over-merging, which rewards gap-bridging re-association.
+We measure both directions rather than assuming them away; the first moves
+the margin negligibly, the second by up to $84\%$, and closing it requires
+a re-annotation pass we identify but have not yet run.
+
+\emph{Future work.}
+We will deploy the full pipeline on an NVIDIA Jetson Orin NX as part of
+an edge system integrating adaptive perception with multi-agent signal
+control, and explore replacing the rule-based controller with a learned
+policy over the same context signals.

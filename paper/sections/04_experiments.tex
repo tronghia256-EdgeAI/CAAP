@@ -1,0 +1,131 @@
+% ── Section IV: Experimental Setup ───────────────────────────────────
+% Conference budget: ~1 page.
+% NOTE: ablation order fixed to match the locked scope + configs/:
+%   Exp1 = +C2 (CTRV), Exp2 = C1+C2, Exp3 = C1+C2+C3.
+%   (An earlier skeleton had Exp1 = +C1 — wrong.)
+% ─────────────────────────────────────────────────────────────────────
+
+\section{Experimental Setup}
+\label{sec:experiments}
+
+\subsection{Datasets}
+\label{subsec:datasets}
+
+\paragraph{VN-MixedTraffic (primary, self-collected)}
+Fixed surveillance-style cameras over Vietnamese urban intersections
+and arterials with motorcycle-dominant mixed traffic.
+Annotated classes: \texttt{car}, \texttt{motorcycle}, \texttt{bus},
+\texttt{truck}, \texttt{accident}; accident clips are further labeled
+\texttt{minor} (vehicles can move on) or \texttt{severe} (overturned
+vehicle, ejected rider, $>$2 vehicles, or immobilized vehicle).
+\todo{Fill after dataset freeze: number of clips, total duration,
+resolution/fps, class-distribution table, minor/severe split,
+train/test protocol.}
+The dataset is not publicly released for intellectual-property
+reasons; evaluation protocol and pseudocode are fully specified.
+
+\paragraph{Tracking ground truth and its provenance}
+Tracking metrics are computed on a $600$-frame segment
+($800\times450$, $\sim$47 tracks/frame), chosen as the densest window of
+the sequence and lying in a held-out region.
+It contains $27\,513$ boxes over $335$ identities, annotated in CVAT
+under a fixed convention: a motorcycle box covers rider and passengers;
+objects below $\sim$8\,px are not labeled; and a fully occluded track is
+allowed to break but must be re-joined to its original identity on
+reappearance, so that re-identification remains measurable.
+
+Annotators corrected \emph{pre-labels} rather than drawing from scratch,
+and those pre-labels came from the proposed tracker.
+We state this because it biases the proposed method's own row: an error
+the annotator does not catch survives as agreement.
+The correction was substantial ($873$ boxes added, $1388$ deleted,
+$1019$ adjusted, $15$ merges, $9$ splits --- $\sim$8\% of boxes
+touched), and we bound the residual bias directly in
+Sec.~\ref{subsec:ablation_results}.
+We verify the annotation pipeline with three checks: the ground truth
+scored against itself gives MOTA${=}$IDF1${=}1.000$; frame alignment
+peaks unambiguously at zero offset (mean best IoU $0.960$, against
+$0.705$ and $0.715$ at $\pm1$); and the added/deleted box counts match
+the seed model's miss/false-positive counts exactly, closing the
+export--annotate--import loop with no free parameters.
+
+\paragraph{Public benchmarks}
+CADP~\cite{Shah2018_cadp} (CCTV accident clips) and
+D2-City~\cite{Che2019_d2city} (large-scale dashcam footage) are used
+for comparison with prior accident-detection results only --- no
+training is performed on them.
+
+\subsection{Metrics}
+\label{subsec:metrics}
+
+\emph{Tracking:} MOTA~\cite{Bernardin2008_mota}, IDF1, identity
+switches (IDSW), and track fragmentation rate.
+Our metric implementation is written from scratch and cross-validated
+against \texttt{py-motmetrics} on shared sequences.
+\emph{Detection:} precision, recall, F1, and mAP@0.5.
+\emph{Accident branch:} alert precision/recall/F1 and the 3-class
+severity confusion matrix (none/minor/severe).
+\emph{System:} per-frame latency (ms) and end-to-end FPS.
+
+\subsection{Implementation Details}
+\label{subsec:impl}
+
+The detector is YOLO11~\cite{Khanam2024_yolo11}
+(\todo{variant, training epochs, image size, batch size}) fine-tuned
+on VN-MixedTraffic; the severity classifier is
+EfficientNet-B0~\cite{Tan2019_efficientnet} pretrained on ImageNet and
+fine-tuned on the accident crops.
+The tracker is ByteTrack~\cite{Zhang2022_bytetrack} with the motion
+model made class-conditional (Sec.~\ref{subsec:c2}); association logic
+and both association stages are unchanged.
+CTRV uses $\Delta t = 1$ frame with process noise
+$\mathbf{Q} = \mathrm{diag}(0.5, 0.5, 0.1, 10^{-3}, 10^{-4})$ and
+measurement noise $\mathbf{R} = \mathrm{diag}(10, 10)$ (pixels), tuned
+on synthetic trajectories and left unchanged for the real-footage
+evaluation; NSA scales $\mathbf{R}$ per detection at run time
+(Eq.~\ref{eq:nsa}).
+C1 uses $\alpha = 0.1$ and hysteresis $N_h = 15$ frames; its
+\textsc{dense-peak} row is calibrated by grid search against the
+annotated segment (Table~\ref{tab:param_table}), and the remaining rows
+keep their initial values because no annotated footage exercises them.
+C3 uses the weights and thresholds of Sec.~\ref{subsec:c3}.
+Software: Python 3.10, PyTorch~2.x.
+Latency is measured on CPU (Intel Core i5-12500H, 16\,GB RAM) with the
+detector excluded, so the reported figures isolate tracker-side cost and
+are not an end-to-end throughput claim.
+
+\subsection{Ablation Design}
+\label{subsec:ablation_design}
+
+Table~\ref{tab:ablation_design} lists the four configurations; each is
+evaluated on the same VN-MixedTraffic test split with identical
+detections wherever the configuration permits, isolating each
+component's contribution.
+
+\begin{table}[h]
+  \centering
+  \caption{Ablation configurations. \checkmark~=~component active.}
+  \label{tab:ablation_design}
+  \begin{tabular}{lcccl}
+    \toprule
+    Configuration & C1 & C2 & C3 & Description \\
+    \midrule
+    Exp~0 (baseline) & --         & --         & --         & YOLO11 + ByteTrack \\
+    Exp~1            & --         & \checkmark & --         & + CTRV motion model \\
+    Exp~2            & \checkmark & \checkmark & --         & + context adaptation \\
+    Exp~3 (proposed) & \checkmark & \checkmark & \checkmark & + reliability score \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Baselines}
+\label{subsec:baselines}
+
+(i)~\emph{Vanilla ByteTrack} --- the direct baseline, differing only in
+the proposed components.
+(ii)~\emph{YOLO-only alerting} (no tracker) --- quantifies how much
+temporal confirmation alone reduces false alerts.
+(iii)~\emph{Hikvision AID}~\cite{Hikvision_AID} --- commercial
+reference, cited as prior art; since its internals and operating points
+are unpublished, the comparison is qualitative (capability matrix), not
+numeric.
