@@ -16,7 +16,11 @@ experiments/**/*.mp4
 experiments/**/detections*.npz
 experiments/**/tracks_*.json
 # QA sheets rendered from real frames (69 MB) — same IP rule as footage.
-experiments/**/split_candidates/
+# candidates.csv carries GT box geometry, so it goes too. decisions.csv is
+# only verdicts and indices: that IS tracked, it is the provenance for a
+# published claim.
+experiments/**/split_candidates/*.png
+experiments/**/split_candidates/candidates.csv
 
 # ── Python ────────────────────────────────────────────────────────────
 __pycache__/
