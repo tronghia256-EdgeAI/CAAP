@@ -21,6 +21,13 @@ experiments/**/tracks_*.json
 # published claim.
 experiments/**/split_candidates/*.png
 experiments/**/split_candidates/candidates.csv
+# Reviewed GT contains footage-derived box coordinates and local review records.
+experiments/gt_qa/reviewed/
+experiments/gt_qa/mixed_review/*.png
+experiments/gt_qa/mixed_review/source_gt.txt
+experiments/gt_qa/mixed_review/manifest.json
+experiments/gt_qa/mixed_review/edits.json
+experiments/gt_qa/mixed_reviewed/
 
 # ── Python ────────────────────────────────────────────────────────────
 __pycache__/

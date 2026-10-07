@@ -13,6 +13,13 @@ C2 đầy đủ: IDF1 xe máy 0.844 → 0.933, IDsw −85%.
 
 ## Việc tiếp theo: `mixed` — ĐÃ CHUẨN BỊ XONG, sẵn sàng label
 
+**Luồng review local mới (07/10/2026):** mở `review_gt_mixed.cmd`. Có ảnh so sánh,
+nối/tách ID, sửa/thêm/xóa box, đổi class, lưu tự động và audit đủ 600 frame.
+Không cần upload sang CVAT để dùng luồng này. Xem
+[hướng dẫn review trên máy](GT_REVIEW_WORKFLOW.md).
+Phần CVAT bên dưới là lựa chọn khác; xuất GT CVAT tạo dataset mới, không ghi đè
+snapshot nguồn của app local đang review.
+
 ```
 data/annotations/prelabels/mixed_images.zip        ← upload làm task data
 data/annotations/prelabels/mixed_annotations.zip   ← import đè lên
@@ -27,9 +34,10 @@ khác `dense`, và đây là chủ ý. Hai lý do, một công đôi việc:
    minh "thích ứng" gì cả. `mixed` chuyển trạng thái 264/336 frame, mật độ
    trung bình 30.0 đúng ngay ngưỡng 30. Đây là đoạn duy nhất trả lời được
    câu hỏi C1 có tác dụng không.
-2. **Xoá cảnh báo circularity.** GT của `dense` seed từ chính method được
-   đánh giá nên hàng đó lệch lên (đã đo: tối đa ~0.004 IDF1, xem
-   `experiments/gt_qa/sensitivity.md`). Seed từ baseline thì không còn lệch.
+2. **Đổi nguồn pre-labels để kiểm tra độ nhạy với seed.** GT của `dense` seed
+   từ method được đánh giá; mixed seed từ baseline. Đổi seed không tự loại bỏ
+   annotation bias: cả hai vẫn cần human review, gồm vật thể detector bỏ sót.
+   Các sensitivity cũ là các kịch bản thử, không phải giới hạn đảm bảo cho bias.
 
 Vì seed từ baseline (yếu hơn) nên sẽ có nhiều chỗ phải sửa hơn `dense` —
 67 MERGE thay vì 37. Đó là bình thường, không phải lỗi.

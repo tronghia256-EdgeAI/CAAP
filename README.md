@@ -39,6 +39,18 @@ python -m code.scripts.run_experiment --config configs/baseline.yaml --video dat
 > repo root — the project package is named `code`, which shadows a stdlib
 > module (see `code/__init__.py`).
 
+## GT review
+
+Double-click `review_gt.cmd`, or run
+`python -m code.scripts.gt_review_app`. The local reviewer saves human CUT/KEEP
+decisions, resumes pending candidates, and generates a new GT plus ablation
+scores after completion. See [the review workflow](docs/GT_REVIEW_WORKFLOW.md).
+
+For **mixed**, open `review_gt_mixed.cmd`: review merge/split/duplicate/short-track
+questions, edit boxes/classes in the local video viewer, and audit all 600 frames.
+It preserves the baseline seed and saves decisions plus an edit journal before
+generating a reviewed GT and ablation report.
+
 ## Ablation configs
 
 | Config file | C1 | C2 | C3 | Maps to |
