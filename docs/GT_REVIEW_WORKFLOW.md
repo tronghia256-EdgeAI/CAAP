@@ -1,5 +1,9 @@
 # Review GT trên máy
 
+**Dataset Accident / Vehicle:** mở `review_accident_dataset.cmd` để duyệt cụm
+ảnh gần giống, sửa box và xuất dataset detector. Xem
+[hướng dẫn làm sạch dataset](ACCIDENT_DATASET_REVIEW_WORKFLOW.md).
+
 ## Mixed: nối/tách ID và sửa nhãn trực tiếp
 
 Mở **`review_gt_mixed.cmd`** tại thư mục gốc repo, hoặc:

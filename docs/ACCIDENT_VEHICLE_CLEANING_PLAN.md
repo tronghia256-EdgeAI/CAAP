@@ -1,7 +1,14 @@
 # Audit và kế hoạch làm sạch `accident_vehicle`
 
-Ngày: **10/10/2026** (Asia/Saigon). Trạng thái: **đã audit, chờ Nghĩa chốt
-kế hoạch; chưa lọc, xóa, sửa nhãn hoặc chia lại dataset**.
+Ngày: **10/10/2026** (Asia/Saigon). Trạng thái: **Nghĩa đã duyệt kế hoạch;
+đã tạo bản detection và hàng chờ review, chờ quyết định ảnh/nhãn và metadata
+trước khi xuất dataset cuối**. Dataset gốc giữ nguyên.
+
+Bản chuẩn bị: `data/annotations/accident_vehicle_clean/v1/`, 4.980 ảnh,
+55.394 bounding box; chưa loại ảnh. Mở `review_accident_dataset.cmd` để duyệt
+543 mục (480 cụm liên quan, 56 batch chất lượng, 7 batch mẫu nhãn).
+237 cụm xuyên split được ưu tiên; 13 ảnh có box trùng sau chuyển polygon
+được đánh dấu cần kiểm tra. Xem [hướng dẫn review](ACCIDENT_DATASET_REVIEW_WORKFLOW.md).
 
 Nguồn: `data/annotations/accident_vehicle/`, bản export Roboflow v12.
 Thông tin phiên bản/license dưới đây được đọc từ README và YAML đi kèm,

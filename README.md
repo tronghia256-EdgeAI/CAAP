@@ -41,6 +41,11 @@ python -m code.scripts.run_experiment --config configs/baseline.yaml --video dat
 
 ## GT review
 
+For the **Accident / Vehicle detection dataset**, open
+`review_accident_dataset.cmd` to review related images, edit boxes, and publish
+source-preserving grouped splits. The prepared version remains a draft until
+review and provenance confirmation. See [dataset review instructions](docs/ACCIDENT_DATASET_REVIEW_WORKFLOW.md).
+
 Double-click `review_gt.cmd`, or run
 `python -m code.scripts.gt_review_app`. The local reviewer saves human CUT/KEEP
 decisions, resumes pending candidates, and generates a new GT plus ablation
