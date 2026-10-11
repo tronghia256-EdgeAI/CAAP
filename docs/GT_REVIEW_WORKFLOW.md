@@ -4,6 +4,14 @@
 ảnh gần giống, sửa box và xuất dataset detector. Xem
 [hướng dẫn làm sạch dataset](ACCIDENT_DATASET_REVIEW_WORKFLOW.md).
 
+**Train thử detector:** mở `train_detector_trial.cmd` để kiểm tra YOLO11n
+trên CPU. Xem [workflow train thử](DETECTOR_TRIAL_WORKFLOW.md); kết quả này
+chỉ dùng phát triển, chưa phải evaluation cho paper.
+
+**Train trên Kaggle:** upload ZIP đã chuẩn bị và import
+`notebooks/CAAP_YOLO11_Kaggle.ipynb`. Xem
+[hướng dẫn Kaggle](KAGGLE_DETECTOR_TRAINING.md).
+
 ## Mixed: nối/tách ID và sửa nhãn trực tiếp
 
 Mở **`review_gt_mixed.cmd`** tại thư mục gốc repo, hoặc:

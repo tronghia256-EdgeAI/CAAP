@@ -46,6 +46,12 @@ For the **Accident / Vehicle detection dataset**, open
 source-preserving grouped splits. The prepared version remains a draft until
 review and provenance confirmation. See [dataset review instructions](docs/ACCIDENT_DATASET_REVIEW_WORKFLOW.md).
 
+For development training on **Kaggle**, use
+[CAAP_YOLO11_Kaggle.ipynb](notebooks/CAAP_YOLO11_Kaggle.ipynb) and the private
+upload ZIP prepared by `python -m code.scripts.package_kaggle_detection`.
+See [Kaggle setup and output instructions](docs/KAGGLE_DETECTOR_TRAINING.md).
+Development validation metrics are not independent paper test results.
+
 Double-click `review_gt.cmd`, or run
 `python -m code.scripts.gt_review_app`. The local reviewer saves human CUT/KEEP
 decisions, resumes pending candidates, and generates a new GT plus ablation
