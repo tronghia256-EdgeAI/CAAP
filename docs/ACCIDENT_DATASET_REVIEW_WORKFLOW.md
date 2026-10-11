@@ -22,6 +22,27 @@ Hàng chờ có **543 cụm/batch**, thay cho việc duyệt 12.643 cặp riêng
 13 ảnh có polygon khác nhau chuyển thành box cùng class/tọa độ. Chúng nằm
 trong QUALITY, được giữ đủ nhãn để bạn quyết định sửa hoặc cách ly.
 
+### Bước 1 đã xử lý ngày 11/10/2026
+
+Theo yêu cầu của Nghĩa, QA tự động đã chuyển **13 ảnh còn box trùng** sang
+**QUARANTINE**, không tự chọn/xóa một nhãn khi các polygon khác nhau có thể
+thuộc các vật thể khác nhau. Ảnh, nhãn gốc và pool vẫn giữ nguyên; quyết định
+cách ly được lưu trong `review.json` và journal với tác giả QA tự động.
+
+Hiện có **4.967 ảnh KEEP, 13 ảnh QUARANTINE**. Kiểm tra toàn bộ nhãn của ảnh
+KEEP không còn lỗi hình học/class/box trùng theo validator hiện có; đây chưa
+phải xác nhận box đúng nội dung ảnh hoặc đầy đủ vật thể.
+
+Báo cáo chi tiết và bản sao review trước thao tác nằm trên máy tại
+`data/processed/dataset_audits/accident_vehicle_box_quarantine_20261011/`.
+Để đưa một ảnh cách ly trở lại: chọn ảnh, bấm **V** sửa nhãn, bấm **K** giữ
+ảnh rồi duyệt lại các mục liên quan. Nếu viewer đang mở, bấm **Tải lại** trước
+khi tiếp tục để đọc quyết định mới và tránh lỗi lưu do phiên bản cũ.
+
+Còn **533 mục chưa duyệt** tại thời điểm xử lý. Số tăng từ 532 vì mục RELATED
+10 chứa ảnh vừa cách ly phải được xác nhận lại; không có mục nào được tự
+đánh dấu đã duyệt. Chưa tạo release hoặc xác nhận thông tin nguồn.
+
 ## Duyệt nhẹ nhàng theo cụm
 
 Hai khung ảnh có overlay box; khung bên phải là **ảnh đang chọn**. Danh sách
