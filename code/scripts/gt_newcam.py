@@ -15,8 +15,9 @@ Per camera:
   cache     detections of the paper's accuracy detector, yolo11_vn.pt at
             1280 px with the 0.1 confidence floor (as for NKKN), for frames
             [start - WARMUP, end)
-  prelabel  baseline ByteTrack on those detections -> MOT pre-labels and frames
-            under data/annotations/prelabels/<camera>/ and a review bundle
+  prelabel  the paper's variants on those detections; pre-labels = their union,
+            blind to source (union_seed), as MOT and frames under
+            data/annotations/prelabels/<camera>/, plus a review bundle
             (gt_mixed_review.prepare) under experiments/gt_qa/<camera>_review/
   replay    the paper's tracker variants on the cached detections, as dumps
             with absolute frame indices for scoring the reviewed GT
@@ -162,19 +163,70 @@ def run_variants(camera: str, names=PAPER_VARIANTS) -> Path:
     return out
 
 
+def union_seed(dumps: list[list], start: int, end: int) -> tuple[list, dict]:
+    """Pre-labels over [start, end) from several trackers, blind to their source.
+
+    The first tracker's boxes are kept as they are. Each later tracker adds the
+    boxes no earlier one produced (no one-to-one partner at IoU >= 0.5 in that
+    frame). An added box takes the seed identity its own track matched nearest
+    in time, if the class agrees and that identity is not already in the frame;
+    otherwise one fresh identity per (tracker, track, class). A GT seeded from
+    one tracker favours it: the other's boxes never reach the reviewer
+    (experiments/seed_bias); here every tracker's boxes do."""
+    from scipy.optimize import linear_sum_assignment
+    from code.scripts.eval_hota_ci import iou_matrix
+    seed = [[(tid, cls, box) for tid, cls, box in f] for f in dumps[0][start:end]]
+    next_id = 1 + max((t for f in seed for t, _, _ in f), default=0)
+    stats = {"kept": sum(map(len, seed)), "linked": 0, "fresh_boxes": 0, "fresh_ids": 0}
+    for frames in dumps[1:]:
+        links, extra = {}, []                  # track -> {frame: (seed id, class)}
+        for k, f in enumerate(frames[start:end]):
+            pairs = {}
+            if f and seed[k]:
+                iou = iou_matrix([b for _, _, b in f], [b for _, _, b in seed[k]])
+                pairs = {r: c for r, c in zip(*linear_sum_assignment(-iou)) if iou[r, c] >= 0.5}
+            for r, (tid, cls, box) in enumerate(f):
+                if r in pairs:
+                    links.setdefault(tid, {})[k] = seed[k][pairs[r]][:2]
+                else:
+                    extra.append((k, tid, cls, box))
+        fresh = {}
+        for k, tid, cls, box in extra:
+            near = min(links.get(tid, {}), key=lambda j: (abs(j - k), j > k), default=None)
+            sid, scls = links[tid][near] if near is not None else (None, None)
+            if sid is None or scls != cls or any(t == sid for t, _, _ in seed[k]):
+                sid = fresh.setdefault((tid, cls), next_id + len(fresh))
+                stats["fresh_boxes"] += 1
+            else:
+                stats["linked"] += 1
+            seed[k].append((sid, cls, box))
+        next_id += len(fresh)
+        stats["fresh_ids"] += len(fresh)
+    return seed, stats
+
+
 def prelabel(camera: str) -> None:
+    """Pre-labels = union of the paper's variants (baseline first), so the review
+    adjudicates every tracker's boxes; seed.json records how they were merged."""
     from code.scripts.export_prelabels import extract_frames, write_mot
     from code.scripts.gt_mixed_review import prepare
     video, _ = CAMERAS[camera]
     w = json.loads((ROOT / camera / "window.json").read_text(encoding="utf-8"))
     seg = (w["start"], w["end"])
-    dumps = run_variants(camera, ("baseline",))
-    frames = json.loads((dumps / "tracks_baseline.json").read_text(encoding="utf-8"))["frames"]
+    dumps = run_variants(camera, PAPER_VARIANTS)
+    frames = [json.loads((dumps / f"tracks_{n}.json").read_text(encoding="utf-8"))["frames"]
+              for n in PAPER_VARIANTS]
+    seed, merged = union_seed(frames, *seg)
+    (ROOT / camera / "seed.json").write_text(json.dumps(
+        {"trackers": list(PAPER_VARIANTS),
+         "rule": "first tracker kept; later trackers add boxes with no partner at IoU >= 0.5, under "
+                 "the nearest same-class matched identity of their track if free, else a fresh one",
+         **merged}, indent=1), encoding="utf-8")
     out_root = Path("data/annotations/prelabels")
-    stats = write_mot(frames[seg[0]:seg[1]], out_root / camera)
+    stats = write_mot(seed, out_root / camera)
     extract_frames(video, {camera: seg}, out_root)
     bundle = prepare(source=out_root / camera, bundle=parent_bundle(camera), segment=seg)
-    print(f"{camera}: baseline pre-labels {stats} -> review bundle {bundle}")
+    print(f"{camera}: union pre-labels {stats}, {merged} -> review bundle {bundle}")
 
 
 def parent_bundle(camera: str) -> Path:
@@ -193,6 +245,10 @@ def scope(camera: str) -> None:
     """After the ROI is saved in the ROI window: an ROI-only bundle (cases regenerated
     inside the ROI). activate=False: the mixed segment's roi_active.json is untouched."""
     from code.scripts.gt_roi_scope import prepare_scope
+    seed = ROOT / camera / "seed.json"
+    if not seed.exists() or len(json.loads(seed.read_text(encoding="utf-8"))["trackers"]) < 2:
+        raise SystemExit(f"{camera}: the bundle is seeded from one tracker and would favour it "
+                         "(experiments/seed_bias); rebuild it with the union prelabel first")
     out = roi_child(camera)
     if out is None:
         raise SystemExit(f"{camera}: draw and save the ROI first "
@@ -214,7 +270,9 @@ def finalize(camera: str, reviewer: str) -> None:
     window = json.loads((ROOT / camera / "window.json").read_text(encoding="utf-8"))
     old, report["evaluation_role"] = report["evaluation_role"], HELD_OUT_ROLE
     report["window"] = {k: v for k, v in window.items() if k != "profile"}
-    report["prelabel_seed"] = dict(tracker="baseline", tracker_config=VARIANTS["baseline"][0],
+    seed = ROOT / camera / "seed.json"      # absent: the original baseline-only pre-labels
+    report["prelabel_seed"] = dict(**(json.loads(seed.read_text(encoding="utf-8")) if seed.exists()
+                                      else {"trackers": ["baseline"]}),
                                    detector=EVAL_WEIGHTS, imgsz=EVAL_IMGSZ, conf_floor=DETECTOR_CONF)
     (out / "review.json").write_bytes(json_bytes(report))
     summary = out / "summary.md"

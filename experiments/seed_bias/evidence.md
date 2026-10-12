@@ -52,6 +52,27 @@ Output is in `seed_bias.json`. FN and FP counts come from the repository metric
 4. **`dense` is the mirror image.** 73% of `baseline`'s extra boxes lie where
    the C2-seeded GT has no box.
 
+**All three NKKN segments.** The ROI rescoring in
+`docs/GT_COMPLETION_20261012.md` covers all three segments. `freeflow` was
+pre-labelled by `export_prelabels.py` from the `ctrv_gate_nsa` dump. In every
+segment, C2's margin has the sign of the seed:
+
+| Segment | Seeded from | baseline | C2 | C2 − baseline |
+|---|---|---:|---:|---:|
+| dense | C2 | 0.8640 | 0.9091 | +0.045 |
+| freeflow | C2 | 0.9293 | 0.9651 | +0.036 |
+| mixed | baseline | 0.9828 | 0.9449 | −0.038 |
+
+This pattern fits two explanations equally well:
+
+- a seed advantage of about 0.04 with no IDF1 effect of C2 at all;
+- a C2 effect that differs by segment.
+
+Only ground truth whose disagreements are adjudicated on both sides can tell
+them apart. Two sources can provide it: the blind audits, and the held-out
+cameras' union pre-labels (`union_seed` in `code/scripts/gt_newcam.py`), which
+put every tracker's boxes before the reviewer.
+
 **Why the seed wins.** The seeding tracker's boxes were all shown to the
 reviewer, so its wrong ones could be deleted. Boxes that only the other tracker
 outputs were never shown. Their absence from the GT is therefore a default, not
@@ -61,7 +82,17 @@ a judgement.
 against another by IDF1 or MOTA unless the other tracker's disagreements are
 adjudicated as well.
 
-**Open: blind audit.** `python -m code.scripts.audit_disagreements sample`
+**Two blind audits.**
+
+| | `paper_gt_audit` | `audit_disagreements` (this sample) |
+|---|---|---|
+| Added | 2026-10-12, 18:59 | earlier |
+| Defined in | `docs/PAPER_STEP1_PROTOCOL.md`, `code/scripts/paper_gt_audit.py` | below |
+| GTs | final ROI GTs of all three segments | full-frame dense and ROI mixed |
+| Sample | at most 10 runs per stratum | 40 runs per stratum |
+| Purpose | find GT errors to fix | estimate shares with intervals |
+
+**Open: blind audit (this sample).** `python -m code.scripts.audit_disagreements sample`
 (seed 20261012) drew 146 runs, where a run is consecutive frames of one ID:
 
 | Stratum | Runs available | Runs sampled |
