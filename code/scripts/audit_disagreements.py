@@ -22,11 +22,15 @@ switches  identity: ID switches exactly as compute_tracking_metrics counts
             Y  the same vehicle in both red boxes (a real switch)
             N  two different vehicles (the GT identity jumps: an artefact)
             ?  cannot tell
-score     per stratum shares with Wilson 95% intervals -> experiments/seed_bias/audit.json
+score     works on partly filled files. Until every stratum in both files has
+          met the stopping rule (STOP_N below) it prints only, per file,
+          "continue" or "you may stop", so the judge never sees interim shares;
+          then the per-stratum shares with Wilson 95% intervals ->
+          experiments/seed_bias/audit.json
 
 The judge sees numbers only; key.csv and switch_key.csv map them to GT and tracker.
 
-    python -m code.scripts.audit_disagreements sample|switches|score
+    python -m code.scripts.audit_disagreements sample|switches|score [--unblind]
 """
 
 from __future__ import annotations
@@ -55,6 +59,14 @@ STRATA = [("mixed", "ctrv_gate_nsa"), ("dense", "baseline")]
 SWITCH_STRATA = [("dense", "baseline", 30), ("dense", "ctrv_gate_nsa", None),
                  ("mixed", "baseline", None), ("mixed", "ctrv_gate_nsa", None)]
 PER_STRATUM, SEED, IOU = 40, 20261012, 0.5
+# Stopping rule, fixed 2026-10-12 before any verdict was entered. The judge
+# works in sheet order (1, 2, ... and S1, S2, ...); the order is a seeded
+# shuffle, so every prefix is a random subsample of each stratum. A stratum
+# stops early once STOP_N items are judged (? excluded) and its Wilson
+# interval at STOP_Z excludes 0.5; otherwise it runs to its end. The early
+# boundary is 99%, not 95%, because score is checked after every sheet and
+# repeated looks at 95% inflate the error rate; the reported interval is 95%.
+STOP_N, STOP_Z = 20, 2.576
 AUDIT = Path("data/annotations/seed_bias_audit")      # gitignored: footage crops
 OUT = Path("experiments/seed_bias/audit.json")
 FIELDS = ["n", "review", "tracker", "kind", "track_id", "run_frames", "abs_frame",
@@ -254,47 +266,74 @@ def wilson(k: int, n: int, z: float = 1.96) -> list[float]:
 
 
 def judged(key: str, verdicts: str, allowed: set[str]) -> list[dict] | None:
-    """Key rows joined with their verdicts, or None (with a note) while any is missing."""
+    """Key rows with their verdicts ('' = not judged yet), or None while the file is absent."""
     if not (AUDIT / verdicts).exists():
         return None
     v = {r["n"]: r["verdict"].strip().upper() for r in csv.DictReader((AUDIT / verdicts).open(encoding="utf-8"))}
     rows = [dict(r, verdict=v.get(r["n"], "")) for r in csv.DictReader((AUDIT / key).open(encoding="utf-8"))]
-    if any(r["verdict"] not in allowed for r in rows):
-        print(f"{verdicts}: not complete (allowed: {' '.join(sorted(allowed))})")
-        return None
+    bad = [r["n"] for r in rows if r["verdict"] not in allowed | {""}]
+    if bad:
+        raise SystemExit(f"{verdicts}: unknown verdicts at {', '.join(bad[:10])} (use {' '.join(sorted(allowed))})")
     return rows
 
 
-def score() -> None:
-    result = {}
+def stratum(rows: list[dict], hit) -> dict:
+    """One stratum in sheet order: verdict counts, share of `hit` among judged
+    items (? excluded), the reported 95% interval and the stop status."""
+    order = sorted(rows, key=lambda r: int(r["n"].lstrip("S")))
+    filled = [bool(r["verdict"]) for r in order]
+    v = [r["verdict"] for r in order if r["verdict"] not in ("", "?")]
+    k, n = sum(map(hit, v)), len(v)
+    lo, hi = wilson(k, n, STOP_Z)
+    status = ("complete" if all(filled) else
+              "stopped" if n >= STOP_N and (lo > 0.5 or hi < 0.5) else "open")
+    return dict(counts={x: [r["verdict"] for r in order].count(x) for x in "YND?"}, sampled=len(order),
+                judged=sum(filled), share=round(k / max(1, n), 3), wilson95=wilson(k, n), status=status,
+                prefix=filled == sorted(filled, reverse=True))   # a blank before a verdict breaks randomness
+
+
+def score(unblind: bool = False) -> None:
+    files = {}
     rows = judged("key.csv", "verdicts.csv", {"Y", "N", "D", "?"})
-    for review, tracker in STRATA if rows else []:
-        for kind in ("extra", "missing"):
-            v = [r["verdict"] for r in rows if (r["review"], r["tracker"], r["kind"]) == (review, tracker, kind)]
-            n = sum(x != "?" for x in v)
+    if rows:
+        files["verdicts.csv"] = {
             # 'extra' boxes are GT omissions if real; 'missing' boxes are GT errors if not
-            wrong = v.count("Y") if kind == "extra" else v.count("N") + v.count("D")
-            result[f"{review}/{tracker}/{kind}"] = dict(counts={x: v.count(x) for x in "YND?"}, judged=n,
-                                                        gt_wrong_share=round(wrong / max(1, n), 3),
-                                                        wilson95=wilson(wrong, n))
+            f"{review}/{tracker}/{kind} (share: GT wrong)": stratum(
+                [r for r in rows if (r["review"], r["tracker"], r["kind"]) == (review, tracker, kind)],
+                (lambda x: x == "Y") if kind == "extra" else (lambda x: x in ("N", "D")))
+            for review, tracker in STRATA for kind in ("extra", "missing")}
     rows = judged("switch_key.csv", "switch_verdicts.csv", {"Y", "N", "?"})
-    for review, tracker, _ in SWITCH_STRATA if rows else []:
-        v = [r["verdict"] for r in rows if (r["review"], r["tracker"]) == (review, tracker)]
-        n = sum(x != "?" for x in v)
-        result[f"{review}/{tracker}/switch"] = dict(counts={x: v.count(x) for x in "YN?"}, judged=n,
-                                                    real_share=round(v.count("Y") / max(1, n), 3),
-                                                    wilson95=wilson(v.count("Y"), n))
-    for k, r in result.items():
-        print(k, r)
-    if result:
+    if rows:
+        files["switch_verdicts.csv"] = {
+            f"{review}/{tracker}/switch (share: real)": stratum(
+                [r for r in rows if (r["review"], r["tracker"]) == (review, tracker)], lambda x: x == "Y")
+            for review, tracker, _ in SWITCH_STRATA}
+    for name, strata in files.items():          # judge-safe: no shares until a file may stop
+        open_ = sum(r["status"] == "open" for r in strata.values())
+        done = sum(r["judged"] for r in strata.values())
+        print(f"{name}: {done} of {sum(r['sampled'] for r in strata.values())} judged; "
+              + (f"continue in sheet order ({open_} strata open)" if open_ else "you may stop")
+              + ("; a blank sits before a verdict: fill it (? if unsure)" if not all(
+                  r["prefix"] for r in strata.values()) else ""))
+    if files and (unblind or all(r["status"] != "open" for s in files.values() for r in s.values())):
+        for strata in files.values():
+            for k, r in strata.items():
+                print(k, r)
         OUT.parent.mkdir(parents=True, exist_ok=True)
-        OUT.write_text(json.dumps(result, indent=1), encoding="utf-8")
+        OUT.write_text(json.dumps(dict(stop_rule=dict(min_judged=STOP_N, z=STOP_Z), files=files), indent=1),
+                       encoding="utf-8")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("step", choices=("sample", "switches", "score"))
-    {"sample": sample, "switches": switches, "score": score}[ap.parse_args().step]()
+    ap.add_argument("--unblind", action="store_true",
+                    help="score: print shares before every stratum has stopped (analyst only, never the judge)")
+    args = ap.parse_args()
+    if args.step == "score":
+        score(args.unblind)
+    else:
+        {"sample": sample, "switches": switches}[args.step]()
 
 
 if __name__ == "__main__":

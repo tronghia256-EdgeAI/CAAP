@@ -96,3 +96,17 @@ last match before the switch, one at the switch.
 
 A seed's own switches are reviewer corrections, so they also act as a control
 on the judge.
+
+**Stopping rule.** Fixed on 2026-10-12, before any verdict was entered.
+
+- **Order:** the judge works in sheet order. That order is a seeded shuffle,
+  so every prefix is a random subsample of each stratum.
+- **Early stop:** a stratum stops once 20 items are judged (excluding `?`)
+  and its Wilson 99% interval excludes 0.5. Otherwise it runs to its end.
+- **Why 99%:** `score` is checked after every sheet, and repeated looks at 95%
+  would inflate the error rate. The intervals reported are 95%.
+- **Blind interim output:** until every stratum has stopped, `score` prints
+  only "continue" or "you may stop" for each file, so the judge sees no
+  interim shares.
+- **Gaps:** a blank verdict before a filled one is reported, because a
+  skipped item breaks the random prefix.

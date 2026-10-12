@@ -1,7 +1,7 @@
 """Run grouping, IoU matching and switch replication behind the disagreement audit."""
 
 from code.evaluation.metrics import compute_tracking_metrics
-from code.scripts.audit_disagreements import runs, switch_events, unmatched
+from code.scripts.audit_disagreements import runs, stratum, switch_events, unmatched
 
 
 def test_unmatched_keeps_only_boxes_without_an_iou_partner():
@@ -23,3 +23,14 @@ def test_switch_events_match_the_metric_including_a_gap():
     pr = [[(10, a)], [(10, far)], [(11, a)], [(11, a)]]     # frame 1 unmatched, new ID after the gap
     assert switch_events(gt, pr) == [(0, 2, 1, a, a)]
     assert compute_tracking_metrics(pr, gt).num_switches == 1
+
+
+def test_stratum_stops_early_only_on_a_decided_gap_free_prefix():
+    rows = [dict(n=f"S{i}", verdict="Y" if i <= 20 else "") for i in range(1, 26)]
+    s = stratum(rows, lambda x: x == "Y")
+    assert (s["status"], s["judged"], s["prefix"]) == ("stopped", 20, True)
+    rows[0]["verdict"] = ""                                  # a blank before filled verdicts
+    s = stratum(rows, lambda x: x == "Y")
+    assert (s["status"], s["prefix"]) == ("open", False)
+    split = [dict(n=str(i), verdict="YN"[i % 2] if i <= 24 else "") for i in range(1, 31)]
+    assert stratum(split, lambda x: x == "Y")["status"] == "open"   # 12/24: undecided, keep going
