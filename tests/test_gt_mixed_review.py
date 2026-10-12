@@ -241,10 +241,30 @@ def test_external_edit_journal_change_blocks_csv_save(factory):
 def test_mixed_merge_needs_class_correction_before_acceptance(factory):
     raw = "2,1,100,100,20,40,1,2,1\n4,2,115,100,20,40,1,1,1\n"
     store = factory([merge_case()], raw)
-    with pytest.raises(ValueError, match="multiple classes"):
+    with pytest.raises(ValueError, match="multiple classes") as error:
         store.save(0, "APPLY", "")
+    assert "source IDs 1, 2" in str(error.value)
+    assert "car: MOT frame 4" in str(error.value)
+    assert "motorcycle: MOT frame 2" in str(error.value)
     store.add_event(dict(op="reclassify", keys=[[4, 2]], class_id=2, case_rank=1))
     store.save(0, "APPLY", "")
+    assert {p[7] for p in store.preview()[0].values()} == {"2"}
+
+
+def test_same_class_at_merge_anchors_reports_hidden_conflicting_frame(factory):
+    raw = ("1,1,100,100,20,40,1,1,1\n"
+           "2,1,105,100,20,40,1,2,1\n"
+           "4,2,115,100,20,40,1,2,1\n")
+    store = factory([merge_case()], raw)
+    before = store.path.read_bytes(), store.edit_path.read_bytes()
+    assert store.source_rows[(2, 1)][7] == store.source_rows[(4, 2)][7] == "2"
+    with pytest.raises(ValueError, match="multiple classes") as error:
+        store.save(0, "APPLY", "")
+    assert "car: MOT frame 1" in str(error.value)
+    assert "motorcycle: MOT frame 2, 4" in str(error.value)
+    assert (store.path.read_bytes(), store.edit_path.read_bytes()) == before
+    store.add_event(dict(op="reclassify", keys=[[1, 1]], class_id=2, case_rank=1))
+    store.save(0, "APPLY", "Human corrected hidden frame")
     assert {p[7] for p in store.preview()[0].values()} == {"2"}
 
 

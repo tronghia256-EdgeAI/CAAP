@@ -524,8 +524,27 @@ def apply_review(source_rows, manifest, decisions, journal, strict=False):
         component_classes[int(fields[1])].add(int(fields[7]))
     # Merging across different labels always needs explicit class correction.
     merged_ids = {component_ids[root] for root, count in Counter(groups.find(nd) for nd in nodes).items() if count > 1}
-    if any(len(values) > 1 and (strict or tid in merged_ids) for tid, values in component_classes.items()):
-        raise ValueError("An identity contains multiple classes. Correct its class in V before merging/finalizing.")
+    conflicts = sorted(tid for tid, values in component_classes.items()
+                       if len(values) > 1 and (strict or tid in merged_ids))
+    if conflicts:
+        details = []
+        for tid in conflicts[:5]:
+            affected = [(key, fields) for key, fields in output.items() if int(fields[1]) == tid]
+            sources = sorted({key[1] for key, _ in affected})
+            classes = defaultdict(list)
+            for _, fields in affected:
+                classes[int(fields[7])].append(int(fields[0]))
+            descriptions = []
+            for cid, frames in sorted(classes.items()):
+                samples = ', '.join(map(str, sorted(frames)[:3]))
+                descriptions.append(f"{CLASS_NAMES.get(cid - 1, str(cid))}: MOT frame {samples} ({len(frames)} boxes)")
+            details.append(f"ID {tid}, source IDs {', '.join(map(str, sources))}: " + '; '.join(descriptions))
+        if len(conflicts) > 5:
+            details.append(f"... and {len(conflicts) - 5} more conflicting identities")
+        raise ValueError("An identity contains multiple classes.\n" + '\n'.join(details)
+                         + "\nThe operation was not saved. Inspect these IDs/frames in V; if they are different vehicles, keep them separate. "
+                           "If one vehicle has a wrong label, use the whole-ID class correction button, not only the class dropdown. "
+                           "After a saved manual merge, use E in the main review; A applies the original automatic proposal.")
     if strict and (any(not r["decision"] for r in decisions) or len(set(journal["seen_frames"])) != n):
         raise ValueError("Complete every verdict and full-frame audit before finalizing mixed GT.")
     if strict and not output:

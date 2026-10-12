@@ -73,6 +73,14 @@ Mỗi thao tác sửa tự lưu ngay vào `edits.json`. Đóng V sẽ lưu nhữ
 đã hiển thị, rồi quay về thẻ review. Bấm E để xác nhận sửa thủ công, hoặc A/K
 nếu quyết định theo đề xuất/giữ nguyên. Đóng app và mở lại vẫn tiếp tục được.
 
+Nếu lỗi **multiple classes** xuất hiện khi nối, thông báo mới chỉ rõ ID sau nối,
+ID nguồn, class và frame MOT ví dụ đang xung đột trên toàn identity. Nhãn của hai
+box ở frame hiện tại không chứng minh mọi frame đều cùng class. Kiểm tra các
+frame được nêu; chỉ sửa class khi biết nhãn sai. Chọn dropdown không tự đổi nhãn,
+cần bấm **Đổi class cả ID đang xem**. Nếu đã nối/sửa thủ công trong V, quay về
+bấm **E**; **A** áp dụng lại đề xuất tự động gốc, có thể khác cặp bạn vừa chọn.
+Thao tác bị chặn không được lưu; các chỉnh sửa thành công trước đó vẫn giữ nguyên.
+
 ### Lượt audit và hoàn tất mixed
 
 Mỗi mục **AUDIT** bao gồm 20 frame. V để xem cả đoạn và kiểm tra xe thiếu, box,
