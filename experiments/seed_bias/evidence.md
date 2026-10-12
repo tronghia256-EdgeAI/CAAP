@@ -97,7 +97,9 @@ last match before the switch, one at the switch.
 A seed's own switches are reviewer corrections, so they also act as a control
 on the judge.
 
-**Stopping rule.** Fixed on 2026-10-12, before any verdict was entered.
+**Stopping rule.** Fixed on 2026-10-12, before any verdict was entered. At
+commit 1ddaa05 both verdict files were empty: 0 of 146 in `verdicts.csv` and 0
+of 76 in `switch_verdicts.csv`.
 
 - **Order:** the judge works in sheet order. That order is a seeded shuffle,
   so every prefix is a random subsample of each stratum.
