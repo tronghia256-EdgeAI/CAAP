@@ -68,6 +68,10 @@ H[1, 1] = 1.0
 # bootstrap to fire — below this, direction is noise, keep the EKF prior.
 BOOTSTRAP_MIN_DISP = 1.0
 
+# NSA floor: R_eff = R * clip(1 - score, NSA_FLOOR, 1), so a score of 1.0
+# cannot make R singular (swept in code/scripts/sweep_c2_sensitivity.py).
+NSA_FLOOR = 0.05
+
 # Scale-adaptive noise: Q/R are calibrated in pixels for an object of
 # REF_BOX_SIZE = sqrt(w*h) px. A motorcycle 3× closer to the camera is
 # ~3× larger AND moves ~3× more px/frame, so pixel-space noise should
@@ -218,9 +222,8 @@ class CTRVMotionModel:
         # Standard linear-observation EKF update.
         R_eff = self._R_eff()
         if self.nsa and score is not None:
-            # NSA (StrongSORT): confident detections shrink R. Floor at
-            # 0.05 so a score of 1.0 cannot make R singular.
-            R_eff = R_eff * float(np.clip(1.0 - score, 0.05, 1.0))
+            # NSA (StrongSORT): confident detections shrink R (floored).
+            R_eff = R_eff * float(np.clip(1.0 - score, NSA_FLOOR, 1.0))
         y = z - H @ self.x                       # innovation
         S = H @ self.P @ H.T + R_eff             # innovation covariance
         K = self.P @ H.T @ np.linalg.inv(S)      # Kalman gain (5, 2)
