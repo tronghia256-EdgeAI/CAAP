@@ -103,6 +103,38 @@ the GT is. They are not a property of the paper run's dumps. The script lives
 outside `code/` during the paper run's code freeze and will be moved to
 `code/scripts/` afterwards.
 
+**Brackets on the paper run v5** (best.pt; `code/scripts/seed_bracket.py`;
+`bracket_best85_roi_20261013_v5_{640,448}.json`).
+
+The bracket gives a lower and an upper bound for each motorcycle IDF1 gap:
+
+- **lower** — the reconciled GT as it is;
+- **upper** — the GT plus the unmatched boxes of the pair's non-seed-like
+  trackers, linked by `union_seed`;
+- **corrected** — lower + s × (upper − lower), where s is the audit's real
+  share. C1, C1+C2+C3 and the external trackers have no audit stratum of their
+  own, so they borrow the segment's non-seed share; each record notes this.
+
+Corrected gaps, 640 / 448:
+
+| Comparison | dense | freeflow | mixed |
+|---|---|---|---|
+| C2 − baseline | +0.002 / +0.012 | +0.004 / +0.018 | +0.011 / +0.020 |
+| C1 (c1_ctrv_gate − ctrv_gate_nsa) | +0.025 / +0.035 | +0.027 / +0.023 | +0.029 / +0.022 |
+| C3 (c1c2c3 − its pre-C3 output) | 0 / 0 | 0 / 0 | 0 / 0 |
+| OC-SORT at matched thresholds − C2 | +0.062 / +0.071 | +0.032 / +0.055 | +0.033 / +0.071 |
+
+ID switches, baseline / C2 / C1+C2 / OC-SORT at matched thresholds:
+
+| Segment | 640 | 448 |
+|---|---|---|
+| dense | 154 / 95 / 159 / 79 | 141 / 62 / 138 / 39 |
+| mixed | 9 / 8 / 13 / 11 | 19 / 9 / 27 / 6 |
+
+On the C2-seeded dense GT, the seed favours C2's identities. OC-SORT's lead
+in ID switches is therefore, if anything, understated. The identity audit
+never sampled OC-SORT's switches, so no correction is applied to them.
+
 The pattern in finding 1 fits two explanations equally well:
 
 - a seed advantage of about 0.04 with no IDF1 effect of C2 at all;

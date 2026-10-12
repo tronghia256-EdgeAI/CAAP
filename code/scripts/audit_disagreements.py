@@ -270,7 +270,8 @@ def wilson(k: int, n: int, z: float = 1.96) -> list[float]:
         return [0.0, 1.0]
     p, d = k / n, 1 + z * z / n
     c, h = (p + z * z / (2 * n)) / d, z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
-    return [round(c - h, 3), round(c + h, 3)]
+    # clamp: at k = 0 or k = n, c -/+ h lands a rounding error outside [0, 1] (-0.0)
+    return [round(float(max(0.0, c - h)), 3), round(float(min(1.0, c + h)), 3)]
 
 
 def judged(key: str, verdicts: str, allowed: set[str]) -> list[dict] | None:
