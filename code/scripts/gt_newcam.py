@@ -20,13 +20,18 @@ Per camera:
             (gt_mixed_review.prepare) under experiments/gt_qa/<camera>_review/
   replay    the paper's tracker variants on the cached detections, as dumps
             with absolute frame indices for scoring the reviewed GT
-  finalize  finalize_mixed into experiments/gt_newcam/<camera>/reviewed, labelled
-            held-out. Not the app's finish button: that writes into the mixed
-            segment's folder with the mixed segment's 'development' label.
+  scope     after the camera's ROI is saved: an ROI-only review bundle, so only
+            boxes inside the ROI are reviewed (prints the review command)
+  finalize  finalize_mixed (the ROI-only bundle if prepared) into
+            experiments/gt_newcam/<camera>/reviewed, labelled held-out. Not the
+            app's finish button: that writes into the mixed segment's folder
+            with the mixed segment's 'development' label.
 
-Review in the existing app (draw the camera's own ROI there first):
-  review_gt_mixed.cmd --bundle experiments/gt_qa/<camera>_review
-      --tracks-dir experiments/gt_newcam/<camera>/dumps
+Per camera, in this order (the ROI is fixed before any metric is seen):
+  review_gt_roi.cmd --bundle experiments/gt_qa/<camera>_review      draw, save the ROI
+  python -m code.scripts.gt_newcam scope --cameras <camera>
+  review_gt_mixed.cmd --bundle <printed path> --tracks-dir experiments/gt_newcam/<camera>/dumps
+  python -m code.scripts.gt_newcam finalize --cameras <camera> --reviewer <name>
 """
 
 from __future__ import annotations
@@ -50,6 +55,7 @@ SELECT_WEIGHTS, SELECT_IMGSZ = "ket_qua_train/best.pt", 448
 EVAL_WEIGHTS, EVAL_IMGSZ = "weights/yolo11_vn.pt", 1280
 ACCIDENT = 4
 ROOT = Path("experiments/gt_newcam")
+BUNDLES = Path("experiments/gt_qa")
 PAPER_VARIANTS = ("baseline", "ctrv_gate_nsa", "c1_ctrv_gate", "c1c2c3")
 HELD_OUT_ROLE = ("held-out test: camera never used to develop or tune the method; the training-image "
                  "overlap audit covers best.pt's export only, not yolo11_vn.pt "
@@ -167,9 +173,32 @@ def prelabel(camera: str) -> None:
     out_root = Path("data/annotations/prelabels")
     stats = write_mot(frames[seg[0]:seg[1]], out_root / camera)
     extract_frames(video, {camera: seg}, out_root)
-    bundle = prepare(source=out_root / camera, bundle=Path(f"experiments/gt_qa/{camera}_review"),
-                     segment=seg)
+    bundle = prepare(source=out_root / camera, bundle=parent_bundle(camera), segment=seg)
     print(f"{camera}: baseline pre-labels {stats} -> review bundle {bundle}")
+
+
+def parent_bundle(camera: str) -> Path:
+    return BUNDLES / f"{camera}_review"
+
+
+def roi_child(camera: str) -> Path | None:
+    """Where the ROI-only bundle for the camera's current roi.json lives (None: no ROI yet).
+    Named by the ROI's hash, so a redrawn ROI gets a new bundle and old work is kept."""
+    from code.scripts.gt_review import sha256
+    roi = parent_bundle(camera) / "roi.json"
+    return parent_bundle(camera) / "roi_reviews" / f"roi_{sha256(roi)[:12]}" if roi.exists() else None
+
+
+def scope(camera: str) -> None:
+    """After the ROI is saved in the ROI window: an ROI-only bundle (cases regenerated
+    inside the ROI). activate=False: the mixed segment's roi_active.json is untouched."""
+    from code.scripts.gt_roi_scope import prepare_scope
+    out = roi_child(camera)
+    if out is None:
+        raise SystemExit(f"{camera}: draw and save the ROI first "
+                         f"(review_gt_roi.cmd --bundle {parent_bundle(camera)})")
+    prepare_scope(parent_bundle(camera), output=out, activate=False)
+    print(f"{camera}: review with\n  review_gt_mixed.cmd --bundle {out} --tracks-dir {ROOT / camera / 'dumps'}")
 
 
 def finalize(camera: str, reviewer: str) -> None:
@@ -177,7 +206,9 @@ def finalize(camera: str, reviewer: str) -> None:
     'development' role (the mixed segment's) and record window and seeding."""
     from code.detection.detector import DETECTOR_CONF
     from code.scripts.gt_mixed_review import MixedStore, finalize_mixed, json_bytes
-    out = finalize_mixed(MixedStore(Path(f"experiments/gt_qa/{camera}_review")), reviewer or "",
+    child = roi_child(camera)
+    bundle = child if child and child.exists() else parent_bundle(camera)
+    out = finalize_mixed(MixedStore(bundle), reviewer or "",
                          tracks_dir=ROOT / camera / "dumps", out_dir=ROOT / camera / "reviewed")
     report = json.loads((out / "review.json").read_text(encoding="utf-8"))
     window = json.loads((ROOT / camera / "window.json").read_text(encoding="utf-8"))
@@ -193,7 +224,7 @@ def finalize(camera: str, reviewer: str) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("step", choices=("select", "cache", "prelabel", "replay", "finalize"))
+    ap.add_argument("step", choices=("select", "cache", "prelabel", "replay", "scope", "finalize"))
     ap.add_argument("--cameras", nargs="*", default=list(CAMERAS), choices=list(CAMERAS))
     ap.add_argument("--reviewer", help="finalize: name recorded in review.json")
     args = ap.parse_args()
@@ -202,7 +233,7 @@ def main() -> None:
             finalize(camera, args.reviewer)
             continue
         {"select": select, "cache": cache, "prelabel": prelabel,
-         "replay": run_variants}[args.step](camera)
+         "replay": run_variants, "scope": scope}[args.step](camera)
 
 
 if __name__ == "__main__":
