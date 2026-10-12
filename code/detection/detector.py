@@ -58,10 +58,11 @@ class Detector:
     """
 
     def __init__(self, weights_path: str, img_size: int = 640,
-                 task: str | None = None) -> None:
+                 task: str | None = None, roi=None) -> None:
         from ultralytics import YOLO  # lazy: only pipeline runs need torch
 
         self.img_size = img_size
+        self.roi = roi
         # `task` matters only for exported weights (.onnx, openvino dirs): a
         # .pt carries its task, an export does not always. Guessing wrong is
         # silent and total — a segment model read as `detect` parses its 32
@@ -109,6 +110,11 @@ class Detector:
             N×6 numpy [x1, y1, x2, y2, score, class_id] in frame-native
             pixels, project class ids.
         """
+        from code.scripts.gt_roi import pixel_mask,filter_detections
+        mask=pixel_mask(frame,self.roi)
+        if mask is not None:
+            import cv2
+            frame=cv2.bitwise_and(frame,frame,mask=mask)
         results = self.model(frame, conf=DETECTOR_CONF, imgsz=self.img_size,
                              verbose=False)
         boxes = results[0].boxes
@@ -125,4 +131,4 @@ class Detector:
         xyxy, conf = xyxy[keep], conf[keep]
         cls = np.array([self.remap[c] for c in cls[keep]])
 
-        return np.column_stack([xyxy, conf, cls]).astype(float)
+        return filter_detections(np.column_stack([xyxy, conf, cls]).astype(float),self.roi)

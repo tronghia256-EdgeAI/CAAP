@@ -75,6 +75,8 @@ def save_roi(bundle, polygon, enabled, reviewer, reason, reference_frame, expect
         raise ValueError('Provide reviewer, scope rationale and a valid reference frame')
     path = bundle/'roi.json'
     old = load_roi(bundle)
+    if manifest.get('review_scope')=='ROI_ONLY' and old and (old['polygon']!=polygon or old['enabled']!=enabled):
+        raise ValueError('This ROI review has a frozen scope; edit the full parent ROI and generate a new review version')
     history = old.get('history', []) + [{k: v for k,v in old.items() if k != 'history'}] if old else []
     roi = dict(schema_version=1, enabled=enabled, polygon=polygon, rule=RULE,
                image_size=manifest['image_size'], manifest_sha256=sha256(bundle/'manifest.json'),
@@ -107,6 +109,21 @@ def contains_box(box, roi):
 def filter_frames(frames, roi):
     return {frame: [(tid,box,cls) for tid,box,cls in entries if contains_box(box,roi)]
             for frame,entries in frames.items()}
+
+
+def pixel_mask(frame,roi):
+    if not roi or not roi['enabled']:return None
+    h,w=frame.shape[:2]
+    if [w,h]!=roi['image_size']:raise ValueError('ROI/frame resolution mismatch; use the correct camera ROI')
+    mask=np.zeros((h,w),dtype=np.uint8)
+    cv2.fillPoly(mask,[np.rint(roi['polygon']).astype(np.int32)],255)
+    return mask
+
+
+def filter_detections(detections,roi):
+    array=np.asarray(detections,dtype=float).reshape(-1,6)
+    if not roi or not roi['enabled']:return array
+    return array[np.array([contains_box(row[:4],roi) for row in array],dtype=bool)]
 
 
 def overlay_roi(image, roi):

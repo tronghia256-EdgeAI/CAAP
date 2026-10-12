@@ -18,6 +18,8 @@ class MixedReviewApp(ReviewApp):
     def check_store(self, store):
         store.check_inputs(images=True)
         store.preview()
+        if store.manifest.get('review_scope')=='ROI_ONLY':
+            self.window_title='CAAP — Mixed GT · ROI ONLY · Nghĩa review'
 
     def refresh(self):
         tally = self.store.tally
@@ -94,10 +96,14 @@ class MixedReviewApp(ReviewApp):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bundle", type=Path, default=BUNDLE)
+    parser.add_argument("--bundle", type=Path)
+    parser.add_argument('--roi-segment',choices=('mixed','dense','freeflow'),default='mixed')
     parser.add_argument("--tracks-dir", type=Path, default=TRACKS_DIR)
     parser.add_argument("--reviewer", default="Nghĩa")
     args = parser.parse_args()
+    if args.bundle is None:
+        from code.scripts.gt_roi_scope import active_bundle
+        args.bundle = active_bundle(args.roi_segment)
     if not args.bundle.exists():
         prepare(bundle=args.bundle)
     root = tk.Tk()

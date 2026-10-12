@@ -101,6 +101,7 @@ class Pipeline:
         self.use_c3              = use_c3
 
         self._last_tracks: list = []
+        self.roi = None
 
     @classmethod
     def from_config(cls, config_path: str, dry_run_alerts: bool = True,
@@ -112,6 +113,19 @@ class Pipeline:
             build_detector : False for --synthetic runs (no torch needed).
         """
         cfg = load_config(config_path)
+        roi = None
+        roi_cfg=cfg.get('roi',{})
+        if roi_cfg.get('file') or roi_cfg.get('review_bundle'):
+            from code.scripts.gt_roi import load_roi
+            from pathlib import Path
+            if roi_cfg.get('review_bundle')=='active_mixed':
+                from code.scripts.gt_roi_scope import active_bundle
+                roi_path=active_bundle()/'roi.json'
+            elif roi_cfg.get('file'):roi_path=Path(roi_cfg['file'])
+            else:raise ValueError('Unknown ROI review bundle selector')
+            if not roi_path.is_file():raise ValueError(f'ROI file is missing: {roi_path}')
+            roi=load_roi(roi_path.parent)
+            if not roi or not roi['enabled']:raise ValueError('ROI config requires an enabled saved ROI')
         ablation = cfg.get("ablation", {})
         use_c1 = ablation.get("use_C1_adaptive", True)
         use_c2 = ablation.get("use_C2_ctrv", True)
@@ -147,7 +161,7 @@ class Pipeline:
 
         alert = TelegramAlert.from_config(cfg, dry_run=dry_run_alerts)
 
-        return cls(
+        pipeline = cls(
             detector=detector,
             tracker=tracker,
             context_estimator=ContextEstimator(),
@@ -158,6 +172,9 @@ class Pipeline:
             use_c1=use_c1,
             use_c3=use_c3,
         )
+        pipeline.roi=roi
+        if detector is not None:detector.roi=roi
+        return pipeline
 
     def process(self, frame: np.ndarray,
                 detections: np.ndarray | None = None) -> dict:
@@ -193,7 +210,9 @@ class Pipeline:
         stages: dict[str, float] = {}
 
         # C1: context → params (previous frame's tracks feed the estimator).
-        state = self.context_estimator.estimate(frame, self._last_tracks)
+        from code.scripts.gt_roi import pixel_mask,filter_detections,contains_box
+        mask=pixel_mask(frame,self.roi)
+        state = self.context_estimator.estimate(frame, self._last_tracks,mask) if mask is not None else self.context_estimator.estimate(frame,self._last_tracks)
         params = self.adaptive_controller.get_params(state) if self.use_c1 else None
         t_ctx = time.perf_counter()
         stages["context"] = (t_ctx - t0) * 1000.0
@@ -201,10 +220,22 @@ class Pipeline:
         # Detection (always low conf — D3) + tracking (C2).
         if detections is None:
             detections = self.detector.detect(frame)
+        detections=filter_detections(detections,self.roi)
         t_det = time.perf_counter()
         stages["detect"] = (t_det - t_ctx) * 1000.0
 
         tracks = self.tracker.update(detections, params)
+        if self.roi and self.roi['enabled']:
+            # Remove state outside the scope, rather than retaining hidden tracks
+            # that can re-enter or contribute to C1/C3 history.
+            for attr in ('tracked_stracks','lost_stracks'):
+                retained=[]
+                for track in getattr(self.tracker,attr):
+                    if contains_box(track.tlbr,self.roi):retained.append(track)
+                    else:
+                        track.mark_removed();self.tracker.removed_stracks.append(track)
+                setattr(self.tracker,attr,retained)
+            tracks=[t for t in tracks if contains_box(t.tlbr,self.roi)]
         self._last_tracks = tracks
         t_trk = time.perf_counter()
         stages["track"] = (t_trk - t_det) * 1000.0

@@ -36,3 +36,9 @@ Giữ GT đầy đủ và ROI riêng; chấm GT và predictions bằng cùng quy
 box trong polygon, bao gồm biên. Chốt trước khi xem metric, giữ cố định giữa
 variants và khai báo polygon/hash/counts trong báo cáo. ROI không chứng minh
 chất lượng vùng xa hoặc test độc lập và không tự hoàn tất human review.
+
+Yêu cầu tiếp theo cùng ngày: tái tạo GT mixed/review chỉ trong ROI, giữ full
+GT/lịch sử làm provenance. Runtime phải mask pixel ngoài ROI, loại detection
+trước tracker và bỏ track ngoài khỏi state; C1 brightness chỉ tính pixel ROI.
+Các kết quả full-frame cũ không tự trở thành kết quả ROI runtime. Đóng băng ROI
+cho phiên review và dùng cùng scope/checkpoint cho mọi ablation.

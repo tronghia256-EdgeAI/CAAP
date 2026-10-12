@@ -73,7 +73,7 @@ class ContextEstimator:
 
     # ── Public API ───────────────────────────────────────────────────
 
-    def estimate(self, frame: np.ndarray, tracks: List) -> TrafficState:
+    def estimate(self, frame: np.ndarray, tracks: List, pixel_mask=None) -> TrafficState:
         """
         Args:
             frame  : BGR frame (H, W, 3) as np.ndarray
@@ -86,7 +86,7 @@ class ContextEstimator:
         """
         density    = self._compute_density(tracks)
         hour       = self._get_hour()
-        brightness = self._compute_brightness(frame)
+        brightness = self._compute_brightness(frame,pixel_mask)
         fp_rate    = self._compute_fp_rate(tracks)
 
         return TrafficState(
@@ -119,13 +119,17 @@ class ContextEstimator:
             return self.hour_override
         return datetime.now().hour
 
-    def _compute_brightness(self, frame: np.ndarray) -> float:
+    def _compute_brightness(self, frame: np.ndarray, pixel_mask=None) -> float:
         """Mean grayscale intensity as a lighting proxy, EMA-smoothed."""
         if frame.ndim == 3:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         else:
             gray = frame
-        self._brightness_ema = self._ema(float(gray.mean()), self._brightness_ema)
+        if pixel_mask is not None:
+            if pixel_mask.shape!=gray.shape or not np.any(pixel_mask):raise ValueError('Invalid context ROI mask')
+            values=gray[pixel_mask>0]
+        else:values=gray
+        self._brightness_ema = self._ema(float(values.mean()), self._brightness_ema)
         return self._brightness_ema
 
     def _compute_fp_rate(self, tracks: List) -> float:

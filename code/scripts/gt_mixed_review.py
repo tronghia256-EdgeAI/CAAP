@@ -147,7 +147,7 @@ def make_cases(frames, n_frames, width, height, audit_block=20):
     return cases
 
 
-def prepare(source: Path = SOURCE, bundle: Path = BUNDLE, segment=(2500, 3100), progress=print):
+def prepare(source: Path = SOURCE, bundle: Path = BUNDLE, segment=(2500, 3100), progress=print, frames_dir=None):
     source, bundle = Path(source), Path(bundle)
     if bundle.exists():
         store = MixedStore(bundle)
@@ -161,7 +161,7 @@ def prepare(source: Path = SOURCE, bundle: Path = BUNDLE, segment=(2500, 3100), 
     gt = source / "gt/gt.txt"
     source_hash = sha256(gt)
     read_rows(gt, n_frames)
-    images = source / "img1"
+    images = Path(frames_dir) if frames_dir is not None else source / "img1"
     image_hashes = {}
     size = None
     for frame in range(1, n_frames + 1):
@@ -334,6 +334,11 @@ class MixedStore:
         self.journal, self.edit_hash = journal, hashlib.sha256(payload).hexdigest()
 
     def add_event(self, event):
+        if self.manifest.get('review_scope')=='ROI_ONLY' and event.get('op')=='upsert':
+            from code.scripts.gt_roi import load_roi,contains_box
+            p=event['fields'];x,y,w,h=map(float,p[2:6])
+            if not contains_box([x,y,x+w,y+h],load_roi(self.bundle)):
+                raise ValueError('Box lies outside the frozen ROI; no annotation was saved')
         event = dict(event, event_id=uuid.uuid4().hex, created_utc=now())
         journal = dict(self.journal, events=self.journal["events"] + [event])
         self.update_journal(journal)
@@ -574,6 +579,8 @@ def finalize_mixed(store: MixedStore, reviewer: str, tracks_dir=TRACKS_DIR, out_
     records, stats = store.preview(strict=True)
     snapshots = {"decisions.csv": store.path.read_bytes(), "edits.json": store.edit_path.read_bytes(),
                  "manifest.json": store.manifest_path.read_bytes(), "source_gt.txt": store.source_path.read_bytes()}
+    if (store.bundle/'scope_provenance.json').exists():
+        snapshots['scope_provenance.json']=(store.bundle/'scope_provenance.json').read_bytes()
     out_dir = Path(out_dir) if out_dir else RESULTS / (
         datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "_" + uuid.uuid4().hex[:8])
     if out_dir.exists():
@@ -620,6 +627,8 @@ def finalize_mixed(store: MixedStore, reviewer: str, tracks_dir=TRACKS_DIR, out_
                       evaluation_performed=evaluate, variants=scores)
         report['evaluation_scope'] = 'ROI' if roi and roi['enabled'] else 'FULL_FRAME'
         report['roi'] = roi
+        if 'scope_provenance.json' in snapshots:
+            report['review_scope_provenance']=json.loads(snapshots['scope_provenance.json'])
         if roi and roi['enabled']:
             report['roi_gt'] = dict(path='gt_roi.txt',sha256=sha256(staging/'gt_roi.txt'),
                                     boxes_included=len(roi_kept),boxes_excluded=len(records)-len(roi_kept))

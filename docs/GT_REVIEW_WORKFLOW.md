@@ -33,14 +33,55 @@ Chấm tất cả variants bằng cùng ROI trên **cả GT và dự đoán**; g
 ID gốc, không cắt ảnh/box. Báo cáo lưu polygon, rule, hash và số box nằm ngoài.
 Editor V tô tối ngoài ROI, giúp tập trung xem vùng có thể gán nhãn.
 
-ROI không tự xác nhận hay bỏ các mục review đang chờ; queue và full-frame audit
-hiện tại được giữ nguyên. Các ràng buộc nối/tách ID vẫn kiểm tra toàn track.
+Theo yêu cầu mới của Nghĩa, GT mixed dùng **hàng chờ chỉ trong ROI**. Mở
+`review_gt_mixed.cmd` để vào phiên ROI đang active. Bản toàn khung cũ giữ nguyên;
+source của phiên mới đã kế thừa các sửa box/ID của bạn rồi lọc toàn bộ 600 frame.
+Các đề xuất xa nằm ngoài ROI không còn trong queue mới. Chỉ KEEP cũ với case và
+nhãn trong ROI không thay đổi được kế thừa; các đề xuất mới vẫn chờ người duyệt.
+Audit vẫn đi qua thời gian của cả đoạn nhưng chỉ kiểm tra đối tượng trong ROI.
+
+Tạo một phiên ROI từ bản full đang có (ROI phải được lưu và bật):
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m code.scripts.gt_roi_scope
+```
+
+Phiên mới nằm dưới `mixed_review/roi_reviews/`, kèm `parent_snapshot/` và
+`scope_provenance.json`; launcher chọn bằng `roi_active.json`. ROI của phiên
+đã lọc được đóng băng để tránh đổi phạm vi mà queue vẫn cũ. Muốn đổi vùng,
+chỉnh ROI ở bản full và tạo phiên mới; giữ cả phiên cũ để đối chiếu.
+
+Đã áp dụng cùng ROI cho ba segment **cùng camera NKKN**:
+
+| Segment | Box trong ROI khi tạo phiên | Hàng chờ mới | Mở |
+|---|---:|---:|---|
+| mixed | 9.095 / 15.234 | 79 (23 KEEP kế thừa) | `review_gt_mixed.cmd` |
+| dense | 21.719 / 27.513 | 200 | `review_gt_roi_dense.cmd` |
+| freeflow | 2.464 / 7.249 | 54 | `review_gt_roi_freeflow.cmd` |
+
+Dense kế thừa GT đã tách ID từ lượt review hoàn tất trước đó; hàng chờ ROI mới
+là audit rộng hơn về box/class/ID nên không có nghĩa kết quả tách cũ bị xóa.
+Các vùng/camera khác cần ROI riêng, không dùng polygon NKKN chỉ vì ảnh cùng kích thước.
+Để chuẩn bị lại collection camera sau khi chốt nguồn:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m code.scripts.gt_roi_scope --all-camera-segments
+```
+
+Runtime ROI: dùng `configs/mixed_roi.yaml` cho đúng camera NKKN/800×450.
+YOLO nhận ảnh đã che pixel ngoài ROI; detection ngoài ROI bị loại trước tracker,
+track có tâm đáy ra ngoài bị loại khỏi cả active/lost state, C1 đo độ sáng chỉ
+trong ROI. CNN vẫn chạy trên tensor khung đầy đủ; không mặc định coi ROI làm
+latency giảm theo tỷ lệ diện tích. Replay detection cũng được lọc trước tracking.
+Mọi ablation cần cùng ROI và checkpoint; chạy lại dump cho protocol runtime mới,
+không coi các track full-frame cũ là đã chạy detector/tracker theo ROI.
+
 Chốt ROI dựa trên vùng quan sát/gán nhãn được trước khi xem metric, dùng cùng
 ROI cho mọi ablation và báo rõ trong paper. ROI không chứng minh tracking tốt
 ở vùng xa hoặc làm evaluation trở thành test độc lập.
 
 Nếu app GT đã mở từ trước khi cập nhật code, đóng và mở lại `review_gt_mixed.cmd`
-trước khi xuất/chấm để phiên đó dùng ROI mới. Không cần xóa tiến độ review.
+trước khi tiếp tục để vào queue ROI mới. Không cần xóa tiến độ review cũ.
 
 Mở **`review_gt_mixed.cmd`** tại thư mục gốc repo, hoặc:
 

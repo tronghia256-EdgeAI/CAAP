@@ -136,6 +136,10 @@ class FrameEditor:
         from code.scripts.render_split_candidates import _font
         label_font = _font(11)
         self.visible = {key: fields for key, fields in self.rows.items() if key[0] == frame}
+        from code.scripts.gt_roi import load_roi, contains_box
+        active_roi = load_roi(self.store.bundle)
+        if (self.store.bundle / 'scope_provenance.json').exists():
+            self.visible = {key:p for key,p in self.visible.items() if contains_box(self.box(p),active_roi)}
         for key, fields in self.visible.items():
             if not self.show_boxes.get():
                 continue
