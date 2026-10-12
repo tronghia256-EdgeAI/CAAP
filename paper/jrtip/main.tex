@@ -110,10 +110,11 @@ Motorcycles, Context-aware perception, Real-time video analytics}
 \section{Introduction}\label{sec:intro}
 %% =====================================================================
 
-Road-traffic injuries remain a leading cause of death worldwide, and the burden
-falls disproportionately on low- and middle-income countries; in Viet Nam,
-motorcycles are the dominant vehicle type and are involved in the majority of
-road-traffic deaths~\cite{WHO2023_roadsafety}. Urban intersections are
+Road traffic crashes killed an estimated 1.19 million people in 2021; 92\% of
+these deaths occur in low- and middle-income countries, and riders of powered
+two- and three-wheelers account for 30\% of them~\cite{WHO2023_roadsafety}. In
+Viet Nam, motorized two- and three-wheelers made up 93\% of the 50.7 million
+vehicles registered in 2016~\cite{WHO2018_roadsafety}. Urban intersections are
 increasingly covered by fixed CCTV cameras, and two applications motivate
 turning that footage into structured perception in real time: incident
 alerting, which must not flood operators with false alarms, and adaptive signal
@@ -226,9 +227,12 @@ StrongSORT~\cite{Du2023_strongsort} adopts the confidence-dependent measurement
 noise introduced in GIAOTracker~\cite{Du2021_giaotracker};
 Hybrid-SORT~\cite{Yang2024_hybridsort} adds confidence and height cues to the
 filter state; Deep OC-SORT~\cite{Maggiolino2023_deepocsort} weighs appearance
-adaptively; and FastTracker~\cite{Hashempoor2025_fasttracker} exploits scene
-structure to handle occlusion. All of these predict every object with the same
-linear motion model.
+adaptively; and FastTracker~\cite{Hashempoor2025_fasttracker} targets vehicles in
+traffic scenes with occlusion-aware re-identification, road-structure priors and
+a class-aware Kalman filter whose velocity and acceleration bounds depend on the
+object class. All of these represent every object with the same kind of state,
+positions and velocities without a turn rate; FastTracker varies only the
+filter's parameters with the class.
 
 Nonlinear motion has been addressed mainly by learning.
 DanceTrack~\cite{Sun2022_dancetrack} and SportsMOT~\cite{Cui2023_sportsmot}
@@ -237,13 +241,16 @@ assumption, and learned predictors such as MotionTrack~\cite{Qin2023_motiontrack
 and DiffMOT~\cite{Lv2024_diffmot} replace the Kalman prediction with trained
 networks. These predictors are class-agnostic and need training trajectories from
 the target domain, which for motorcycle traffic are not publicly available
-(Sect.~\ref{subsec:rw_mixed}). Model-based alternatives come from vehicle
-tracking with range sensors: Schubert et al.~\cite{Schubert2008_ctrv} compared
-linear and curvilinear models and found that models with an explicit turn rate,
-such as CTRV, track maneuvering vehicles better; interacting-multiple-model
+(Sect.~\ref{subsec:rw_mixed}). Model-based alternatives come from vehicle state
+estimation: Schubert et al.~\cite{Schubert2008_ctrv} compared linear and
+curvilinear motion models in an unscented Kalman filter that fuses GPS and
+odometry, and found that curvilinear models with an explicit turn rate, such as
+CTRV, track maneuvering vehicles better; interacting-multiple-model
 filters~\cite{Blom1988_imm,BarShalom2001_estimation} switch between such models;
 and physics-based models form the first tier of motion-prediction
-taxonomies~\cite{Lefevre2014_motionsurvey}. C2 brings a CTRV model into
+taxonomies~\cite{Lefevre2014_motionsurvey}. In image-plane tracking, K{\i}ratl{\i}
+and Ero{\u{g}}lu~\cite{Kiratli2025_yolo11efac} pair DeepSORT with an extended
+Kalman filter to handle nonlinear motion in UAV video. C2 brings a CTRV model into
 image-plane tracking-by-detection, selects it by detected class and reuses its
 covariance for association. Unlike DeepSORT's Mahalanobis gate, which constrains
 every assignment, ours applies only to lost tracks of one class and can only add
@@ -269,11 +276,14 @@ StrongSORT~\cite{Du2023_strongsort}        & linear KF, NSA              & -- & 
 UCMCTrack~\cite{Yi2024_ucmctrack}          & linear KF, ground plane     & -- & \checkmark & -- \\
 Hybrid-SORT~\cite{Yang2024_hybridsort}     & linear KF, extended state   & -- & --         & -- \\
 DiffMOT~\cite{Lv2024_diffmot}              & diffusion predictor         & -- & --         & \checkmark \\
+FastTracker~\cite{Hashempoor2025_fasttracker} & class-aware KF           & partial$^{b}$ & -- & -- \\
 Ours (C2)                                  & CTRV-EKF / linear KF        & \checkmark & \checkmark$^{a}$ & -- \\
 \botrule
 \end{tabular}
 \footnotetext[a]{Only for lost motorcycle tracks, as an additional candidate
 match (Sect.~\ref{subsec:gate}).}
+\footnotetext[b]{Velocity and acceleration bounds depend on the class; the
+position--velocity state is shared by all classes.}
 \end{table}
 
 \subsection{Perception in mixed and motorcycle-dominant traffic}\label{subsec:rw_mixed}
@@ -281,18 +291,24 @@ match (Sect.~\ref{subsec:gate}).}
 Public tracking benchmarks for road traffic are dominated by cars.
 UA-DETRAC~\cite{Wen2020_uadetrac} provides fixed-camera sequences with identity
 annotations but labels cars, buses, vans and other vehicles, with no motorcycle
-class. Datasets from South and Southeast Asia capture two-wheelers for other
-tasks: IDD~\cite{Varma2019_idd} offers driving-view detection and segmentation on
-Indian roads, and Siebert and Lin~\cite{Siebert2020_helmet} detect helmet use in
-motorcycle traffic. Closest to our setting, Vu et al.~\cite{Vu2025_counting}
+class, and D$^2$-City~\cite{Che2019_d2city} annotates tracks of twelve object
+classes in dashcam video recorded from moving vehicles. Two-wheelers appear mostly
+in datasets built for other tasks: IDD~\cite{Varma2019_idd} offers driving-view
+semantic segmentation of unstructured Indian roads, and helmet use among
+two-wheeler riders is detected from traffic video~\cite{Siebert2020_helmet},
+in real time by RSPV-YOLO~\cite{An2026_rspvyolo}. Closest to our setting, Vu et al.~\cite{Vu2025_counting}
 detect, track and count vehicles at motorcycle-dominated intersections in Viet
 Nam, stabilizing their counts with a modified box reference point and explicit
 handling of identity switches; their evaluation targets count accuracy rather
 than identity preservation, and their data are not described as public.
 TrafficMOT~\cite{Liu2024_trafficmot} targets multi-class tracking in complex
-traffic scenes. We found no public fixed-camera benchmark of motorcycle-dominant
-traffic with identity annotations over sequences long enough to test
-re-association across occlusions, and therefore annotated our own
+traffic scenes, and the benchmark released with
+FastTracker~\cite{Hashempoor2025_fasttracker} provides twelve urban CCTV
+sequences with identity annotations for nine traffic classes, motorcycles among
+them, without reporting their location or the share of two-wheelers. We found no
+public fixed-camera benchmark documented as motorcycle-dominant that has identity
+annotations over sequences long enough to test re-association across occlusions,
+and therefore annotated our own
 (Sect.~\ref{subsec:gt}). The class-conditioned design makes this unavoidable: on
 data without a motorcycle class, the CTRV branch never executes.
 
@@ -301,13 +317,13 @@ data without a motorcycle class, the CTRV branch never executes.
 Vision-based accident detection and anticipation have been surveyed
 recently~\cite{Fang2024_accidentsurvey,Adewopo2023_review}. Surveillance
 datasets such as CADP~\cite{Shah2018_cadp} and dashcam collections such as
-D$^2$-City~\cite{Che2019_d2city}, DoTA~\cite{Yao2023_dota} and the dataset of Bao
-et al.~\cite{Bao2020_ccd} support clip-level detection, anomaly localization and
-anticipation, while tracking-based methods derive accident cues from
-trajectories, e.g., abrupt changes of speed and heading~\cite{Ijjina2019_accident}.
-Commercial incident-detection systems~\cite{Hikvision_AID} target highway scenes
-dominated by cars. Across this line of work the operating point is fixed
-offline. How the quality of upstream tracks affects alert precision, and how one
+DoTA~\cite{Yao2023_dota} and the dataset of Bao et al.~\cite{Bao2020_ccd}
+support clip-level detection, anomaly localization and anticipation, while
+tracking-based methods derive accident cues from trajectories, e.g., speed and
+trajectory anomalies after two vehicles overlap~\cite{Ijjina2019_accident}.
+Commercial automatic incident detection systems are marketed for highways and
+tunnels~\cite{Hikvision_AID}. Across this line of work the operating point is
+fixed offline. How the quality of upstream tracks affects alert precision, and how one
 track stream can serve both an alerting channel and a controller with opposite
 precision--recall preferences, have received little attention.
 
@@ -319,8 +335,12 @@ weather, and domain-adaptive detectors~\cite{Chen2018_dafrcnn} align features
 across conditions. Within tracking, adaptation is usually local to one detection
 or track: confidence-scaled measurement
 noise~\cite{Du2021_giaotracker,Du2023_strongsort}, confidence-aware
-association~\cite{Yang2024_hybridsort} or adaptive appearance
-weighting~\cite{Maggiolino2023_deepocsort}. Selecting tracker hyperparameters
+association~\cite{Yang2024_hybridsort,Liu2024_cotracker} or adaptive appearance
+weighting~\cite{Maggiolino2023_deepocsort}. COTracker~\cite{Liu2024_cotracker}
+argues that fixed confidence thresholds make multi-stage association unstable
+across scenarios and removes them, weighting every match by detection and
+smoothed tracklet confidence; C1 keeps the thresholds and chooses them from
+measured context. Selecting tracker hyperparameters
 and motion models from measured scene context at run time, as C1 does, and
 serving two downstream consumers with opposite error preferences from one scored
 track stream, as C3 does, are outside the scope of these methods.
@@ -330,7 +350,9 @@ track stream, as C3 does, are outside the scope of these methods.
 One-stage detectors~\cite{Redmon2016_yolo} remain the default for real-time
 video analytics, with recent members such as
 YOLO11~\cite{Jocher2024_yolo11,Khanam2024_yolo11}, YOLOv10~\cite{Wang2024_yolov10}
-and RT-DETR~\cite{Zhao2024_rtdetr} trading accuracy against latency. Deployment
+and RT-DETR~\cite{Zhao2024_rtdetr} trading accuracy against latency, and
+lightweight detectors for traffic participants compress the network further,
+e.g., by feature distillation~\cite{An2026_tpdyolo}. Deployment
 commonly exports the network to an inference runtime such as ONNX
 Runtime~\cite{ONNXRuntime} or OpenVINO~\cite{OpenVINO}, optionally with integer
 quantization~\cite{Jacob2018_quant}. Real-time claims are usually made on GPUs,
@@ -808,7 +830,7 @@ decisions had been frozen, and all annotated frames lie in this held-out part.
 We annotated the densest 600-frame window of the clip, frames 10,700--11,299
 (24~s), which contains on average 45.9 annotated objects per frame; the tracker's
 density signal ranges from 30 to 69 tracks (mean 54.9) over the window.
-Annotation was done in CVAT with fixed conventions: a motorcycle box covers the
+Annotation was done in CVAT~\cite{CVAT} with fixed conventions: a motorcycle box covers the
 vehicle together with its rider and passengers; objects smaller than about 8~px
 are not labelled; and a fully occluded vehicle may break its track but must be
 re-joined to its original identity when it reappears, so that re-association
@@ -932,8 +954,8 @@ as per-stage and total latency and as frames per second.
 \subsection{Latency protocol}\label{subsec:protocol}
 
 All timings were taken on a laptop with an Intel Core i5-12500H CPU and 16~GB of
-RAM, without a GPU, under Windows~11 with Python 3.10, PyTorch 2.11 (CPU build)
-and Ultralytics 8.4.39. Tracker-side latency replays the cached detections over
+RAM, without a GPU, under Windows~11 with Python 3.10, PyTorch~\cite{Paszke2019_pytorch}
+2.11 (CPU build) and Ultralytics~\cite{Jocher2024_yolo11} 8.4.39. Tracker-side latency replays the cached detections over
 all 13,726 frames, which isolates the cost of the proposed modules. End-to-end
 latency covers decoding, context estimation, detection, tracking and scoring over
 100 frames after 20 discarded warm-up frames. Every configuration runs in its own
@@ -1576,7 +1598,7 @@ Eqs.~\eqref{eq:ctrv}--\eqref{eq:score} specifies the method completely.
 \bmhead{Acknowledgements}
 \todo{Acknowledgements, or delete this heading.}
 
-\section*{Declarations}
+\section*{Statements and Declarations}
 
 \begin{itemize}
 \item \textbf{Funding.} \todo{Funding source and grant number, or ``This research
