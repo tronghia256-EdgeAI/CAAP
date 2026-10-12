@@ -38,6 +38,17 @@ dừng trước training. Run đang tồn tại không bị ghi đè âm thầm.
 phiên bản Python/PyTorch/CUDA/Ultralytics, GPU, tham số và hash snapshot.
 Seed và deterministic không bảo đảm số giống tuyệt đối giữa mọi phần cứng.
 
+## Nếu chưa thấy epoch
+
+Epoch chỉ xuất hiện ở cell **4. Train** sau cài thư viện, nạp/check dữ liệu,
+kiểm tra GPU và khởi tạo model. Bản notebook cập nhật in tiến độ copy mỗi
+500 file, kiểm tra mỗi 250 ảnh và thông báo `Starting training now`.
+Nếu đang ở copy/check ảnh, training chưa bắt đầu; không cần upload ZIP lại.
+Nếu dừng lâu hoặc báo lỗi, lấy 5–10 dòng cuối output của cell đang chạy để
+phân biệt lỗi cài đặt, chưa gắn dataset, thiếu GPU hoặc lỗi khởi tạo model.
+Chạy các cell theo thứ tự hoặc Run All; cài package thành công chưa phải
+đã chạy cell training.
+
 ## Tiếp tục một lượt bị ngắt
 
 Gắn output cũ làm input. Điền `RESUME_CHECKPOINT` tới `last.pt` hoặc periodic

@@ -50,7 +50,7 @@ def test_uploaded_label_tampering_blocks_training(upload):
         verify_package(output)
 
 
-def test_notebook_code_and_data_loading_without_network_gpu(upload, tmp_path):
+def test_notebook_code_and_data_loading_without_network_gpu(upload, tmp_path, capsys):
     _, output, _ = upload
     notebook = json.loads(Path('notebooks/CAAP_YOLO11_Kaggle.ipynb').read_text(encoding='utf-8'))
     assert notebook['nbformat'] == 4
@@ -65,4 +65,8 @@ def test_notebook_code_and_data_loading_without_network_gpu(upload, tmp_path):
     assert len(namespace['MANIFEST']) == 12
     assert namespace['REPORT']['names'] == NAMES
     assert len(namespace['DATASET_HASH']) == 64
+    messages = capsys.readouterr().out
+    assert 'Copying dataset to working' in messages
+    assert 'Checked 1/12 images' in messages
+    assert 'Dataset verification complete: 12 images' in messages
     assert all(not c.get('outputs') for c in notebook['cells'])
