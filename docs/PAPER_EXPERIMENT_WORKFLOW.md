@@ -24,7 +24,14 @@ Giờ footage cố định là 8, frame rate tracker lấy từ header nguồn (
 Các nhánh: baseline, CTRV, CTRV+NSA, CTRV+gate, CTRV+gate+NSA,
 C1+C2, C1+C2+C3; thêm OC-SORT và BoT-SORT theo tham số công bố và
 các đối chứng khớp threshold. OC-SORT còn có nhánh 0.6 + BYTE.
-Trong tất cả nhánh, không giữ state ngoài ROI. Hệ số gate/NSA/scale được ghi
+Trong tất cả nhánh, không giữ state ngoài ROI.
+
+Với tracker ngoài, một state có box không hữu hạn hoặc bị ngược cũng bị coi là ngoài ROI và bị bỏ (`8a0dc26`):
+- **Nguyên nhân:** Kalman của OC-SORT có thể ra diện tích âm, làm box thành NaN.
+- **Upstream:** xoá tracker này ở lần predict kế tiếp. Nếu state hóa NaN ngay trong một lần update, upstream vẫn có thể xuất box NaN ở frame đó; runner thì bỏ box này. Hai cách cho kết quả tương đương trong thực tế.
+- **Lý do sửa:** chính lỗi này đã làm run v4 dừng ở bước replay.
+
+Hệ số gate/NSA/scale được ghi
 rõ, tránh kế thừa config làm hai ablation trùng nhau. Lưu cả track trước/sau C3;
 `c1c2c3_raw` trong bảng điểm là đối chứng trước bộ lọc C3 trên cùng run.
 
@@ -60,7 +67,14 @@ Double-click **`run_paper_experiments.cmd`**, hoặc từ repo root:
 .\.venv\Scripts\python.exe -X utf8 -u -m code.scripts.run_roi_paper --phase all
 ```
 
-Kết quả mặc định dưới `data/processed/paper_runs/best85_roi_20261013_v4/`:
+Kết quả mặc định dưới `data/processed/paper_runs/best85_roi_20261013_v4/`.
+
+v4 đã dừng (FAILED) ở bước replay. Run hiện hành là `best85_roi_20261013_v5`:
+- **Code:** chạy theo commit `8a0dc26`, tham số `--out` trỏ tới thư mục v5.
+- **Khóa code:** không sửa `.py`/`.yaml` trong `code/` và `configs/` cho tới khi run xong.
+- **Latency:** chỉ dùng số đo khi `% Processor Performance` đạt khoảng 90% trở lên.
+
+Trong thư mục run:
 
 | File | Ý nghĩa |
 |---|---|
