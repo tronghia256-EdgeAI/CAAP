@@ -14,6 +14,34 @@ chỉ dùng phát triển, chưa phải evaluation cho paper.
 
 ## Mixed: nối/tách ID và sửa nhãn trực tiếp
 
+### ROI cho vùng GT quan sát được
+
+Mở **`review_gt_roi.cmd`**, hoặc nút **Điều chỉnh ROI** trong phiên GT mixed mới.
+Click các đỉnh theo thứ tự vòng quanh vùng cần chấm, kéo đỉnh để chỉnh. Chọn frame
+MOT khác để kiểm tra cùng polygon trên đoạn video. **Vẽ lại**, **Bỏ đỉnh cuối**,
+**Toàn khung** giúp chỉnh nhanh. Điền lý do phạm vi, rồi bấm **Lưu ROI**.
+Vùng tối nằm ngoài ROI; box xanh nằm trong theo quy tắc **tâm đáy box nằm trong
+polygon**, bao gồm biên. Polygon tự cắt hoặc thiếu đỉnh sẽ không được lưu.
+
+ROI lưu riêng tại `experiments/gt_qa/mixed_review/roi.json`, có ràng buộc manifest,
+kích thước frame, tác giả, lý do và lịch sử thay đổi; không ghi đè GT hoặc các
+quyết định trước đó. File được gitignore. Muốn trở lại chấm toàn khung, bỏ tick
+**Áp dụng ROI khi xuất/chấm** rồi lưu.
+
+Khi hoàn tất, giữ `gt_reviewed.txt` đầy đủ và xuất thêm `gt_roi.txt` nếu ROI bật.
+Chấm tất cả variants bằng cùng ROI trên **cả GT và dự đoán**; giữ tọa độ box và
+ID gốc, không cắt ảnh/box. Báo cáo lưu polygon, rule, hash và số box nằm ngoài.
+Editor V tô tối ngoài ROI, giúp tập trung xem vùng có thể gán nhãn.
+
+ROI không tự xác nhận hay bỏ các mục review đang chờ; queue và full-frame audit
+hiện tại được giữ nguyên. Các ràng buộc nối/tách ID vẫn kiểm tra toàn track.
+Chốt ROI dựa trên vùng quan sát/gán nhãn được trước khi xem metric, dùng cùng
+ROI cho mọi ablation và báo rõ trong paper. ROI không chứng minh tracking tốt
+ở vùng xa hoặc làm evaluation trở thành test độc lập.
+
+Nếu app GT đã mở từ trước khi cập nhật code, đóng và mở lại `review_gt_mixed.cmd`
+trước khi xuất/chấm để phiên đó dùng ROI mới. Không cần xóa tiến độ review.
+
 Mở **`review_gt_mixed.cmd`** tại thư mục gốc repo, hoặc:
 
 ```powershell

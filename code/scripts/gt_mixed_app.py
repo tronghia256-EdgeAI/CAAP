@@ -45,7 +45,19 @@ class MixedReviewApp(ReviewApp):
                 ("Chưa rõ [U]", lambda: self.verdict("")), ("Sau →", lambda: self.select(self.index + 1)),
                 ("Xem video / sửa [V]", self.preview), ("Đã sửa [E]", lambda: self.verdict("EDIT")),
                 ("Chưa duyệt [N]", self.pending), ("Ảnh 100% / Vừa cửa sổ", self.toggle_size),
-                ("Tải lại CSV", self.reload))
+                ("Tải lại CSV", self.reload), ("Điều chỉnh ROI", self.roi_editor))
+
+    def roi_editor(self):
+        if self.busy or not self.save_note():
+            return
+        from code.scripts.gt_roi_app import ROIEditor
+        import tkinter as tk
+        try:
+            window = tk.Toplevel(self.root)
+            ROIEditor(window, self.args.bundle, self.reviewer.get().strip() or 'Nghĩa')
+            window.grab_set()
+        except (ValueError,OSError) as error:
+            messagebox.showerror('Không mở được ROI',str(error),parent=self.root)
 
     def shortcuts(self):
         return {"a": self.accept, "k": lambda: self.verdict("KEEP"), "u": lambda: self.verdict(""),

@@ -27,6 +27,7 @@ experiments/gt_qa/mixed_review/*.png
 experiments/gt_qa/mixed_review/source_gt.txt
 experiments/gt_qa/mixed_review/manifest.json
 experiments/gt_qa/mixed_review/edits.json
+experiments/gt_qa/mixed_review/roi.json
 experiments/gt_qa/mixed_reviewed/
 
 # ── Python ────────────────────────────────────────────────────────────

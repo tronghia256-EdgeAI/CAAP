@@ -567,6 +567,10 @@ def finalize_mixed(store: MixedStore, reviewer: str, tracks_dir=TRACKS_DIR, out_
     if not reviewer.strip():
         raise ValueError("Reviewer name is required.")
     store.check_inputs(images=True)
+    from code.scripts.gt_roi import load_roi, contains_box
+    roi = load_roi(store.bundle)
+    roi_path = store.bundle / 'roi.json'
+    roi_raw = roi_path.read_bytes() if roi else None
     records, stats = store.preview(strict=True)
     snapshots = {"decisions.csv": store.path.read_bytes(), "edits.json": store.edit_path.read_bytes(),
                  "manifest.json": store.manifest_path.read_bytes(), "source_gt.txt": store.source_path.read_bytes()}
@@ -583,8 +587,20 @@ def finalize_mixed(store: MixedStore, reviewer: str, tracks_dir=TRACKS_DIR, out_
         parsed = read_rows(reviewed, store.manifest["n_frames"])
         if len(parsed) != len(records):
             raise ValueError("Reviewed GT has duplicate identity/frame pairs.")
-        scores = score_variants(reviewed, Path(tracks_dir), tuple(store.manifest["segment"]), progress) if evaluate else {}
+        roi_kept = {}
+        if roi and roi['enabled']:
+            for key,p in records.items():
+                x,y,w,h = map(float,p[2:6])
+                if contains_box([x,y,x+w,y+h],roi):roi_kept[key]=p
+            if not roi_kept:
+                raise ValueError('ROI contains no reviewed GT boxes; revise the ROI before exporting')
+            (staging/'gt_roi.txt').write_text(''.join(','.join(p)+'\n' for _,p in sorted(roi_kept.items())),encoding='utf-8')
+        scores = score_variants(reviewed, Path(tracks_dir), tuple(store.manifest["segment"]), progress, roi=roi) if evaluate else {}
         store.check_inputs(images=True)
+        if (roi_path.read_bytes() if roi_path.exists() else None) != roi_raw:
+            raise ValueError('ROI changed during export/scoring; retry with the current ROI')
+        if roi_raw is not None:
+            snapshots['roi.json'] = roi_raw
         for name, snapshot in snapshots.items():
             if (store.bundle / name).read_bytes() != snapshot:
                 raise ValueError("Review changed during scoring; reload and retry.")
@@ -602,9 +618,15 @@ def finalize_mixed(store: MixedStore, reviewer: str, tracks_dir=TRACKS_DIR, out_
                       metric_engine="code.evaluation.metrics.compute_tracking_metrics; IoU=0.5",
                       metric_engine_sha256=sha256(REPO_ROOT / "code/evaluation/metrics.py"),
                       evaluation_performed=evaluate, variants=scores)
+        report['evaluation_scope'] = 'ROI' if roi and roi['enabled'] else 'FULL_FRAME'
+        report['roi'] = roi
+        if roi and roi['enabled']:
+            report['roi_gt'] = dict(path='gt_roi.txt',sha256=sha256(staging/'gt_roi.txt'),
+                                    boxes_included=len(roi_kept),boxes_excluded=len(records)-len(roi_kept))
         (staging / "review.json").write_bytes(json_bytes(report))
         lines = ["# Mixed GT review", "", f"Reviewer: {reviewer.strip()}", "", report["scope"], "",
                  report["evaluation_role"], "", f"GT changes: {stats}", "",
+                 f"Evaluation scope: {report['evaluation_scope']}; GT and predictions use the same ROI rule.", "",
                  "| Variant | Class | MOTA | IDF1 | ID switches |", "|---|---|---:|---:|---:|"]
         for variant, data in scores.items():
             for cls, m in data["metrics"].items():

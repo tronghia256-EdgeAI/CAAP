@@ -169,7 +169,7 @@ def check_inputs(store: DecisionStore, candidates: Path, gt: Path,
             "identities": len(identities), **store.tally}
 
 
-def score_variants(gt: Path, tracks_dir: Path, segment: tuple[int, int], progress=None) -> dict:
+def score_variants(gt: Path, tracks_dir: Path, segment: tuple[int, int], progress=None, roi=None) -> dict:
     """Score frozen track dumps with the repository's existing metrics."""
     from code.evaluation.metrics import compute_tracking_metrics
     from code.scripts.import_gt import CLASS_NAMES, load_mot, to_framelist
@@ -179,6 +179,9 @@ def score_variants(gt: Path, tracks_dir: Path, segment: tuple[int, int], progres
         raise ValueError("Expected saved tracks_*.json including tracks_baseline.json.")
     start, end = segment
     truth = load_mot(gt)
+    from code.scripts.gt_roi import filter_frames
+    truth_before = sum(map(len, truth.values()))
+    truth = filter_frames(truth, roi)
     class_ids = sorted({cls for entries in truth.values() for _, _, cls in entries})
     classes = [("ALL", None)] + [(CLASS_NAMES.get(cid, str(cid)), cid) for cid in class_ids]
     gt_lists = {name: to_framelist(truth, end - start, cid) for name, cid in classes}
@@ -192,6 +195,8 @@ def score_variants(gt: Path, tracks_dir: Path, segment: tuple[int, int], progres
             raise ValueError(f"{path.name}: dump does not cover the requested absolute segment.")
         predictions = {k: [(tid, box, cls) for tid, cls, box in entries]
                        for k, entries in enumerate(dump["frames"][start:end], 1)}
+        predictions_before = sum(map(len, predictions.values()))
+        predictions = filter_frames(predictions, roi)
         metrics = {name: asdict(compute_tracking_metrics(
             to_framelist(predictions, end - start, cid), gt_lists[name]))
             for name, cid in classes}
@@ -200,6 +205,11 @@ def score_variants(gt: Path, tracks_dir: Path, segment: tuple[int, int], progres
         result[path.stem.removeprefix("tracks_")] = {
             "path": str(path.resolve()), "sha256": fingerprint, "metrics": metrics,
         }
+        if roi and roi['enabled']:
+            result[path.stem.removeprefix('tracks_')]['roi_counts'] = dict(
+                gt_included=sum(map(len,truth.values())), gt_excluded=truth_before-sum(map(len,truth.values())),
+                predictions_included=sum(map(len,predictions.values())),
+                predictions_excluded=predictions_before-sum(map(len,predictions.values())))
     return result
 
 

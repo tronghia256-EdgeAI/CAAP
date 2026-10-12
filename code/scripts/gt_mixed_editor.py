@@ -144,6 +144,8 @@ class FrameEditor:
             draw.rectangle(box, outline=color, width=3 if key[1] == self.selected else 1)
             draw.text((box[0], max(0, box[1] - 13)), f"{fields[1]} {CLASS_NAMES[int(fields[7]) - 1]}",
                       font=label_font, fill=color, stroke_width=1, stroke_fill="black")
+        from code.scripts.gt_roi import load_roi, overlay_roi
+        picture = overlay_roi(picture, load_roi(self.store.bundle))
         if self.zoom.get() == "200%":
             self.scale = 2.0
         elif self.zoom.get() == "100%":

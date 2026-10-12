@@ -28,3 +28,11 @@ triển khai, test và chấm event-level riêng; không gửi cảnh báo thậ
 Bản thảo JRTIP ở `paper/jrtip/main.tex`; skeleton cũ trong `paper/sections/`
 được đồng bộ phạm vi để tránh khôi phục yêu cầu severity ở phiên sau.
 Spec dữ liệu hiện hành: [ACCIDENT_DATA_SPEC.md](ACCIDENT_DATA_SPEC.md).
+
+## ROI do Nghĩa chọn cho GT (12/10/2026)
+
+Cho phép polygon ROI theo camera để giới hạn vùng gán nhãn quan sát được.
+Giữ GT đầy đủ và ROI riêng; chấm GT và predictions bằng cùng quy tắc tâm đáy
+box trong polygon, bao gồm biên. Chốt trước khi xem metric, giữ cố định giữa
+variants và khai báo polygon/hash/counts trong báo cáo. ROI không chứng minh
+chất lượng vùng xa hoặc test độc lập và không tự hoàn tất human review.
