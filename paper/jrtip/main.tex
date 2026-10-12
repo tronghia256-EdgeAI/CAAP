@@ -836,7 +836,9 @@ sizes. PyTorch, one process per bar, warm-up discarded.}
 
 Two caveats bound this result. The detection-head bars use a COCO-pretrained
 YOLO11n, which finds fewer vehicles in this domain, so part of the speed-up
-comes from less tracking work (0.81~ms at 448~px against 10.1~ms). And the
+comes from less tracking work (0.81~ms at 448~px against 10.1~ms); substituting
+the tracking time measured with the deployed detector gives about 36~ms per frame
+at 448~px, still within the budget. And the
 accuracy of Sect.~\ref{sec:results} was obtained at 1,280~px, so accuracy and
 latency currently belong to different operating points; the comparison between
 tracker configurations is unaffected, because all of them consume identical

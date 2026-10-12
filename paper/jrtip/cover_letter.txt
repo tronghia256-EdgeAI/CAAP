@@ -36,7 +36,8 @@ real-time operation as a design constraint:
 3. The finding that the detector, at 91% of the frame time, decides real-time
    feasibility on a CPU, and the design choice that meets the budget: a
    detection head instead of a segmentation head (2.25x faster) at 448 px
-   input reaches 26.6 ms per frame (37.6 fps).
+   input reaches 26.6 ms per frame (37.6 fps), or about 36 ms with the
+   tracking load of the deployed detector, still within the budget.
 4. A comparison of inference runtimes on the same CPU (OpenVINO, ONNX Runtime,
    half precision), all slower than PyTorch with default export settings.
 5. A measurement protocol (one configuration per process, discarded warm-up)
