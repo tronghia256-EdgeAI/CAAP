@@ -57,6 +57,52 @@ Output is in `seed_bias.json`.
    full-frame dense GT: 73% of `baseline`'s extra boxes lay where the C2-seeded
    GT had no box.
 
+**The completed blind audit (`paper_gt_audit`, 148 verdicts by Nghĩa)**
+
+The per-stratum shares are in `audit_shares.json`. A run is "GT wrong" under
+the rule `gt_issue` in `paper_gt_audit.py`:
+
+- a tracker's extra run (a box the GT lacks) shows a real motorcycle;
+- or a missing run (a GT box the tracker lacks) shows no motorcycle, or a
+  duplicate;
+- or the two crops of an ID switch show two different vehicles.
+
+Intervals are Wilson 95%. "Left" is the share applied to the runs the audit
+did not sample. Those runs are still in the reconciled GT, because the
+32-group reconciliation fixed sampled cases only.
+
+| Stratum (tracker that did not seed the GT) | GT wrong | Wilson 95% | runs left (low / mid / high) |
+|---|---:|---|---|
+| dense, baseline extras (GT seeded from C2) | 8/10 | 0.49–0.94 | 106 / 174 / 205 of 217 |
+| mixed, C2 extras (GT seeded from baseline) | 8/10 | 0.49–0.94 | 72 / 118 / 139 of 147 |
+| dense, baseline misses | 2/10 | 0.06–0.51 | 28 / 99 / 253 of 497 |
+| mixed, C2 misses | 1/10 | 0.02–0.40 | 0 / 2 / 6 of 16 |
+| dense, baseline ID switches | 1/10 | 0.02–0.40 | 2 / 11 / 46 of 114 |
+| mixed, C2 ID switches | 1/10 | 0.02–0.40 | 0 / 0 / 0 (all sampled) |
+
+The seed trackers' own extras are mostly duplicates the reviewer removed
+correctly (dense C2: 7 of 10 are `D`). In freeflow every stratum was sampled
+completely, so nothing is left.
+
+**What the audit settles.**
+
+1. **The membership bias is real and symmetric.** About 80% of the boxes that
+   the non-seed tracker outputs and the GT lacks are real motorcycles. The
+   reviewer was never shown them. In the reconciled GT used by the paper run,
+   an estimated 106–205 such runs remain in dense and 72–139 in mixed. Each GT
+   therefore still charges the non-seed tracker false positives for real
+   vehicles.
+2. **ID switches are mostly genuine on both sides,** 9/10 in each direction.
+   Counts of identity switches are therefore not a seeding artefact. C2's
+   reduction in switches on dense (124 → 48 on the ROI GT) survives the
+   seed-bias critique. Its IDF1 margin does not.
+
+The audit sampled the old cached tracks (`experiments/gt_ablation`, from
+yolo11_vn@1280 detections), not best.pt. The shares describe how incomplete
+the GT is. They are not a property of the paper run's dumps. The script lives
+outside `code/` during the paper run's code freeze and will be moved to
+`code/scripts/` afterwards.
+
 The pattern in finding 1 fits two explanations equally well:
 
 - a seed advantage of about 0.04 with no IDF1 effect of C2 at all;
