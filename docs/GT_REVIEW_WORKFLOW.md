@@ -3,6 +3,9 @@
 **Cập nhật 12/10/2026:** Nghĩa đã hoàn tất ba phiên Mixed, Freeflow và Dense
 trong ROI (333 mục, 1.800 frame). Xem [receipt và bước tiếp theo](GT_COMPLETION_20261012.md).
 
+**Kiểm tra chéo trước thí nghiệm mới:** mở `review_gt_audit.cmd` để duyệt
+ảnh bất đồng từng mục và tự lưu. Xem [bước 1: protocol và audit](PAPER_STEP1_PROTOCOL.md).
+
 **Dataset Accident / Vehicle:** mở `review_accident_dataset.cmd` để duyệt cụm
 ảnh gần giống, sửa box và xuất dataset detector. Xem
 [hướng dẫn làm sạch dataset](ACCIDENT_DATASET_REVIEW_WORKFLOW.md).
