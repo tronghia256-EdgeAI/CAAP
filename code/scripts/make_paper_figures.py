@@ -28,7 +28,8 @@ OUT = REPO / "paper" / "jrtip" / "figures"
 # Validated categorical slots (dataviz reference palette, light mode).
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
-WIDTH = 5.1  # in; Springer single-column text width is ~5.16 in
+WIDTH = 5.1  # in; sn-jnl text width, used by the figures of the long version
+COL = 3.3    # in; JRTIP double-column (svjour3) column width is ~3.3 in
 
 plt.rcParams.update({
     "pdf.fonttype": 42, "ps.fonttype": 42,
@@ -123,35 +124,35 @@ def fig_realtime() -> None:
     # head) and section 4 (detection head, PyTorch). Same machine, one
     # process per row, warm-up discarded.
     rows = [  # label, detect ms, total ms, fps
-        ("Deployed: segmentation head, 640 px", 130.72, 143.24, 7.0),
-        ("Detection head, 640 px", 58.20, 62.89, 15.9),
-        ("Detection head, 448 px", 24.33, 26.57, 37.6),
-        ("Detection head, 320 px", 17.33, 19.47, 51.4),
-        ("Detection head, 256 px", 14.24, 16.29, 61.4),
+        ("Seg. head, 640 px", 130.72, 143.24, 7.0),
+        ("Det. head, 640 px", 58.20, 62.89, 15.9),
+        ("Det. head, 448 px", 24.33, 26.57, 37.6),
+        ("Det. head, 320 px", 17.33, 19.47, 51.4),
+        ("Det. head, 256 px", 14.24, 16.29, 61.4),
     ]
-    fig, ax = plt.subplots(figsize=(WIDTH, 2.4))
+    fig, ax = plt.subplots(figsize=(COL, 2.1))
     ys = list(range(len(rows)))[::-1]
     for y, (label, det, tot, fps) in zip(ys, rows):
         ax.barh(y, det, color=BLUE, height=0.6, edgecolor="white", lw=1.0)
         ax.barh(y, tot - det, left=det, color=ORANGE, height=0.6,
                 edgecolor="white", lw=1.0)
-        # value column outside the plot, so no label crosses the budget line
-        ax.annotate(f"{tot:.1f} ms  {fps:.1f} fps", (1.01, y),
-                    xycoords=("axes fraction", "data"), va="center",
-                    color=INK)
+        # start labels right of the budget line so it never crosses text
+        ax.annotate(f"{tot:.1f} ms, {fps:.1f} fps", (max(tot, 40), y),
+                    xytext=(3, 0), textcoords="offset points", va="center",
+                    color=INK, fontsize=6.5)
     ax.set_yticks(ys, [r[0] for r in rows])
     ax.axvline(40, color=INK2, lw=1.0, ls=(0, (4, 3)))
-    ax.annotate("40 ms budget (25 fps source)", (40, ys[0] + 0.45),
-                xytext=(4, 0), textcoords="offset points", va="bottom",
-                color=INK2)
+    ax.annotate("40 ms budget", (40, ys[0] + 0.45), xytext=(3, 0),
+                textcoords="offset points", va="bottom", color=INK2,
+                fontsize=6.5)
     ax.set_ylim(-0.5, ys[0] + 1.0)
-    ax.set_xlabel("per-frame latency (ms), Intel Core i5-12500H, CPU only")
-    ax.set_xlim(0, 150)
+    ax.set_xlabel("per-frame latency (ms), i5-12500H CPU")
+    ax.set_xlim(0, 215)
     ax.grid(axis="y", visible=False)
     ax.legend(handles=[plt.Rectangle((0, 0), 1, 1, color=BLUE),
                        plt.Rectangle((0, 0), 1, 1, color=ORANGE)],
-              labels=["detector", "decode + context + tracking + scoring"],
-              loc="lower right", fontsize=7)
+              labels=["detector", "other stages"], loc="lower right",
+              fontsize=6.5)
     save(fig, "fig_realtime.pdf")
 
 
@@ -161,12 +162,12 @@ def fig_gt_versions() -> None:
     # run experiments/gt_qa/reviewed/20261007T161301Z_126e0b66/summary.md.
     rows = [  # label, baseline, C2
         ("As annotated (335 IDs)", 0.844, 0.933),
-        ("Heuristic, 59 cuts (394 IDs)", 0.855, 0.916),
-        ("Human review, 92 cuts (427 IDs)", 0.858, 0.907),
-        ("Heuristic, 105 cuts (440 IDs)", 0.861, 0.898),
-        ("Heuristic, 147 cuts (482 IDs)", 0.866, 0.880),
+        ("Heuristic, 59 cuts", 0.855, 0.916),
+        ("Human review, 92 cuts", 0.858, 0.907),
+        ("Heuristic, 105 cuts", 0.861, 0.898),
+        ("Heuristic, 147 cuts", 0.866, 0.880),
     ]
-    fig, ax = plt.subplots(figsize=(WIDTH, 2.2))
+    fig, ax = plt.subplots(figsize=(COL, 2.0))
     ys = list(range(len(rows)))[::-1]
     for y, (label, base, c2) in zip(ys, rows):
         ax.plot([base, c2], [y, y], color=GRID, lw=2.0, zorder=1)
@@ -174,19 +175,20 @@ def fig_gt_versions() -> None:
                    edgecolors="white", linewidths=0.8)
         ax.scatter([c2], [y], s=30, color=BLUE, zorder=2,
                    edgecolors="white", linewidths=0.8)
-        ax.annotate(f"+{c2 - base:.3f}", (max(base, c2), y), xytext=(8, 0),
-                    textcoords="offset points", va="center", color=INK)
+        ax.annotate(f"+{c2 - base:.3f}", (max(base, c2), y), xytext=(6, 0),
+                    textcoords="offset points", va="center", color=INK,
+                    fontsize=6.5)
     ax.set_yticks(ys, [r[0] for r in rows])
     for t in ax.get_yticklabels():
         if t.get_text().startswith("Human"):
             t.set_fontweight("bold")
     ax.set_xlabel("motorcycle IDF1")
-    ax.set_xlim(0.835, 0.955)
+    ax.set_xlim(0.835, 0.965)
     ax.grid(axis="y", visible=False)
     ax.legend(handles=[plt.Line2D([], [], ls="", marker="o", color=ORANGE),
                        plt.Line2D([], [], ls="", marker="o", color=BLUE)],
               labels=["baseline (ByteTrack)", "C2"], loc="lower right",
-              fontsize=7)
+              fontsize=6.5)
     save(fig, "fig_gt_versions.pdf")
 
 
