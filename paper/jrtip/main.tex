@@ -904,8 +904,16 @@ Before ground truth existed, development used proxy metrics on frames
 teleport check stayed flat, because a wrong re-association is smooth: track A
 continues on motorcycle B. The share of bridged gaps whose heading reverses by
 more than $90^\circ$ nearly doubled (23.7\% to 44.4\%), revealing wrong merges, and
-we kept the textbook gate. The two failure modes of this section are the same
-error seen from two sides.
+we kept the textbook gate.
+%% Source: experiments/c2_sensitivity/evidence.md (gate rows).
+The annotated segment confirms the choice: a 99\% gate raises motorcycle
+identity switches from 27 to 173 and a cheaper rescue ($c_0=0.3$) to 265, while
+the tighter settings
+(90\%, $c_0=0.7$) cost less (69 and 77). The ground truth was corrected from the
+default run, which favours it, but these variants still share 78--91\% of its
+boxes; noise-model variants share only 5--14\% and await the baseline-seeded
+segment. The two failure modes of this section are the same error seen from two
+sides.
 
 \subsection{Threats to validity}\label{subsec:threats}
 
