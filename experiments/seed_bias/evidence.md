@@ -74,3 +74,25 @@ adjudicated as well.
 The judge sees numbered crops only, in `data/annotations/seed_bias_audit/`
 (gitignored). `score` reports, per stratum, the share of runs where the GT is
 wrong, with Wilson 95% CIs.
+
+**Identity strata.** Membership does not settle whether the dense ID-switch gap
+(137 vs 27) is real. Wherever the reviewer missed a swap in the C2-seeded
+identities, a baseline that tracked correctly is still charged a switch.
+`switches` (seed 20261013) replicates the CLEAR matching of
+`compute_tracking_metrics` and aborts if its count differs. It draws:
+
+| GT | Tracker | Switches | Sampled |
+|---|---|---:|---:|
+| dense | baseline | 137 | 30 |
+| dense | ctrv_gate_nsa | 27 | 27 (all) |
+| mixed | baseline | 9 | 9 (all) |
+| mixed | ctrv_gate_nsa | 10 | 10 (all) |
+
+Each switch is shown blind as a crop pair of the GT identity: one crop at its
+last match before the switch, one at the switch.
+
+- Same vehicle in both crops: the switch is real.
+- Two different vehicles: the switch is an artefact of the GT identities.
+
+A seed's own switches are reviewer corrections, so they also act as a control
+on the judge.
