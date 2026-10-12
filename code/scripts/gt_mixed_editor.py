@@ -14,7 +14,8 @@ class FrameEditor:
         self.app, self.store, self.case = app, app.store, case
         self.low, self.high = case["window"]
         self.window = tk.Toplevel(app.root)
-        self.window.title(f"Mixed · {case['kind']} #{case['rank']} · video và chỉnh box")
+        segment=self.store.manifest.get('segment_name','Mixed')
+        self.window.title(f"{segment} · {case['kind']} #{case['rank']} · video và chỉnh box")
         self.window.geometry("1120x870")
         self.window.minsize(850, 690)
         self.window.transient(app.root)
@@ -22,13 +23,13 @@ class FrameEditor:
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.window.columnconfigure(0, weight=1)
         self.window.rowconfigure(1, weight=1)
-        self.frame = tk.IntVar(value=self.low)
+        self.frame = tk.IntVar(value=case.get('focus_frame',self.low))
         self.info = tk.StringVar()
         self.status = tk.StringVar(value="Click box để chọn xe. Vẽ/sửa: kéo khung bằng chuột; mỗi thay đổi tự lưu.")
         self.class_name = tk.StringVar(value="motorcycle")
         self.show_boxes = tk.BooleanVar(value=True)
         self.mode = "select"
-        self.selected = None
+        self.selected = case.get('focus_tid')
         self.marked = None
         self.seen = set()
         self.job = None
@@ -72,6 +73,8 @@ class FrameEditor:
         self.play_button = ttk.Button(nav, text="Phát / Dừng [Space]", command=self.toggle)
         self.play_button.pack(side="left", padx=3)
         ttk.Button(nav, text="Frame →", command=lambda: self.move(1)).pack(side="left", padx=3)
+        if case.get('suggestions') or case.get('kind')=='REPAIR':
+            ttk.Button(nav,text='Phát từ đầu đoạn',command=self.play_from_start).pack(side='left',padx=3)
         ttk.Label(nav, text="Tốc độ:").pack(side="left", padx=5)
         self.speed = ttk.Combobox(nav, state="readonly", width=5, values=(2, 5, 10, 25))
         self.speed.set(5)
@@ -99,6 +102,9 @@ class FrameEditor:
         )):
             ttk.Button(operations, text=label, command=command).grid(
                 row=number // 5, column=number % 5, padx=3, pady=3, sticky="ew")
+        if case.get('suggestions'):
+            ttk.Button(operations,text='Gợi ý → xe đang chọn',command=lambda:self.use_suggestion(False)).grid(row=2,column=0,columnspan=2,sticky='ew',padx=3,pady=3)
+            ttk.Button(operations,text='Gợi ý → xe mới',command=lambda:self.use_suggestion(True)).grid(row=2,column=2,columnspan=2,sticky='ew',padx=3,pady=3)
         finish = ttk.Frame(bottom)
         finish.grid(row=3, column=0, sticky="ew")
         self.allow_overlap = tk.BooleanVar(value=False)
@@ -148,6 +154,10 @@ class FrameEditor:
             draw.rectangle(box, outline=color, width=3 if key[1] == self.selected else 1)
             draw.text((box[0], max(0, box[1] - 13)), f"{fields[1]} {CLASS_NAMES[int(fields[7]) - 1]}",
                       font=label_font, fill=color, stroke_width=1, stroke_fill="black")
+        for suggestion in self.case.get('suggestions',[]):
+            if suggestion['frame']==frame:
+                b=suggestion['box'];draw.rectangle(b,outline='#ff7040',width=3)
+                draw.text((b[0],max(0,b[1]-25)),'GOI Y / CHUA LA GT',font=label_font,fill='#ff7040',stroke_width=1,stroke_fill='black')
         from code.scripts.gt_roi import load_roi, overlay_roi
         picture = overlay_roi(picture, load_roi(self.store.bundle))
         if self.zoom.get() == "200%":
@@ -164,7 +174,8 @@ class FrameEditor:
         self.canvas.create_image(0, 0, image=self.photo, anchor="nw")
         self.canvas.configure(scrollregion=(0, 0, picture.width, picture.height))
         self.rectangle = None
-        shown = len(self.seen | (set(self.store.journal["seen_frames"]) & set(range(self.low, self.high + 1))))
+        logged=self.store.seen_for(self.case['rank']) if hasattr(self.store,'seen_for') else set(self.store.journal['seen_frames'])
+        shown = len(self.seen | (logged & set(range(self.low, self.high + 1))))
         selected_fields = self.visible.get((frame, self.selected))
         suffix = f" · đang chọn ID {selected_fields[1]} (nguồn {self.selected})" if selected_fields else ""
         self.info.set(f"MOT {frame} · CVAT {frame - 1} · video {self.store.manifest['segment'][0] + frame - 1}"
@@ -252,6 +263,24 @@ class FrameEditor:
         self.selected = self.store.new_track_id()
         self.set_mode("draw")
         self.status.set(f"Xe mới nguồn ID {self.selected}: chọn class rồi kéo khung. Dùng cùng ID khi vẽ các frame sau.")
+
+    def use_suggestion(self,new_vehicle):
+        suggestion=next((s for s in self.case.get('suggestions',[]) if s['frame']==self.frame.get()),None)
+        if not suggestion:
+            self.status.set('Frame này không có box gợi ý; vẽ thủ công nếu thấy xe.');return
+        if new_vehicle:self.selected=self.store.new_track_id()
+        elif self.selected is None:
+            self.status.set('Chọn ID đúng trên frame có box trước; giữ ID đó khi chuyển tới frame cần thêm.');return
+        elif any(int(p[7])!=2 for key,p in self.rows.items() if key[1]==self.selected):
+            self.status.set('ID đang chọn không phải xe máy. Chọn đúng ID xe máy hoặc thêm xe mới.');return
+        key=(self.frame.get(),self.selected)
+        if key in self.rows and not messagebox.askyesno('Thay box hiện tại?',f'ID {self.selected} đã có box ở frame này. Thay bằng gợi ý?',parent=self.window):return
+        x1,y1,x2,y2=suggestion['box']
+        fields=[self.frame.get(),self.selected,x1,y1,x2-x1,y2-y1,1,2,1.0]
+        self.edit(dict(op='upsert',fields=fields))
+
+    def play_from_start(self):
+        self.stop();self.frame.set(self.low);self.load_frame();self.step()
 
     def require_selected(self):
         if (self.frame.get(), self.selected) not in self.visible:
