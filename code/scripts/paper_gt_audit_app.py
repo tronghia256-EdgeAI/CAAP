@@ -5,10 +5,11 @@ from tkinter import ttk,messagebox
 from PIL import Image,ImageTk
 from code.scripts.paper_gt_audit import AuditStore,active,prepare,HOME
 from code.scripts.gt_review import sha256
+from code.scripts.complete_paper_gt_audit import validate,complete,saved_source_ref
 
 class AuditApp:
     def __init__(self,root,bundle):
-        self.root=root; self.store=AuditStore(bundle); self.store.check_inputs()
+        self.root=root; self.store=AuditStore(bundle);validate(self.store,saved_source_ref(bundle))
         self.index=next((i for i,r in enumerate(self.store.rows) if not r['verdict']),0)
         root.title('CAAP — Kiểm tra chéo GT ROI · Nghĩa'); root.geometry('1150x850')
         root.protocol('WM_DELETE_WINDOW',self.close)
@@ -77,11 +78,11 @@ class AuditApp:
     def reload(self):
         if messagebox.askyesno('Tải lại','Tải lại CSV đã lưu? Nội dung đang gõ chưa lưu sẽ bị bỏ.',parent=self.root):
             if self.timer is not None:self.root.after_cancel(self.timer);self.timer=None
-            self.store=AuditStore(self.store.bundle);self.store.check_inputs();self.show()
+            self.store=AuditStore(self.store.bundle);validate(self.store,saved_source_ref(self.store.bundle));self.show()
     def finish(self):
         if not self.save():return
         try:
-            result=self.store.finish()
+            result=complete(self.store.bundle,saved_source_ref(self.store.bundle))
             messagebox.showinfo('Đã tổng hợp',f"Đã lưu audit_result.json.\n{len(result['issues'])} mục cần xác minh/sửa GT hoặc chưa rõ.\nGT chưa được thay đổi. Test độc lập chưa được đăng ký.",parent=self.root)
         except (ValueError,OSError) as e:messagebox.showerror('Chưa hoàn tất',str(e),parent=self.root)
     def close(self):

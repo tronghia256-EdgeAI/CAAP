@@ -55,6 +55,34 @@ tọa độ và quyết định cục bộ. `active.json` chọn phiên hiện t
 verdict cũ sang mẫu mới. Tạo lại với cùng đầu vào sẽ dùng lại phiên đã có;
 GT/checkpoint/cấu hình đổi thì cần tạo phiên mới, giữ phiên cũ để truy vết.
 
+### Audit đã lưu xong
+
+Nghĩa đã lưu **148/148** mục (119 Y, 18 D, 11 N, không có `?`).
+Kết quả chỉ ra **34 mục cần xử lý GT**: 25 box dư của tracker được xác nhận
+có xe thật, 3 box GT bị đánh dấu sai/trùng, 6 cặp identity được đánh dấu
+hai xe khác nhau. Mục lặp được nhóm để hỗ trợ điều hướng; không tự sửa GT.
+
+Danh sách kèm ảnh và frame MOT nằm tại
+`data/annotations/paper_gt_audit/roi_241dc106947b1723/issues.md`;
+receipt đầy đủ ở `audit_result.json` cùng thư mục. Trạng thái vẫn là
+`HUMAN_RECONCILIATION_REQUIRED`: cần đối chiếu/sửa các vị trí trên, xuất
+GT mới và chấm lại. Một verdict ở frame mẫu không xác nhận toàn bộ run
+hoặc tự quyết định ID để nối box mới vào track.
+
+Khi tổng hợp, chỉ một hash code của `audit_disagreements.py` đã thay đổi do
+việc pin nguồn của mẫu cũ. Đã lấy bản gốc từ commit `c5e7def`, xác minh hash
+đúng với protocol và so sánh AST: ngoài khai báo/import `REVIEWS`, mọi câu
+lệnh thực thi đều giữ nguyên. GT, ảnh, key và verdict của audit không đổi.
+`complete_paper_gt_audit.py` ghi bằng chứng này trong receipt; nó từ chối
+mọi thay đổi GT, ảnh, logic helper hoặc đầu vào khác. Không sửa hash protocol
+gốc để bỏ qua kiểm tra và không yêu cầu gán nhãn lại mẫu đã hoàn tất.
+
+Tái lập việc tổng hợp cho phiên này:
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m code.scripts.complete_paper_gt_audit --source-ref c5e7def
+```
+
 ## Những gì được ghi nhận trong protocol
 
 `protocol.json` ghi đường dẫn và hash của checkpoint `ket_qua_train/best.pt`, hồ sơ train Kaggle,
