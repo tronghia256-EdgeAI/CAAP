@@ -174,3 +174,14 @@ def test_benchmark_dispatches_fresh_trials_and_resumes(tmp_path, monkeypatch):
     assert result['fresh_process_per_trial'] and len(result['variants']) == 3
     run.benchmark(directory, protocol, repeats=2, measured=2, warmup=2)
     assert len(calls) == 6
+
+
+def test_non_finite_external_state_counts_as_outside_roi():
+    roi = {'enabled': True, 'polygon': [[0, 0], [800, 0], [800, 450], [0, 450]]}
+    assert run.inside_roi([10, 10, 50, 50], roi)
+    assert not run.inside_roi([np.nan, 10, np.nan, 50], roi)   # OC-SORT KF with a negative area
+    assert not run.inside_roi([50, 10, 10, 50], roi)           # inverted
+    tracker = SimpleNamespace(trackers=[SimpleNamespace(get_state=lambda: [[10, 10, 50, 50]]),
+                                        SimpleNamespace(get_state=lambda: [[np.nan, 1, np.nan, 2]])])
+    run.expire_external(tracker, 'ocsort', roi)                # used to raise ValueError
+    assert len(tracker.trackers) == 1
