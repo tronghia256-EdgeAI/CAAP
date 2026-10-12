@@ -27,9 +27,21 @@ Output is in `seed_bias.json`. FN and FP counts come from the repository metric
 
 1. **Each GT favours its seed by about 0.04 IDF1.** C2 leads by +0.048 on
    `dense`; `baseline` leads by +0.038 on `mixed`.
-2. **Box geometry is not the cause.** Anchoring both sides to the same
-   detections moves IDF1 by at most 0.001 for all 7 variants on both GTs. HOTA
-   is unchanged after anchoring as well.
+2. **Box geometry does not explain the IDF1 gap.** Anchoring both sides to the
+   same detections moves IDF1 and HOTA at α = 0.5 by at most 0.002, for all 7
+   variants on both GTs.
+
+   Alpha-averaged HOTA is the exception: it *is* sensitive to geometry. After
+   anchoring, the C2 − baseline gap shrinks:
+
+   | GT | published | anchored |
+   |---|---:|---:|
+   | dense | +0.134 | +0.057 |
+   | mixed | −0.127 | −0.049 |
+
+   On both GTs the seed's geometry inflates the averaged score in the seed's
+   favour. That is why the manuscript reports α = 0.5 only. Anchored scores make
+   the averaged value usable.
 3. **On `mixed` the gap comes from which boxes are in the GT, not from
    identity.** ID switches are 9 vs 10. C2 outputs 220 more boxes than
    `baseline`, which gives 281 FPs against 23. Of C2's anchored boxes that the
