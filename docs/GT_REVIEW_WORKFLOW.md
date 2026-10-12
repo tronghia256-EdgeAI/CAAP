@@ -4,6 +4,10 @@
 xuất/chấm/kiểm tra. Dùng [receipt GT sau sửa](GT_RECONCILED_20261013.md) cho
 thí nghiệm tiếp theo; các mốc dưới đây giữ làm lịch sử.
 
+**Thí nghiệm sau GT:** [runner tự động](PAPER_EXPERIMENT_WORKFLOW.md) tạo
+cache bằng `ket_qua_train/best.pt`, chạy ablation/đối chứng trong ROI, chấm
+cả ba đoạn và đo latency ở cùng độ phân giải. GT hiện tại vẫn là development.
+
 **Cập nhật 12/10/2026:** Nghĩa đã hoàn tất ba phiên Mixed, Freeflow và Dense
 trong ROI (333 mục, 1.800 frame). Xem [receipt và bước tiếp theo](GT_COMPLETION_20261012.md).
 
