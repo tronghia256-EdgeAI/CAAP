@@ -726,7 +726,8 @@ C2's output (IoU $\ge0.999$), against 0.8\% for the baseline. HOTA averaged
 over $\alpha\in[0.05,0.95]$ rewards this agreement: C2's margin is $+0.134$
 averaged but $+0.056$ at $\alpha=0.5$ and $+0.047$ at $\alpha=0.05$. We
 therefore report HOTA at the IoU of the other metrics; at that threshold,
-anchoring every box to the detection it came from changes IDF1 by at most 0.001.
+anchoring every box to the detection it came from changes IDF1 and
+$\mathrm{HOTA}_{0.5}$ by at most 0.002.
 \todo{Seed bias (experiments/seed\_bias/evidence.md): each reviewed ground truth
 favours the tracker that pre-labelled it by about 0.04 motorcycle IDF1 (dense,
 C2-seeded: C2 $+0.048$; mixed, baseline-seeded: baseline $+0.038$), through
