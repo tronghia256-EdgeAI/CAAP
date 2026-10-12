@@ -549,44 +549,65 @@ We use a fixed traffic camera at the Nam Ky Khoi Nghia--Vo Thi Sau intersection
 in Ho Chi Minh City, recorded at 08:00 on a weekday in July 2017 at
 $800\times450$ pixels and 25~fps, with motorcycle-dominant rush-hour traffic. The
 stream decodes to 13,726 frames (9.2~min; the container header reports 22,876).
-Frames 0--8,999 served for development, including every decision based on proxy
-metrics (Sect.~\ref{subsec:proxy}); all annotated frames lie in the held-out
-part. \todo{Data provider and the terms under which the recordings were
-obtained.}
+\todo{Data provider and the terms under which the recordings were obtained.}
+From the track-count profile of the clip we annotated three 600-frame (24~s)
+segments: \emph{freeflow} (frames 6,400--6,999, about 12 tracks per frame),
+\emph{mixed} (2,500--3,099, about 26, straddling C1's density threshold) and
+\emph{dense} (10,700--11,299, about 47). All three come from the camera on which
+the method was developed, and the first two lie in frames 0--8,999, where proxy
+metrics guided design decisions (Sect.~\ref{subsec:proxy}); the results are
+therefore development results, and no independent camera was annotated.
 
-We annotated the densest 600-frame window, frames 10,700--11,299 (24~s, 45.9
-objects per frame), in CVAT~\cite{CVAT}: a motorcycle box covers vehicle and
-riders, objects below about 8~px are not labelled, and a vehicle that
-reappears after a full occlusion keeps its identity. The ground truth holds
-27,513 boxes, 77.5\% motorcycles and 22.5\% cars. Annotators corrected
-pre-labels produced by C2 (873 boxes added, 1,388 deleted, 1,019 adjusted, about
-8\% of boxes touched); Sect.~\ref{subsec:annotation} bounds the resulting bias.
-A physical-plausibility audit then flagged 74 of the 335 identities whose box,
-across a gap, moves more than two box diagonals or changes area by more than a
-factor of two, with 105 candidate joins. One author adjudicated every candidate
-on image sheets that showed ground truth only: 92 joins were cut and 13 kept,
-raising the identity count to 427 with every box unchanged. All tracking results
-use this reviewed ground truth. A second 600-frame segment, frames
-2,500--3,099, straddles C1's density threshold and was pre-labelled from the
-\emph{baseline} tracker; its review is in progress.
+%% Sources: docs/GT_COMPLETION_20261012.md, docs/GT_AUDIT_RECONCILIATION.md,
+%% docs/GT_RECONCILED_20261013.md (final exports and receipt).
+Annotation follows one convention in CVAT~\cite{CVAT}: a motorcycle box covers
+vehicle and riders, objects below about 8~px are not labelled, and a vehicle
+that reappears after a full occlusion keeps its identity. Scoring is restricted
+to a region of interest drawn on the camera view and frozen before any metric
+was computed; a box belongs to it when its bottom centre lies inside. Each
+segment was annotated by correcting tracker pre-labels, from C2 for dense and
+freeflow and from the baseline for mixed, and then reviewed by one author
+through a queue of automatically flagged cases (200, 79 and 54 for dense, mixed
+and freeflow; dense had earlier been audited for over-merged identities, which
+cut 92 of 105 candidate joins). A blind audit then showed 148 sampled
+disagreements between the ground truth and the baseline or C2 output as crops
+without tracker or segment names: for each segment and tracker, up to ten
+unmatched tracker runs, ten unmatched ground-truth runs and ten identity
+switches. The 34 items judged as ground-truth errors or unclear were
+re-examined in context in 32 groups, 25 of which led to corrections. The final
+ground truth holds 21,749, 9,168 and 2,503 boxes (344, 154 and 48 identities)
+for dense, mixed and freeflow.
 
 \subsection{Detector}\label{subsec:detector}
 
-The detector is a YOLO11n~\cite{Jocher2024_yolo11} checkpoint with a segmentation
-head (2.84~M parameters, 9.6~GFLOPs at 640~px) trained by the authors on a
-five-class collection (accident, bus, car, motorcycle, truck) of images gathered
-from public web image search and annotated, cleaned and augmented by the
-authors; it contains no frames from the evaluation camera. \todo{Number of
-images, split, epochs and input size of this checkpoint.} The pipeline reads
-only its boxes. For all accuracy experiments, detections for the whole clip were
-computed once at 1,280~px with the confidence floor of 0.1 and cached, so every
-difference between tracker configurations is attributable to tracking.
+%% Sources: ket_qua_train/{args.yaml,report.json,development_metrics.json},
+%% experiments/detector_leakage/evidence.md.
+The detector is YOLO11n~\cite{Jocher2024_yolo11} with a detection head (about
+2.6~M parameters), initialized from its COCO weights and trained by the authors
+for 100 epochs at 640~px (AdamW, cosine learning-rate decay, mosaic
+augmentation) on 3,975 images with five classes (accident, bus, car,
+motorcycle, truck); on 992 validation images from the same collection it
+reaches mAP@0.5 0.621 and mAP@0.5:0.95 0.427. The images come from public web
+sources and from traffic cameras other than the evaluation camera: comparing
+perceptual hashes of every training image with frames sampled once per second
+from all our recordings, and inspecting every near match, found no image of the
+evaluation camera. \todo{Confirm the sources and terms of use of the training
+images.} The pipeline reads only boxes. For all accuracy experiments,
+detections were computed once per input size (640 and 448~px) on frames masked
+outside the region of interest, with a confidence floor of 0.1, and cached;
+every tracker consumes the same cache, so differences between configurations
+are attributable to tracking, and latency is measured at the same operating
+points (Sect.~\ref{sec:realtime}).
 
 \subsection{Configurations, parameters and metrics}\label{subsec:configs}
 
 Exp0 is YOLO11 with unmodified ByteTrack (confirmation threshold 0.50, match
-threshold 0.8, second-stage IoU 0.5, buffer 30 frames); Exp1 adds C2, Exp2 adds
-C1 and Exp3 adds C3. To expose the interaction of the gate and NSA we also run
+threshold 0.8, second-stage IoU 0.5, a lost-track buffer of 30 frames at 30~fps,
+i.e.\ one second at the source's 25~fps); Exp1 adds C2, Exp2 adds C1 and Exp3
+adds C3. In every configuration, detections whose bottom centre lies outside the
+region of interest are dropped before tracking, and a track whose state leaves
+it is removed from both the active and the lost pool; C1 measures brightness
+inside the region and takes the time of day from the recording. To expose the interaction of the gate and NSA we also run
 CTRV alone, CTRV with NSA and CTRV with the gate. As external references,
 OC-SORT~\cite{Cao2023_ocsort} and BoT-SORT~\cite{Aharon2022_botsort} run from
 their released code on the same detections, without re-identification and,
@@ -594,12 +615,12 @@ since the camera is fixed, without camera-motion compensation: once with their
 published MOT17 parameters and once with ByteTrack's detection-score thresholds
 (association above 0.5, second stage from 0.1, track birth from 0.6; OC-SORT,
 which has one threshold for association and birth, runs its optional second
-stage with that threshold at 0.6, which scored better than 0.5). The CTRV noise
-was tuned on
+stage with that threshold at 0.5 and at 0.6). The CTRV noise was tuned on
 synthetic trajectories and frozen before any real footage was processed; the gate
 uses the textbook 95\% value; NSA was adopted on the development frames. Only
-C1's \textsc{dense-peak} row was calibrated on the annotated segment, which
-favours C1. Tracking is scored with MOTA~\cite{Bernardin2008_mota},
+C1's \textsc{dense-peak} row was calibrated on the dense segment, which favours
+C1. Tracking is scored inside the region of interest with
+MOTA~\cite{Bernardin2008_mota},
 IDF1~\cite{Ristani2016_idf1}, identity switches (IDSW), fragmentations (Frag),
 misses (FN) and false positives (FP) at IoU 0.5, and with
 HOTA~\cite{Luiten2021_hota} at the same localization threshold
@@ -610,12 +631,17 @@ the ROC AUC for separating true from false track-frames.
 
 \subsection{Latency protocol}\label{subsec:protocol}
 
+%% Source: docs/PAPER_EXPERIMENT_WORKFLOW.md (v5 run, benchmark phase).
 All timings use a laptop with an Intel Core i5-12500H CPU, 16~GB RAM and no GPU,
-Windows~11, Python 3.10, PyTorch~\cite{Paszke2019_pytorch} 2.11 (CPU build) and
-Ultralytics 8.4.39. Tracker-side latency replays the cached detections over all
-13,726 frames; end-to-end latency covers decoding, context estimation, detection,
-tracking and scoring over 100 frames after 20 discarded warm-up frames. Each
-configuration runs in its own process (Sect.~\ref{subsec:protocol-lessons}).
+Windows~11, Python 3.10, PyTorch~\cite{Paszke2019_pytorch} 2.11 (CPU build,
+eight threads) and Ultralytics 8.4.39. End-to-end latency covers decoding,
+context estimation and masking, detection, tracking and scoring on real frames:
+200 frames of the dense segment after 20 discarded warm-up frames, with the
+tracker state pre-rolled from frame 0 on cached detections. Each configuration
+and each of its three repetitions runs in its own process
+(Sect.~\ref{subsec:protocol-lessons}), and the processor's performance state is
+recorded, because the laptop's power management can throttle it.
+\todo{Confirm that the v5 benchmark ran unthrottled; otherwise re-measure.}
 
 %% =====================================================================
 \section{Results}\label{sec:results}
@@ -635,6 +661,14 @@ from Proposition~\ref{prop:obs}, since $\omega$ is identified only from second
 differences of position.
 
 \subsection{Ablation on annotated footage}\label{subsec:ablation}
+
+\todo{Every number from here to the end of Sect.~\ref{sec:realtime} comes from
+the superseded protocol (yolo11\_vn at 1,280~px, full frame, dense segment and
+its pre-audit ground truth). Replace it with the v5 run (best.pt at 640 and
+448~px, region of interest, three reconciled segments) and add a membership-bias
+bracket per segment. The draft is now 13 pages: the rewrite must return it to
+12, and Fig.~\ref{fig:gtversions} and the old-ground-truth numbers of
+Sect.~\ref{subsec:annotation} are superseded.}
 
 %% Source: experiments/gt_qa/reviewed/20261007T161301Z_126e0b66/review.json
 %% (reviewed GT, 427 identities; metric engine code/evaluation/metrics.py) and
@@ -921,19 +955,19 @@ sides.
 
 \subsection{Threats to validity}\label{subsec:threats}
 
-\emph{Internal.} The pre-labels came from C2, whose boxes survive in 91\% of
-motorcycle ground-truth boxes (hence $\mathrm{HOTA}_{0.5}$); we bound the
-identity bias in both directions, but over-merges outside the audit's heuristic
-may remain, and the
-identity review was done by one author on sheets without tracker output. C1 was
-calibrated in-sample, which favours it; C2 was not tuned on the annotated
-segment. \emph{External.} All annotated results come from one camera, one
-24-second window and one daytime regime with only cars and motorcycles; the
-detector was trained on web images that do not include the evaluation camera.
-\emph{Construct.} MOTA, IDF1 and HOTA measure tracking fidelity, not downstream
-utility for a signal controller or alert precision. \emph{Real time.} Accuracy
-and latency were measured at different detector operating points
-(Sect.~\ref{subsec:operating}).
+\emph{Internal.} Each ground truth was corrected from one tracker's pre-labels
+and favours that tracker (Sect.~\ref{subsec:annotation}); the blind audit
+sampled at most ten items per stratum, so residual errors remain, and every
+review was done by one author. C1's \textsc{dense-peak} row was calibrated on the
+dense segment, which favours C1; C2 was not tuned on any annotated segment.
+\emph{External.} All results are development results from the single camera on
+which the method was designed: three 24-second segments of one morning with
+only cars and motorcycles. No independent camera was annotated, and the
+detector's validation images are not an independent test. \emph{Construct.}
+MOTA, IDF1 and HOTA measure tracking fidelity, not downstream utility for a
+signal controller or alert precision. \emph{Real time.} Latency comes from one
+laptop CPU whose power management can throttle it; we report runs with its
+performance state verified.
 
 %% =====================================================================
 \section{Conclusion}\label{sec:conclusion}
