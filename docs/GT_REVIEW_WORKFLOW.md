@@ -1,5 +1,9 @@
 # Review GT trên máy
 
+**Cập nhật 13/10/2026:** 32 nhóm sửa sau audit đã hoàn tất, ba bản GT mới đã
+xuất/chấm/kiểm tra. Dùng [receipt GT sau sửa](GT_RECONCILED_20261013.md) cho
+thí nghiệm tiếp theo; các mốc dưới đây giữ làm lịch sử.
+
 **Cập nhật 12/10/2026:** Nghĩa đã hoàn tất ba phiên Mixed, Freeflow và Dense
 trong ROI (333 mục, 1.800 frame). Xem [receipt và bước tiếp theo](GT_COMPLETION_20261012.md).
 

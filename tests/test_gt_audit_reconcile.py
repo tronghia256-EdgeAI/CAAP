@@ -12,11 +12,12 @@ import code.scripts.gt_audit_reconcile as module
 from code.scripts.gt_mixed_editor import FrameEditor
 from types import SimpleNamespace
 
-def correction(factory,kind):
-    raw=''.join(f'{f},1,100,100,20,40,1,2,1\n' for f in range(1,7))
+def correction(factory,kind,raw=None,verdict=None):
+    raw=raw or ''.join(f'{f},1,100,100,20,40,1,2,1\n' for f in range(1,7))
     original=factory(raw=raw);p=original.bundle
     parent=p.parent/'parent.txt';parent.write_text('immutable parent')
-    ref=dict(kind=kind,tid=1,box=[200,200,220,240])
+    ref=dict(kind=kind,tid=1,box=[200,200,220,240] if kind=='extra' else [100,100,120,140])
+    if verdict:ref['verdict']=verdict
     c=dict(rank=1,kind='REPAIR',ids=[] if kind=='extra' else [1],before=[0,1] if kind=='extra' else [1,1],
            after=[0,1] if kind=='extra' else [1,4] if kind=='identity' else [1,1],proposal=dict(op='split',tid=1,frame=4) if kind=='identity' else None,
            focus_frame=1,audit_reference=ref,question='Correction',window=[1,6],sheet='repair.png')
@@ -61,6 +62,15 @@ def test_formatting_or_confidence_only_does_not_resolve_bad_geometry(factory):
     case=s.manifest['cases'][0];records={k:list(v) for k,v in s.source_rows.items()}
     records[(1,1)][2]='100.0';records[(1,1)][6]='0.9'
     assert not resolution_matches(case,s.source_rows,records)
+
+def test_duplicate_can_be_resolved_by_deleting_other_box(factory):
+    raw=''.join(f'{f},1,100,100,20,40,1,2,1\n' for f in range(1,7))+'1,2,101,100,20,40,1,2,1\n'
+    s,parent=correction(factory,'missing',raw=raw,verdict='D');s.record_seen(range(1,7))
+    original=list(s.source_rows[(1,1)])
+    s.add_event(dict(op='delete_box',frame=1,tid=2,case_rank=1))
+    s.save(0,'EDIT','Kept the audited box and deleted its duplicate')
+    records,_=s.preview(strict=True)
+    assert records[(1,1)]==original and (1,2) not in records
 
 def test_parent_changes_and_outside_roi_edits_are_rejected(factory):
     s,parent=correction(factory,'extra');before=s.edit_path.read_bytes()

@@ -1,5 +1,8 @@
 # Sửa GT sau audit đã hoàn tất
 
+**Trạng thái 13/10/2026:** 32/32 nhóm đã được xử lý; các bản GT đã xuất và
+kiểm tra. Xem [receipt và kết quả chấm lại](GT_RECONCILED_20261013.md).
+
 Nghĩa đã duyệt 148 mục audit. Các verdict báo 34 điểm cần xử lý; hai cặp
 lặp/chồng vị trí được nhóm để điều hướng thành **32 nhóm**, gồm Dense 16,
 Freeflow 6 và Mixed 10. Gộp nhóm không tự chứng minh hai box là cùng xe.

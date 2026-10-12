@@ -64,9 +64,10 @@ hai xe khác nhau. Mục lặp được nhóm để hỗ trợ điều hướng;
 
 Danh sách kèm ảnh và frame MOT nằm tại
 `data/annotations/paper_gt_audit/roi_241dc106947b1723/issues.md`;
-receipt đầy đủ ở `audit_result.json` cùng thư mục. Trạng thái vẫn là
-`HUMAN_RECONCILIATION_REQUIRED`: cần đối chiếu/sửa các vị trí trên, xuất
-GT mới và chấm lại. Một verdict ở frame mẫu không xác nhận toàn bộ run
+receipt đầy đủ ở `audit_result.json` cùng thư mục. Receipt audit ban đầu ghi
+`HUMAN_RECONCILIATION_REQUIRED`. Lượt sửa 32 nhóm đã hoàn tất ngày 13/10/2026,
+đã xuất GT mới và chấm lại; xem [mốc sau sửa](GT_RECONCILED_20261013.md).
+Một verdict ở frame mẫu không xác nhận toàn bộ run
 hoặc tự quyết định ID để nối box mới vào track.
 
 Khi tổng hợp, chỉ một hash code của `audit_disagreements.py` đã thay đổi do
@@ -116,8 +117,9 @@ Protocol đề xuất cho lượt chạy mới:
 4. Protocol cuối xác định tham số/runner thực tế, danh sách ablation và
    footage test trước khi chạy test.
 
-**Trạng thái khi chuẩn bị cửa sổ:** đã ghi nhận đầu vào development;
-human audit, xử lý lỗi, nguồn/quyền sử dụng và protocol test độc lập còn chờ.
+**Trạng thái hiện tại:** đã ghi nhận đầu vào development, hoàn tất 148 mục
+audit và lượt xử lý 32 nhóm; đã xuất/chấm GT mới. Nguồn/quyền sử dụng,
+runner/cấu hình ROI cho checkpoint mới và protocol test độc lập còn chờ.
 Không đánh dấu paper-ready hoặc test-independent.
 
 Phạm vi paper giữ theo [PAPER_SCOPE.md](PAPER_SCOPE.md), không có

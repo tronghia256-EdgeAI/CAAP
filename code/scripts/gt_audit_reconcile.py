@@ -19,6 +19,11 @@ def resolution_matches(case,source,records):
         return any(int(p[0])==frame and int(p[7])==2 and _iou(ref['box'],[float(p[2]),float(p[3]),float(p[2])+float(p[4]),float(p[3])+float(p[5])])>=.5 for p in records.values())
     if ref['kind']=='missing':
         key=(frame,ref['tid']);before=source[key];after=records.get(key)
+        if ref.get('verdict')=='D':
+            def overlapping(rows):
+                return sum(int(p[0])==frame and int(p[7])==2 and _iou(ref['box'],[float(p[2]),float(p[3]),float(p[2])+float(p[4]),float(p[3])+float(p[5])])>=.5 for p in rows.values())
+            # The judge may keep the red box and delete/correct the OTHER copy.
+            if overlapping(source)>1 and overlapping(records)==1:return True
         return after is None or any(abs(float(a)-float(b))>1e-6 for a,b in zip(after[2:6],before[2:6])) or int(after[7])!=int(before[7])
     a=records.get((case['before'][1],ref['tid']));b=records.get((case['after'][1],ref['tid']))
     return a is None or b is None or a[1]!=b[1]
