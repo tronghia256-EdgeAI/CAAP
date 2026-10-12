@@ -22,16 +22,18 @@ experiments/**/tracks_*.json
 experiments/**/split_candidates/*.png
 experiments/**/split_candidates/candidates.csv
 # Reviewed GT contains footage-derived box coordinates and local review records.
+# *_review = every review bundle (mixed_review and the held-out cameras').
 experiments/gt_qa/reviewed/
-experiments/gt_qa/mixed_review/*.png
-experiments/gt_qa/mixed_review/source_gt.txt
-experiments/gt_qa/mixed_review/manifest.json
-experiments/gt_qa/mixed_review/edits.json
-experiments/gt_qa/mixed_review/roi.json
-experiments/gt_qa/mixed_review/roi_active.json
-experiments/gt_qa/mixed_review/roi_scopes.json
-experiments/gt_qa/mixed_review/roi_reviews/
+experiments/gt_qa/*_review/*.png
+experiments/gt_qa/*_review/source_gt.txt
+experiments/gt_qa/*_review/manifest.json
+experiments/gt_qa/*_review/edits.json
+experiments/gt_qa/*_review/roi.json
+experiments/gt_qa/*_review/roi_active.json
+experiments/gt_qa/*_review/roi_scopes.json
+experiments/gt_qa/*_review/roi_reviews/
 experiments/gt_qa/mixed_reviewed/
+experiments/gt_newcam/*/reviewed/
 
 # ── Python ────────────────────────────────────────────────────────────
 __pycache__/
