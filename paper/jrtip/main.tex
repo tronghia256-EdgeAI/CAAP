@@ -90,8 +90,7 @@ scales measurement noise by detection confidence; and (C3) a track reliability
 score with separate thresholds for incident alerting and signal-control
 observations. On 600 human-annotated rush-hour CCTV frames from Ho Chi Minh
 City, C2 raises motorcycle IDF1 from 0.858 to 0.907 and cuts identity switches
-by 80\% over ByteTrack on identical detections, also outperforming OC-SORT and
-BoT-SORT. Its components are
+by 80\% over ByteTrack on identical detections. Its components are
 super-additive: covariance gating alone increases identity switches by 26\% and
 helps only together with confidence-scaled noise. Context adaptation did not
 outperform a calibrated fixed threshold in the single traffic regime our labels
@@ -166,10 +165,8 @@ precision-first alerting branch and a recall-first observation branch
 We evaluate every component on 600 human-annotated rush-hour frames from Ho Chi
 Minh City with identical detections for every configuration, and we measure the
 pipeline end to end on a commodity CPU. C2 is the validated contribution: it
-raises motorcycle IDF1 from 0.858 to 0.907 and removes 80\% of identity switches
-relative to ByteTrack, it leads OC-SORT~\cite{Cao2023_ocsort} and
-BoT-SORT~\cite{Aharon2022_botsort} on the same detections, and its parts are
-strongly super-additive. C1 and C3 do
+raises motorcycle IDF1 from 0.858 to 0.907, removes 80\% of identity switches
+relative to ByteTrack, and its parts are strongly super-additive. C1 and C3 do
 not improve the tracking metrics on these data; we report both as characterized
 negative results. Two methodological findings transfer beyond this pipeline:
 annotation error in tracking ground truth is direction-dependent, and
@@ -728,8 +725,14 @@ geometry untouched, so 90.9\% of motorcycle ground-truth boxes coincide with
 C2's output (IoU $\ge0.999$), against 0.8\% for the baseline. HOTA averaged
 over $\alpha\in[0.05,0.95]$ rewards this agreement: C2's margin is $+0.134$
 averaged but $+0.056$ at $\alpha=0.5$ and $+0.047$ at $\alpha=0.05$. We
-therefore report HOTA at the IoU of the other metrics; at that threshold C2
-keeps a residual localization advantage of about 0.01 in detection accuracy.
+therefore report HOTA at the IoU of the other metrics; at that threshold,
+anchoring every box to the detection it came from changes IDF1 by at most 0.001.
+\todo{Seed bias (experiments/seed\_bias/evidence.md): each reviewed ground truth
+favours the tracker that pre-labelled it by about 0.04 motorcycle IDF1 (dense,
+C2-seeded: C2 $+0.048$; mixed, baseline-seeded: baseline $+0.038$), through
+which boxes it contains, not their geometry. Reframe every C2 margin here, in
+the abstract, introduction and conclusion after the blind audit of 146
+disagreement runs.}
 
 \subsection{Context adaptation (C1)}\label{subsec:c1-results}
 
@@ -938,8 +941,7 @@ and latency were measured at different detector operating points
 We presented a context-aware perception pipeline for motorcycle-dominant mixed
 traffic. On human-annotated rush-hour footage, its class-conditioned CTRV motion
 model raises motorcycle IDF1 from 0.858 to 0.907 and removes 80\% of identity
-switches on identical detections, ahead of OC-SORT and BoT-SORT with matched
-thresholds, at 0.85~ms per frame on the tracker side and
+switches on identical detections, at 0.85~ms per frame on the tracker side and
 2.8\% of an end-to-end CPU frame; uncertainty gating harms identity on its own
 and becomes effective only with confidence-scaled noise. Context adaptation and
 the reliability score do not yet earn their place: the annotated segment never
