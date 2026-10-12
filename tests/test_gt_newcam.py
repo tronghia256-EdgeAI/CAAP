@@ -30,14 +30,14 @@ def test_union_seed_fills_gaps_under_the_matched_identity_and_adds_the_rest_fres
 
 def write_run(root, store):
     """window.json and a baseline dump reproducing the store's GT, under root/cam."""
-    (root / "cam/dumps").mkdir(parents=True)
+    (root / "cam/dumps/yolo11_vn_1280").mkdir(parents=True)
     (root / "cam/window.json").write_text(
         json.dumps({"start": 0, "end": 6, "rule": "r", "profile": {"0": 1}}), encoding="utf-8")
     frames = [[] for _ in range(6)]
     for (f, _), p in store.preview()[0].items():
         x, y, w, h = map(float, p[2:6])
         frames[f - 1].append([int(p[1]), int(p[7]) - 1, [x, y, x + w, y + h]])
-    (root / "cam/dumps/tracks_baseline.json").write_text(
+    (root / "cam/dumps/yolo11_vn_1280/tracks_baseline.json").write_text(
         json.dumps(dict(start_frame=0, frames=frames)), encoding="utf-8")
 
 
@@ -53,7 +53,8 @@ def test_finalize_relabels_the_mixed_role_as_held_out(factory, tmp_path, monkeyp
     report = json.loads((tmp_path / "cam/reviewed/review.json").read_text(encoding="utf-8"))
     assert report["evaluation_role"] == gt_newcam.HELD_OUT_ROLE
     assert report["window"] == {"start": 0, "end": 6, "rule": "r"}
-    assert report["prelabel_seed"]["detector"] == gt_newcam.EVAL_WEIGHTS
+    assert report["prelabel_seed"]["trackers"] == ["yolo11_vn_1280/baseline"]   # no seed.json: legacy seed
+    assert report["scored_detector"]["name"] == "yolo11_vn_1280"
     summary = (tmp_path / "cam/reviewed/summary.md").read_text(encoding="utf-8")
     assert gt_newcam.HELD_OUT_ROLE in summary and "development" not in summary
 

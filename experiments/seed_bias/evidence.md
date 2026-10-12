@@ -1,69 +1,63 @@
 # Seed bias in the reviewed NKKN ground truth
 
-**Question.** Each reviewed GT started from one tracker's output: `dense` from
-`ctrv_gate_nsa` (C2), `mixed` from `baseline`. Does a GT favour the tracker that
-seeded it, and through what?
+**Question.** Each reviewed GT started from one tracker's output:
+
+- `dense` and `freeflow` from `ctrv_gate_nsa` (C2); `freeflow` via
+  `export_prelabels.py`, which slices that dump;
+- `mixed` from `baseline`.
+
+Does a GT favour the tracker that seeded it, and through what?
 
 **Method.** `python -m code.scripts.check_seed_bias` scores every frozen dump in
-`experiments/gt_ablation` on both reviewed GTs. Motorcycles only, each review in
-its own scope (dense: full frame; mixed: ROI). Scored two ways:
+`experiments/gt_ablation` on the three final ROI exports listed in
+`docs/GT_COMPLETION_20261012.md`. Motorcycles only, within each review's ROI.
+Scored two ways:
 
 - **as published**;
 - **detection-anchored**: every GT and predicted box is replaced by the cached
   detection it overlaps one-to-one at IoU ≥ 0.5, so both sides share the
   detector's geometry.
 
-Output is in `seed_bias.json`. FN and FP counts come from the repository metric
-(IoU 0.5).
+Output is in `seed_bias.json`.
 
-| GT (seeded from) | variant | exact-box share | IDF1 | IDF1 anchored | IDSW | FN | FP |
-|---|---|---:|---:|---:|---:|---:|---:|
-| dense (C2) | baseline | 0.008 | 0.858 | 0.859 | 137 | 1547 | 1618 |
-| dense (C2) | ctrv_gate_nsa | 0.909 | 0.907 | 0.907 | 27 | 872 | 1376 |
-| mixed (baseline) | baseline | 0.997 | 0.983 | 0.983 | 9 | 20 | 23 |
-| mixed (baseline) | ctrv_gate_nsa | 0.003 | 0.945 | 0.946 | 10 | 58 | 281 |
+| GT (seeded from) | seed's exact-box share | IDF1 baseline | IDF1 C2 | C2 − baseline | IDSW baseline / C2 |
+|---|---:|---:|---:|---:|---:|
+| dense (C2) | 0.902 | 0.864 | 0.909 | +0.045 | 124 / 48 |
+| freeflow (C2) | 0.983 | 0.929 | 0.965 | +0.036 | 11 / 7 |
+| mixed (baseline) | 0.997 | 0.983 | 0.945 | −0.038 | 9 / 10 |
 
 **Findings.**
 
-1. **Each GT favours its seed by about 0.04 IDF1.** C2 leads by +0.048 on
-   `dense`; `baseline` leads by +0.038 on `mixed`.
+1. **Each GT favours its seed by about 0.04 IDF1.** In every segment, C2's
+   margin has the sign of the seed.
 2. **Box geometry does not explain the IDF1 gap.** Anchoring both sides to the
    same detections moves IDF1 and HOTA at α = 0.5 by at most 0.002, for all 7
-   variants on both GTs.
+   variants on all three GTs.
 
    Alpha-averaged HOTA is the exception: it *is* sensitive to geometry. After
    anchoring, the C2 − baseline gap shrinks:
 
    | GT | published | anchored |
    |---|---:|---:|
-   | dense | +0.134 | +0.057 |
+   | dense | +0.124 | +0.055 |
+   | freeflow | +0.156 | +0.049 |
    | mixed | −0.127 | −0.049 |
 
-   On both GTs the seed's geometry inflates the averaged score in the seed's
+   On every GT the seed's geometry inflates the averaged score in the seed's
    favour. That is why the manuscript reports α = 0.5 only. Anchored scores make
    the averaged value usable.
 3. **On `mixed` the gap comes from which boxes are in the GT, not from
    identity.** ID switches are 9 vs 10. C2 outputs 220 more boxes than
-   `baseline`, which gives 281 FPs against 23. Of C2's anchored boxes that the
-   GT lacks:
+   `baseline`, which gives 281 FPs against 23 (repository metric, IoU 0.5). Of
+   C2's anchored boxes that the GT lacks:
    - 73% are detections with score ≥ 0.5;
    - 61% lie where the GT has no box of any class;
    - 23% overlap a GT box at IoU ≥ 0.5 (duplicates or class confusion).
-4. **`dense` is the mirror image.** 73% of `baseline`'s extra boxes lie where
-   the C2-seeded GT has no box.
+4. **`dense` is the mirror image.** This was measured on the earlier
+   full-frame dense GT: 73% of `baseline`'s extra boxes lay where the C2-seeded
+   GT had no box.
 
-**All three NKKN segments.** The ROI rescoring in
-`docs/GT_COMPLETION_20261012.md` covers all three segments. `freeflow` was
-pre-labelled by `export_prelabels.py` from the `ctrv_gate_nsa` dump. In every
-segment, C2's margin has the sign of the seed:
-
-| Segment | Seeded from | baseline | C2 | C2 − baseline |
-|---|---|---:|---:|---:|
-| dense | C2 | 0.8640 | 0.9091 | +0.045 |
-| freeflow | C2 | 0.9293 | 0.9651 | +0.036 |
-| mixed | baseline | 0.9828 | 0.9449 | −0.038 |
-
-This pattern fits two explanations equally well:
+The pattern in finding 1 fits two explanations equally well:
 
 - a seed advantage of about 0.04 with no IDF1 effect of C2 at all;
 - a C2 effect that differs by segment.
@@ -92,7 +86,17 @@ adjudicated as well.
 | Sample | at most 10 runs per stratum | 40 runs per stratum |
 | Purpose | find GT errors to fix | estimate shares with intervals |
 
-**Open: blind audit (this sample).** `python -m code.scripts.audit_disagreements sample`
+**This sample was retired on 2026-10-12, before any verdict was entered.**
+
+- Its dense strata were drawn from the full-frame dense GT. That GT has since
+  been superseded by the ROI export.
+- `paper_gt_audit` samples all three final ROI GTs.
+- Shares with Wilson intervals will be computed from `paper_gt_audit`'s
+  verdicts instead.
+- `audit_disagreements` stays pinned to the GTs it sampled, so the record
+  below remains reproducible.
+
+**Record of the retired sample.** `python -m code.scripts.audit_disagreements sample`
 (seed 20261012) drew 146 runs, where a run is consecutive frames of one ID:
 
 | Stratum | Runs available | Runs sampled |

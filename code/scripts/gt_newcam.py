@@ -12,15 +12,14 @@ Per camera:
             >= 0.5 (accident class excluded) from best.pt at 448 px, on every
             5th frame. (The NKKN segments were chosen by tracks/frame of a full
             C2 run; this is the same idea without a tracker in the loop.)
-  cache     detections of the paper's accuracy detector, yolo11_vn.pt at
-            1280 px with the 0.1 confidence floor (as for NKKN), for frames
-            [start - WARMUP, end)
-  prelabel  the paper's variants on those detections; pre-labels = their union,
-            blind to source (union_seed), as MOT and frames under
+  cache     detections of every DETECTORS entry (0.1 confidence floor, as for
+            NKKN) for frames [start - WARMUP, end), in one sequential decode
+  replay    the paper's tracker variants on each detector's cache, as dumps
+            with absolute frame indices under dumps/<detector>/
+  prelabel  replay, then pre-labels = the union of every (detector, variant)
+            output, blind to source (union_seed), as MOT and frames under
             data/annotations/prelabels/<camera>/, plus a review bundle
             (gt_mixed_review.prepare) under experiments/gt_qa/<camera>_review/
-  replay    the paper's tracker variants on the cached detections, as dumps
-            with absolute frame indices for scoring the reviewed GT
   scope     after the camera's ROI is saved: an ROI-only review bundle, so only
             boxes inside the ROI are reviewed (prints the review command)
   finalize  finalize_mixed (the ROI-only bundle if prepared) into
@@ -31,8 +30,8 @@ Per camera:
 Per camera, in this order (the ROI is fixed before any metric is seen):
   review_gt_roi.cmd --bundle experiments/gt_qa/<camera>_review      draw, save the ROI
   python -m code.scripts.gt_newcam scope --cameras <camera>
-  review_gt_mixed.cmd --bundle <printed path> --tracks-dir experiments/gt_newcam/<camera>/dumps
-  python -m code.scripts.gt_newcam finalize --cameras <camera> --reviewer <name>
+  review_gt_mixed.cmd --bundle <printed path> --tracks-dir <printed dumps dir>
+  python -m code.scripts.gt_newcam finalize --cameras <camera> --reviewer <name> [--detector D]
 """
 
 from __future__ import annotations
@@ -53,7 +52,14 @@ CAMERAS = {
 }
 WINDOW, GRID, WARMUP, STEP, DENSITY_CONF = 600, 25, 1000, 5, 0.5
 SELECT_WEIGHTS, SELECT_IMGSZ = "ket_qua_train/best.pt", 448
-EVAL_WEIGHTS, EVAL_IMGSZ = "weights/yolo11_vn.pt", 1280
+# Detection sources (weights, imgsz, task) for the union pre-labels: the manuscript's
+# accuracy detector and the step-1 protocol's candidate at both of its input sizes
+# (docs/PAPER_STEP1_PROTOCOL.md), so the GT is neutral whichever one is evaluated.
+DETECTORS = {
+    "yolo11_vn_1280": ("weights/yolo11_vn.pt", 1280, None),
+    "best_640": ("ket_qua_train/best.pt", 640, "detect"),
+    "best_448": ("ket_qua_train/best.pt", 448, "detect"),
+}
 ACCIDENT = 4
 ROOT = Path("experiments/gt_newcam")
 BUNDLES = Path("experiments/gt_qa")
@@ -110,40 +116,55 @@ def select(camera: str) -> None:
     print(f"{camera}: {n} frames, window [{start}, {start + WINDOW}) density {mean:.1f}")
 
 
+def cache_path(camera: str, det: str) -> Path:
+    return ROOT / camera / f"detections_{det}.npz"
+
+
+def dumps_dir(camera: str, det: str) -> Path:
+    return ROOT / camera / "dumps" / det
+
+
 def cache(camera: str) -> None:
+    """Every DETECTORS entry not cached yet, in one sequential decode (ASF seeking is inexact)."""
+    from code.detection.detector import DETECTOR_CONF
     video, _ = CAMERAS[camera]
     w = json.loads((ROOT / camera / "window.json").read_text(encoding="utf-8"))
     first, end = w["start"] - WARMUP, w["end"]
-    det = detector(EVAL_WEIGHTS, EVAL_IMGSZ)
-    cap, dets = open_video(video, first), []
-    for _ in range(first, end):
+    todo = [d for d in DETECTORS if not cache_path(camera, d).exists()]
+    models = {d: detector(*DETECTORS[d]) for d in todo}
+    dets = {d: [] for d in todo}
+    cap = open_video(video, first)
+    for _ in range(first, end if todo else first):
         ok, frame = cap.read()
         if not ok:
             raise RuntimeError(f"{video} ended before frame {end}")
-        dets.append(det.detect(frame).astype(np.float32))
+        for d, model in models.items():
+            dets[d].append(model.detect(frame).astype(np.float32))
     cap.release()
-    meta = {"video": video, "start_frame": first, "num_frames": len(dets),
-            "weights": EVAL_WEIGHTS, "imgsz": EVAL_IMGSZ, "conf_floor": 0.1}
-    np.savez_compressed(ROOT / camera / "detections.npz",
-                        **{f"f{i}": d for i, d in enumerate(dets)}, meta=json.dumps(meta))
-    print(f"{camera}: cached frames [{first}, {end})")
+    for d in todo:
+        weights, imgsz, _ = DETECTORS[d]
+        meta = {"video": video, "start_frame": first, "num_frames": len(dets[d]),
+                "weights": weights, "imgsz": imgsz, "conf_floor": DETECTOR_CONF}
+        np.savez_compressed(cache_path(camera, d), **{f"f{i}": x for i, x in enumerate(dets[d])},
+                            meta=json.dumps(meta))
+        print(f"{camera}: cached {d} for frames [{first}, {end})")
 
 
-def absolute_dets(camera: str) -> tuple[list, int, int, dict]:
+def absolute_dets(camera: str, det: str) -> tuple[list, int, int, dict]:
     """Cached detections indexed by absolute frame (None before the cache)."""
-    npz = np.load(ROOT / camera / "detections.npz", allow_pickle=True)
+    npz = np.load(cache_path(camera, det), allow_pickle=True)
     meta = json.loads(str(npz["meta"]))
     first = meta["start_frame"]
     dets = [None] * first + [npz[f"f{i}"] for i in range(meta["num_frames"])]
     return dets, first, first + meta["num_frames"], meta
 
 
-def run_variants(camera: str, names=PAPER_VARIANTS) -> Path:
-    """Replay the paper's variants; dumps keep absolute indices (start_frame 0)."""
+def run_variants(camera: str, det: str, names=PAPER_VARIANTS) -> Path:
+    """Replay the paper's variants on one detector's cache; dumps keep absolute indices."""
     from code.pipeline import Pipeline
     from code.tracker.adaptive_bytetrack import ClassAwareSTrack
-    dets, first, end, meta = absolute_dets(camera)
-    out = ROOT / camera / "dumps"
+    dets, first, end, meta = absolute_dets(camera, det)
+    out = dumps_dir(camera, det)
     out.mkdir(parents=True, exist_ok=True)
     for name in names:
         config, overrides = VARIANTS[name]
@@ -157,9 +178,9 @@ def run_variants(camera: str, names=PAPER_VARIANTS) -> Path:
         pipe.context_estimator.hour_override = CAMERAS[camera][1]
         frames = replay(pipe, dets, first, end)
         (out / f"tracks_{name}.json").write_text(json.dumps(
-            {**meta, "start_frame": 0, "num_frames": end, "variant": name,
+            {**meta, "start_frame": 0, "num_frames": end, "detector": det, "variant": name,
              "warmup_from": first, "frames": frames}), encoding="utf-8")
-        print(f"  {camera}: replayed {name}")
+        print(f"  {camera}: replayed {name} on {det}")
     return out
 
 
@@ -206,25 +227,29 @@ def union_seed(dumps: list[list], start: int, end: int) -> tuple[list, dict]:
 
 
 def prelabel(camera: str) -> None:
-    """Pre-labels = union of the paper's variants (baseline first), so the review
-    adjudicates every tracker's boxes; seed.json records how they were merged."""
+    """Pre-labels = union of every (detector, variant) output, the manuscript's
+    detector and baseline first, so the review adjudicates every source's boxes
+    blind; seed.json records the sources and how they were merged."""
     from code.scripts.export_prelabels import extract_frames, write_mot
     from code.scripts.gt_mixed_review import prepare
     video, _ = CAMERAS[camera]
     w = json.loads((ROOT / camera / "window.json").read_text(encoding="utf-8"))
     seg = (w["start"], w["end"])
-    dumps = run_variants(camera, PAPER_VARIANTS)
-    frames = [json.loads((dumps / f"tracks_{n}.json").read_text(encoding="utf-8"))["frames"]
-              for n in PAPER_VARIANTS]
-    seed, merged = union_seed(frames, *seg)
+    sources = [(d, v) for d in DETECTORS for v in PAPER_VARIANTS]
+    for d in DETECTORS:
+        run_variants(camera, d)
+    seed, merged = union_seed([json.loads((dumps_dir(camera, d) / f"tracks_{v}.json").read_text(
+        encoding="utf-8"))["frames"] for d, v in sources], *seg)
     (ROOT / camera / "seed.json").write_text(json.dumps(
-        {"trackers": list(PAPER_VARIANTS),
-         "rule": "first tracker kept; later trackers add boxes with no partner at IoU >= 0.5, under "
+        {"trackers": [f"{d}/{v}" for d, v in sources],
+         "detectors": {d: dict(weights=w_, imgsz=s) for d, (w_, s, _) in DETECTORS.items()},
+         "rule": "first source kept; later sources add boxes with no partner at IoU >= 0.5, under "
                  "the nearest same-class matched identity of their track if free, else a fresh one",
          **merged}, indent=1), encoding="utf-8")
     out_root = Path("data/annotations/prelabels")
     stats = write_mot(seed, out_root / camera)
-    extract_frames(video, {camera: seg}, out_root)
+    if len(list((out_root / camera / "img1").glob("*.jpg"))) != seg[1] - seg[0]:
+        extract_frames(video, {camera: seg}, out_root)
     bundle = prepare(source=out_root / camera, bundle=parent_bundle(camera), segment=seg)
     print(f"{camera}: union pre-labels {stats}, {merged} -> review bundle {bundle}")
 
@@ -254,26 +279,28 @@ def scope(camera: str) -> None:
         raise SystemExit(f"{camera}: draw and save the ROI first "
                          f"(review_gt_roi.cmd --bundle {parent_bundle(camera)})")
     prepare_scope(parent_bundle(camera), output=out, activate=False)
-    print(f"{camera}: review with\n  review_gt_mixed.cmd --bundle {out} --tracks-dir {ROOT / camera / 'dumps'}")
+    print(f"{camera}: review with\n  review_gt_mixed.cmd --bundle {out} "
+          f"--tracks-dir {dumps_dir(camera, next(iter(DETECTORS)))}")
 
 
-def finalize(camera: str, reviewer: str) -> None:
-    """finalize_mixed into this camera's folder, then replace its hard-coded
-    'development' role (the mixed segment's) and record window and seeding."""
+def finalize(camera: str, reviewer: str, det: str = next(iter(DETECTORS))) -> None:
+    """finalize_mixed into this camera's folder, scoring det's dumps, then replace
+    its hard-coded 'development' role (the mixed segment's) and record window and seeding."""
     from code.detection.detector import DETECTOR_CONF
     from code.scripts.gt_mixed_review import MixedStore, finalize_mixed, json_bytes
     child = roi_child(camera)
     bundle = child if child and child.exists() else parent_bundle(camera)
     out = finalize_mixed(MixedStore(bundle), reviewer or "",
-                         tracks_dir=ROOT / camera / "dumps", out_dir=ROOT / camera / "reviewed")
+                         tracks_dir=dumps_dir(camera, det), out_dir=ROOT / camera / "reviewed")
     report = json.loads((out / "review.json").read_text(encoding="utf-8"))
     window = json.loads((ROOT / camera / "window.json").read_text(encoding="utf-8"))
     old, report["evaluation_role"] = report["evaluation_role"], HELD_OUT_ROLE
     report["window"] = {k: v for k, v in window.items() if k != "profile"}
     seed = ROOT / camera / "seed.json"      # absent: the original baseline-only pre-labels
     report["prelabel_seed"] = dict(**(json.loads(seed.read_text(encoding="utf-8")) if seed.exists()
-                                      else {"trackers": ["baseline"]}),
-                                   detector=EVAL_WEIGHTS, imgsz=EVAL_IMGSZ, conf_floor=DETECTOR_CONF)
+                                      else {"trackers": ["yolo11_vn_1280/baseline"]}),
+                                   conf_floor=DETECTOR_CONF)
+    report["scored_detector"] = dict(name=det, weights=DETECTORS[det][0], imgsz=DETECTORS[det][1])
     (out / "review.json").write_bytes(json_bytes(report))
     summary = out / "summary.md"
     summary.write_text(summary.read_text(encoding="utf-8").replace(old, HELD_OUT_ROLE), encoding="utf-8")
@@ -285,13 +312,17 @@ def main() -> None:
     ap.add_argument("step", choices=("select", "cache", "prelabel", "replay", "scope", "finalize"))
     ap.add_argument("--cameras", nargs="*", default=list(CAMERAS), choices=list(CAMERAS))
     ap.add_argument("--reviewer", help="finalize: name recorded in review.json")
+    ap.add_argument("--detector", choices=list(DETECTORS), default=next(iter(DETECTORS)),
+                    help="finalize: whose dumps to score")
     args = ap.parse_args()
     for camera in args.cameras:
         if args.step == "finalize":
-            finalize(camera, args.reviewer)
-            continue
-        {"select": select, "cache": cache, "prelabel": prelabel,
-         "replay": run_variants, "scope": scope}[args.step](camera)
+            finalize(camera, args.reviewer, args.detector)
+        elif args.step == "replay":
+            for d in DETECTORS:
+                run_variants(camera, d)
+        else:
+            {"select": select, "cache": cache, "prelabel": prelabel, "scope": scope}[args.step](camera)
 
 
 if __name__ == "__main__":

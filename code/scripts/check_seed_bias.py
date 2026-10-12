@@ -34,8 +34,12 @@ MOTO, SNAP_IOU = 1, 0.5
 ALPHA_05 = int(np.argmin(np.abs(ALPHAS - 0.5)))
 DUMPS = Path("experiments/gt_ablation")
 OUT = Path("experiments/seed_bias")
-REVIEWS = {  # name: (reviewed run, absolute segment, tracker the pre-labels came from)
-    "dense": ("experiments/gt_qa/reviewed/20261007T161301Z_126e0b66", (10700, 11300), "ctrv_gate_nsa"),
+# name: (reviewed run, absolute segment, tracker the pre-labels came from). The final
+# ROI exports listed in docs/GT_COMPLETION_20261012.md; freeflow's pre-labels came
+# from export_prelabels.py, i.e. the ctrv_gate_nsa dump.
+REVIEWS = {
+    "dense": ("experiments/gt_qa/mixed_reviewed/20261012T112827Z_7b620b49", (10700, 11300), "ctrv_gate_nsa"),
+    "freeflow": ("experiments/gt_qa/mixed_reviewed/20261012T112802Z_e7771a10", (6400, 7000), "ctrv_gate_nsa"),
     "mixed": ("experiments/gt_qa/mixed_reviewed/20261012T094827Z_7779f93a", (2500, 3100), "baseline"),
 }
 

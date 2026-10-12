@@ -44,7 +44,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 from code.evaluation.metrics import _iou_matrix, compute_tracking_metrics
-from code.scripts.check_seed_bias import DUMPS, MOTO, REVIEWS
+from code.scripts.check_seed_bias import DUMPS, MOTO
 from code.scripts.compare_motion_models import open_video
 from code.scripts.eval_hota_ci import iou_matrix
 from code.scripts.gt_roi import filter_frames, load_roi
@@ -52,6 +52,14 @@ from code.scripts.import_gt import load_mot, to_framelist
 from code.scripts.sweep_c2_sensitivity import moto_framelist
 
 VIDEO = "data/raw/videos/NKKN-VoThiSau 2017-07-18_08_00_00_000.asf"
+# Retired 2026-10-12 before any verdict: its dense strata came from the full-frame
+# dense GT, since superseded by the ROI export, and paper_gt_audit
+# (docs/PAPER_STEP1_PROTOCOL.md) samples all three final ROI GTs. Pinned to the
+# GTs the sample was drawn from, so the files under AUDIT stay reproducible.
+REVIEWS = {
+    "dense": ("experiments/gt_qa/reviewed/20261007T161301Z_126e0b66", (10700, 11300), "ctrv_gate_nsa"),
+    "mixed": ("experiments/gt_qa/mixed_reviewed/20261012T094827Z_7779f93a", (2500, 3100), "baseline"),
+}
 # (review, tracker that did NOT seed it): the unseen side of each GT
 STRATA = [("mixed", "ctrv_gate_nsa"), ("dense", "baseline")]
 # (review, tracker, sample size or None = all). Each seed's own switches are
