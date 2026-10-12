@@ -141,7 +141,8 @@ Trước khi dùng số chính cho paper, đối chiếu nguồn với camera/cl
 và dữ liệu đã train checkpoint cũ; rà domain, camera chưa xác minh và class
 thiếu trong `report.json`. Tool không thể suy ra lịch sử training từ ảnh.
 Việc review một mẫu nhãn không chứng nhận toàn bộ 55.394 annotation. Bộ này
-cũng không cung cấp severity hoặc timeline sự kiện cho đánh giá alert video.
+cũng không cung cấp timeline sự kiện cho đánh giá alert video. Phân loại mức
+độ đã được loại khỏi [phạm vi paper](PAPER_SCOPE.md).
 
 ## CLI
 

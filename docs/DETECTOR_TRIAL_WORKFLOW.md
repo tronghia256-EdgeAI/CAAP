@@ -57,7 +57,7 @@ Giảm batch nếu GPU hết bộ nhớ. Mẫu smoke ưu tiên phủ class nhưn
 3. Chốt detector và train protocol bằng train/val; đánh giá một lần trên test
    độc lập sau khi kiểm tra overlap với benchmark và lịch sử training.
 4. Dùng cùng một detector cố định cho các biến thể C1/C2/C3; chấm tracking GT
-   đã duyệt và đo latency bao gồm detector. Bộ ảnh này chưa có severity/timeline
+   đã duyệt và đo latency bao gồm detector. Bộ ảnh này chưa có timeline
    để đánh giá cảnh báo tai nạn theo video.
 
 Metric lượt này mang nhãn `DEVELOPMENT_ONLY_NOT_PAPER_EVALUATION`.

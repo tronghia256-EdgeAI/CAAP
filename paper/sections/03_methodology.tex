@@ -25,14 +25,13 @@ re-opens association for tracks that IoU alone would lose; ByteTrack's
 two-stage matching itself is unchanged.
 Finally, every confirmed track receives a \emph{reliability score}
 (C3), and two thresholds split the output: high-reliability tracks feed
-the accident-detection branch (EfficientNet-B0
-severity classifier~\cite{Tan2019_efficientnet} and operator alerts),
+an untested precision-first output for binary accident-event alerting,
 while a more permissive threshold passes tracks to the observation
 builder of a MAPPO-based~\cite{Yu2022_mappo} signal controller.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.96\linewidth]{figures/fig1_pipeline_overview.pdf}
+  \resizebox{0.96\linewidth}{!}{\input{figures/fig1_pipeline_body.tex}}
   \caption{Context-aware adaptive perception pipeline.
            Solid arrows carry data; dashed arrows carry context and
            control signals.

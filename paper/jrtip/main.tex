@@ -428,7 +428,7 @@ that class feed the accident branch (Sect.~\ref{sec:c3}).
    \tiny $S(\tau)=w_1A+w_2C+w_3M+w_4K+w_5D$};
 \node[outacc] (acc) at (-2.05, -8.45)
   {\textbf{Accident branch}\\[-1pt]
-   \tiny severity classifier $\to$ alert};
+   \tiny event-alert candidates (untested)};
 \node[outobs] (obs) at (2.05, -8.45)
   {\textbf{Signal-control observations}\\[-1pt]
    \tiny MAPPO observation builder};
@@ -798,11 +798,12 @@ The accident branch consumes tracks with $S(\tau)\ge\tau_{\mathrm{acc}}=0.70$
 (precision first), and the observation builder of a MAPPO-based signal
 controller~\cite{Yu2022_mappo} consumes tracks with
 $S(\tau)\ge\tau_{\mathrm{obs}}=0.40$ (recall first). In the accident branch,
-tracks of class \textsc{accident} that pass the threshold are cropped and passed
-to an EfficientNet-B0~\cite{Tan2019_efficientnet} severity classifier (none,
-minor, severe) and, if minor or severe, to a rate-limited operator alert. The
-severity classifier is not evaluated in this paper because severity-labelled
-data are not yet available (Sect.~\ref{subsec:threats}).
+tracks of class \textsc{accident} that pass the threshold are candidates for
+binary event-level accident alerting. This downstream use remains untested
+(Sect.~\ref{subsec:threats}); the current evaluation establishes neither event
+detection performance nor false-alert reduction. Assessing it requires accident
+onset/end annotations, positive and negative videos, and a separately verified
+event-alert implementation.
 
 %% =====================================================================
 \section{Experimental setup}\label{sec:setup}
@@ -1576,7 +1577,7 @@ point, and the choice of detection head matters more than the choice of runtime.
 
 Future work follows directly from these limitations: annotating a segment that
 crosses C1's switching threshold; collecting accident footage with event-level
-and severity labels to test C3's precision branch and the severity classifier;
+labels and negative clips to test C3's precision branch for binary alerting;
 training a detection-head model on our data to measure the accuracy--latency
 curve; comparing against further trackers on the same detections; replacing the
 rule-based controller with a learned policy over the same context signals,

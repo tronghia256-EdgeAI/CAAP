@@ -178,8 +178,13 @@ CAAP/
 | Missing | Effect | Fallback in place |
 |---|---|---|
 | GT for `mixed` / `freeflow` | C1 threshold calibration; a segment not seeded from the proposed method | `dense` GT done — C2 numbers are real, C1/C3 still uncalibrated |
-| Accident footage | the whole accident branch: alert P/R/F1, severity confusion matrix, and C3's `tau_acc` — the one place C3's asymmetry can be tested | none. Co-author is collecting; go/no-go 20 Sep |
-| `weights/efficientnet_severity.pt` | severity classification | branch auto-disables with a logged warning |
+| Accident footage + binary event-alert implementation | event-level alert P/R/F1, false alerts/hour, delay and C3's `tau_acc` | untested; image detector training does not establish event-alert performance |
+
+Paper scope (Nghĩa, 12 Oct 2026): accident severity is excluded. Keep the
+five-class detector and evaluate binary accident alerting only when video GT
+and a verified implementation are available. Legacy severity code remains in
+the repository and currently gates runtime alerts; it is not a paper requirement.
+See [persistent paper scope](docs/PAPER_SCOPE.md).
 
 `weights/yolo11_vn.pt` is **present** and does carry an `Accident` class
 (id 0; `Detector` remaps by name, so its ordering does not matter). It is a

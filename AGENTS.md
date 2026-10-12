@@ -19,3 +19,13 @@ task that changes this repository. This preference applies to future sessions.
 
 This is authorization for the assistant's completed repository tasks; it does not
 make launching the GT viewer or each review click trigger a Git commit.
+
+# Persistent paper scope
+
+Nghĩa decided on 2026-10-12 to remove accident severity (`minor`/`severe`)
+from this paper. Read `docs/PAPER_SCOPE.md` when planning paper, GT or accident
+evaluation work. Do not reintroduce severity labeling, classifier training,
+severity metrics or severity claims unless Nghĩa explicitly changes this decision.
+Keep the detector's `Accident` class. Any accident evaluation within scope is
+binary event detection/alerting, conditional on suitable video GT and a verified
+implementation; existing severity code does not establish binary alert results.

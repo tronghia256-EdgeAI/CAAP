@@ -15,11 +15,10 @@
 Fixed surveillance-style cameras over Vietnamese urban intersections
 and arterials with motorcycle-dominant mixed traffic.
 Annotated classes: \texttt{car}, \texttt{motorcycle}, \texttt{bus},
-\texttt{truck}, \texttt{accident}; accident clips are further labeled
-\texttt{minor} (vehicles can move on) or \texttt{severe} (overturned
-vehicle, ejected rider, $>$2 vehicles, or immobilized vehicle).
+\texttt{truck}, \texttt{accident}. Any future accident-event evaluation requires
+positive/negative clip labels and event onset/end annotations.
 \todo{Fill after dataset freeze: number of clips, total duration,
-resolution/fps, class-distribution table, minor/severe split,
+resolution/fps, class-distribution table, accident/non-accident clip counts,
 train/test protocol.}
 The dataset is not publicly released for intellectual-property
 reasons; evaluation protocol and pseudocode are fully specified.
@@ -63,8 +62,9 @@ switches (IDSW), and track fragmentation rate.
 Our metric implementation is written from scratch and cross-validated
 against \texttt{py-motmetrics} on shared sequences.
 \emph{Detection:} precision, recall, F1, and mAP@0.5.
-\emph{Accident branch:} alert precision/recall/F1 and the 3-class
-severity confusion matrix (none/minor/severe).
+\emph{Accident branch (planned, untested):} binary event-level alert
+precision/recall/F1, false alerts per hour of video and detection delay.
+No accident-alert performance is established by the current tracking evaluation.
 \emph{System:} per-frame latency (ms) and end-to-end FPS.
 
 \subsection{Implementation Details}
@@ -72,9 +72,8 @@ severity confusion matrix (none/minor/severe).
 
 The detector is YOLO11~\cite{Khanam2024_yolo11}
 (\todo{variant, training epochs, image size, batch size}) fine-tuned
-on VN-MixedTraffic; the severity classifier is
-EfficientNet-B0~\cite{Tan2019_efficientnet} pretrained on ImageNet and
-fine-tuned on the accident crops.
+on VN-MixedTraffic. A binary event-alert implementation and evaluation remain
+future work; no downstream classifier training is claimed here.
 The tracker is ByteTrack~\cite{Zhang2022_bytetrack} with the motion
 model made class-conditional (Sec.~\ref{subsec:c2}); association logic
 and both association stages are unchanged.

@@ -141,7 +141,7 @@ class theo tên về class ID của project. Không đổi ID âm thầm.
 
 Sửa YAML ở **bản mới**, kiểm tra đường dẫn từ một working directory khác,
 ảnh/label 1:1, định dạng chỉ 5 cột, tọa độ và số annotation trước/sau.
-Không auto clamp polygon, sửa class hoặc tạo nhãn severity bằng suy đoán.
+Không auto clamp polygon, sửa class hoặc suy đoán nhãn sự kiện.
 
 Chốt quy tắc annotation của Accident: vùng sự kiện hay từng xe liên quan;
 xử lý xe tai nạn đồng thời thuộc car/motorcycle/etc. thế nào. Rà thiếu nhãn
@@ -186,9 +186,10 @@ sau review, không cam kết giữ một tỷ lệ hoặc tăng mAP.
 3. Những nguồn/camera nào được dành cho evaluation và có giao với benchmark
    hoặc dữ liệu đã dùng train checkpoint trước đây không?
 
-Dataset hiện tại có nhãn detector 5 class, **không có nhãn minor/severe hoặc
-khoảng thời gian sự kiện**. Làm sạch bộ ảnh này chưa đủ cho confusion matrix
-severity hay precision/recall của hệ thống alert theo video trong paper.
+Dataset hiện tại có nhãn detector 5 class, **không có khoảng thời gian sự kiện**.
+Làm sạch bộ ảnh này chưa đủ để đo precision/recall của hệ thống alert theo
+video trong paper. Phân loại mức độ
+không thuộc phạm vi paper theo [quyết định 12/10/2026](PAPER_SCOPE.md).
 
 ## 5. Tái lập audit
 
