@@ -19,7 +19,9 @@ of weaving motorcycles. We introduce a class-conditioned constant-turn-rate
 extended Kalman filter for motorcycles, with uncertainty-gated re-association
 and confidence-scaled measurement noise. On 600 human-annotated rush-hour
 frames it raises motorcycle IDF1 from 0.858 to 0.907 and removes 80% of
-identity switches relative to ByteTrack on identical detections. We also
+identity switches relative to ByteTrack on identical detections, and it also
+leads OC-SORT and BoT-SORT run on the same detections, both with their
+published settings and with matched detection thresholds. We also
 report two components that did not help on our data as characterized negative
 results.
 

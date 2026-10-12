@@ -77,9 +77,9 @@ X.~L. Vo: \emailLanh}}
 
 %% JRTIP: 150-250 words, no citations.
 \begin{abstract}
-Traffic-surveillance pipelines usually pair a one-stage detector with a tracker
+Traffic-surveillance pipelines pair a one-stage detector with a tracker
 that applies one linear motion model and fixed thresholds to every object. Both
-choices are strained in motorcycle-dominant mixed traffic, where dense weaving
+choices are strained in motorcycle-dominant mixed traffic, where weaving
 fragments identities and a fixed operating point cannot follow changing
 conditions. We present a context-aware perception pipeline with three
 components: (C1) a context estimator and hysteresis-stabilized controller that
@@ -90,15 +90,16 @@ scales measurement noise by detection confidence; and (C3) a track reliability
 score with separate thresholds for incident alerting and signal-control
 observations. On 600 human-annotated rush-hour CCTV frames from Ho Chi Minh
 City, C2 raises motorcycle IDF1 from 0.858 to 0.907 and cuts identity switches
-by 80\% over ByteTrack on identical detections. Its components are
+by 80\% over ByteTrack on identical detections, also outperforming OC-SORT and
+BoT-SORT. Its components are
 super-additive: covariance gating alone increases identity switches by 26\% and
 helps only together with confidence-scaled noise. Context adaptation did not
 outperform a calibrated fixed threshold in the single traffic regime our labels
 cover, and the reliability score separated true from false tracks too weakly
 (ROC AUC 0.609) to filter usefully after C2; we report both as characterized
 negative results. On a CPU, C2 adds 2.8\% to the end-to-end frame time while
-the detector takes 91\%; with a detection head instead of the deployed
-segmentation head, latency fits the 40~ms budget of a 25~fps stream at
+the detector takes 91\%; with a detection head instead of a segmentation
+head, latency fits the 40~ms budget of a 25~fps stream at
 448-pixel input.
 \keywords{Multi-object tracking \and Extended Kalman filter \and Mixed traffic
 \and Motorcycles \and Context-aware perception \and Real-time video analytics}
@@ -165,8 +166,10 @@ precision-first alerting branch and a recall-first observation branch
 We evaluate every component on 600 human-annotated rush-hour frames from Ho Chi
 Minh City with identical detections for every configuration, and we measure the
 pipeline end to end on a commodity CPU. C2 is the validated contribution: it
-raises motorcycle IDF1 from 0.858 to 0.907, removes 80\% of identity switches
-relative to ByteTrack, and its parts are strongly super-additive. C1 and C3 do
+raises motorcycle IDF1 from 0.858 to 0.907 and removes 80\% of identity switches
+relative to ByteTrack, it leads OC-SORT~\cite{Cao2023_ocsort} and
+BoT-SORT~\cite{Aharon2022_botsort} on the same detections, and its parts are
+strongly super-additive. C1 and C3 do
 not improve the tracking metrics on these data; we report both as characterized
 negative results. Two methodological findings transfer beyond this pipeline:
 annotation error in tracking ground truth is direction-dependent, and
@@ -587,16 +590,25 @@ difference between tracker configurations is attributable to tracking.
 Exp0 is YOLO11 with unmodified ByteTrack (confirmation threshold 0.50, match
 threshold 0.8, second-stage IoU 0.5, buffer 30 frames); Exp1 adds C2, Exp2 adds
 C1 and Exp3 adds C3. To expose the interaction of the gate and NSA we also run
-CTRV alone, CTRV with NSA and CTRV with the gate. \todo{External trackers
-(OC-SORT, BoT-SORT) on the same detections.} The CTRV noise was tuned on
+CTRV alone, CTRV with NSA and CTRV with the gate. As external references,
+OC-SORT~\cite{Cao2023_ocsort} and BoT-SORT~\cite{Aharon2022_botsort} run from
+their released code on the same detections, without re-identification and,
+since the camera is fixed, without camera-motion compensation: once with their
+published MOT17 parameters and once with ByteTrack's detection-score thresholds
+(association above 0.5, second stage from 0.1, track birth from 0.6; OC-SORT,
+which has one threshold for association and birth, runs its optional second
+stage with that threshold at 0.6, which scored better than 0.5). The CTRV noise
+was tuned on
 synthetic trajectories and frozen before any real footage was processed; the gate
 uses the textbook 95\% value; NSA was adopted on the development frames. Only
 C1's \textsc{dense-peak} row was calibrated on the annotated segment, which
 favours C1. Tracking is scored with MOTA~\cite{Bernardin2008_mota},
-IDF1~\cite{Ristani2016_idf1}, HOTA~\cite{Luiten2021_hota}, identity switches
-(IDSW), fragmentations (Frag), misses (FN) and false positives (FP) at IoU 0.5,
-for motorcycles and over all classes; our implementation is cross-validated
-against py-motmetrics~\cite{Heindl_pymotmetrics}. C3's discriminative power is
+IDF1~\cite{Ristani2016_idf1}, identity switches (IDSW), fragmentations (Frag),
+misses (FN) and false positives (FP) at IoU 0.5, and with
+HOTA~\cite{Luiten2021_hota} at the same localization threshold
+($\mathrm{HOTA}_{0.5}$; Sect.~\ref{subsec:ablation} gives the reason), for
+motorcycles and over all classes; our implementation is cross-validated against
+py-motmetrics~\cite{Heindl_pymotmetrics} and the official HOTA code. C3's discriminative power is
 the ROC AUC for separating true from false track-frames.
 
 \subsection{Latency protocol}\label{subsec:protocol}
@@ -628,31 +640,45 @@ differences of position.
 \subsection{Ablation on annotated footage}\label{subsec:ablation}
 
 %% Source: experiments/gt_qa/reviewed/20261007T161301Z_126e0b66/review.json
-%% (reviewed GT, 427 identities; metric engine code/evaluation/metrics.py).
+%% (reviewed GT, 427 identities; metric engine code/evaluation/metrics.py) and
+%% experiments/external_trackers/metrics.json (HOTA_0.5 and external trackers;
+%% code/scripts/eval_hota_ci.py, rows checked identical to review.json).
 \begin{table*}[t]
 \caption{Ablation on the annotated segment (600 frames, reviewed ground truth,
-427 identities). All rows consume identical detections; Exp3 equals Exp2 frame
-by frame (Sect.~\ref{subsec:c3-results}). \textbf{Bold}: best per column.}
+427 identities) and two external trackers. All rows consume identical
+detections; Exp3 equals Exp2 frame by frame (Sect.~\ref{subsec:c3-results}).
+$\mathrm{HOTA}_{0.5}$: HOTA at localization threshold $\alpha=0.5$
+(Sect.~\ref{subsec:ablation}). Published: MOT17 parameters; matched: ByteTrack's
+detection-score thresholds (Sect.~\ref{subsec:configs}). Higher is better for
+MOTA, IDF1 and $\mathrm{HOTA}_{0.5}$, lower for the counts. \textbf{Bold}: best
+per column.}
 \label{tab:ablation}
 \footnotesize
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccccccc@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lccccccccccc@{}}
 \toprule
- & \multicolumn{6}{c}{Motorcycle (21,312 boxes)} & \multicolumn{4}{c}{All classes (27,513 boxes)} \\
-\cmidrule(lr){2-7}\cmidrule(l){8-11}
-Configuration & MOTA$\uparrow$ & IDF1$\uparrow$ & IDSW$\downarrow$ & Frag$\downarrow$ & FN$\downarrow$ & FP$\downarrow$ & MOTA$\uparrow$ & IDF1$\uparrow$ & IDSW$\downarrow$ & Frag$\downarrow$ \\
+ & \multicolumn{7}{c}{Motorcycle (21,312 boxes)} & \multicolumn{4}{c}{All classes (27,513 boxes)} \\
+\cmidrule(lr){2-8}\cmidrule(l){9-12}
+Configuration & MOTA & IDF1 & $\mathrm{HOTA}_{0.5}$ & IDSW & Frag & FN & FP & MOTA & IDF1 & $\mathrm{HOTA}_{0.5}$ & IDSW \\
 \midrule
-Exp0: ByteTrack (baseline)   & 0.845 & 0.858 & 137 & 156 & 1547 & 1618 & 0.879 & 0.889 & 141 & 158 \\
-\quad + CTRV                 & 0.859 & 0.866 & 110 & 142 & 1381 & 1509 & 0.891 & 0.895 & 114 & 142 \\
-\quad + CTRV, NSA            & 0.871 & 0.887 &  78 & 101 & 1251 & 1420 & 0.900 & 0.911 &  80 & 102 \\
-\quad + CTRV, gate           & 0.856 & 0.862 & 139 & 133 & 1228 & 1712 & 0.888 & 0.892 & 144 & 133 \\
-Exp1: + C2 (CTRV, gate, NSA) & \textbf{0.893} & \textbf{0.907} & \textbf{27} & \textbf{60} & \textbf{872} & \textbf{1376} & \textbf{0.917} & \textbf{0.927} & \textbf{29} & \textbf{61} \\
-Exp2/3: + C1, C2 (+ C3)      & 0.879 & 0.896 &  69 &  86 &  990 & 1510 & 0.906 & 0.918 &  73 &  87 \\
+Exp0: ByteTrack (baseline)   & 0.845 & 0.858 & 0.845 & 137 & 156 & 1547 & 1618 & 0.879 & 0.889 & 0.879 & 141 \\
+\quad + CTRV                 & 0.859 & 0.866 & 0.855 & 110 & 142 & 1381 & 1509 & 0.891 & 0.895 & 0.887 & 114 \\
+\quad + CTRV, NSA            & 0.871 & 0.887 & 0.877 &  78 & 101 & 1251 & 1420 & 0.900 & 0.911 & 0.904 &  80 \\
+\quad + CTRV, gate           & 0.856 & 0.862 & 0.846 & 139 & 133 & 1228 & 1712 & 0.888 & 0.892 & 0.880 & 144 \\
+Exp1: + C2 (CTRV, gate, NSA) & \textbf{0.893} & \textbf{0.907} & \textbf{0.900} & \textbf{27} & \textbf{60} & \textbf{872} & 1376 & \textbf{0.917} & \textbf{0.927} & \textbf{0.922} & \textbf{29} \\
+Exp2/3: + C1, C2 (+ C3)      & 0.879 & 0.896 & 0.885 &  69 &  86 &  990 & 1510 & 0.906 & 0.918 & 0.910 &  73 \\
+\midrule
+OC-SORT, published           & 0.605 & 0.721 & 0.659 &  93 & 342 & 7335 & \textbf{998} & 0.635 & 0.745 & 0.688 & 101 \\
+OC-SORT, matched             & 0.734 & 0.812 & 0.780 & 148 & 195 & 1966 & 3563 & 0.774 & 0.836 & 0.806 & 172 \\
+BoT-SORT, published          & 0.721 & 0.794 & 0.755 & 147 & 117 & 4559 & 1244 & 0.745 & 0.812 & 0.776 & 153 \\
+BoT-SORT, matched            & 0.841 & 0.858 & 0.846 & 221 & 128 & 1136 & 2024 & 0.870 & 0.875 & 0.868 & 230 \\
 \bottomrule
 \end{tabular*}
 \end{table*}
 
 C2 is the decisive component (Table~\ref{tab:ablation}). On motorcycles it
-raises IDF1 from 0.858 to 0.907 and MOTA from 0.845 to 0.893, and it reduces
+raises IDF1 from 0.858 to 0.907, MOTA from 0.845 to 0.893 and
+$\mathrm{HOTA}_{0.5}$ from 0.845 to 0.900, and it reduces
 identity switches from 137 to 27 ($-80\%$) and fragmentations from 156 to 60.
 It also misses fewer motorcycles (FN $1547\rightarrow872$) and reports fewer
 spurious ones (FP $1618\rightarrow1376$), because tracks that survive an
@@ -661,8 +687,7 @@ are tracked almost perfectly by every configuration (MOTA and IDF1 $\ge0.995$,
 two switches), so the all-class gain is smaller. At the box level the detector
 alone reaches precision 0.890 and recall 0.847 at the confirmation threshold of
 0.50 (mAP@0.5 0.925 over all detections); after tracking with C2 both rise, to
-0.950 and 0.968, which no confidence threshold can achieve. \todo{HOTA,
-bootstrap confidence intervals and external trackers.}
+0.950 and 0.968, which no confidence threshold can achieve.
 
 \paragraph{The parts of C2 are super-additive.}
 Starting from CTRV alone (110 motorcycle switches), NSA alone removes 29\% (78),
@@ -672,6 +697,39 @@ combination. The same pattern holds on the ground truth before the
 identity-split review (158, 123, 182 and 29 switches), so it is not an artefact
 of the review. An implementation that adopted the gate without the noise model
 would measure worse than the filter it was meant to improve.
+
+\paragraph{Other trackers.}
+With their published MOT17 parameters, OC-SORT and BoT-SORT trail even the
+baseline (motorcycle IDF1 0.721 and 0.794), mostly through misses: OC-SORT uses
+only detections above 0.6, which leaves 24\% of motorcycle ground-truth boxes
+without a usable detection, and BoT-SORT starts tracks only from detections
+above 0.7, which 40\% of the boxes lack. With ByteTrack's thresholds, BoT-SORT
+matches the baseline (IDF1 0.858, MOTA 0.841) with more identity switches (221
+vs.\ 137), and OC-SORT reaches IDF1 0.812 but recovers its misses through
+low-score associations that add false positives (3,563; at a threshold of 0.5,
+IDF1 0.768). C2 leads the strongest of them, BoT-SORT with matched thresholds,
+by $+0.037$ motorcycle IDF1 per 30-frame block (95\% CI $[0.030, 0.045]$;
+$+0.049$ over the full window) with 27 identity switches against 221.
+
+\paragraph{Uncertainty.}
+A paired moving-block bootstrap~\cite{Kunsch1989_bootstrap} over 30-frame
+blocks (10,000 replicates; no identity spans two blocks) puts the motorcycle
+C2$-$baseline difference, scored per block, at $+0.034$ IDF1 (95\% CI
+$[0.028, 0.041]$) and $+0.046$ MOTA ($[0.039, 0.055]$). Per-block scoring drops
+identity errors that cross a block boundary, so the IDF1 difference is smaller
+than the full-window $+0.049$ and grows with block length. Every interval
+excludes zero for blocks of 15, 30 and 60 frames, also for Exp2/3. The intervals
+cover frame sampling within this window only and are conditional on the
+detections and the ground truth.
+
+\paragraph{Why $\mathrm{HOTA}_{0.5}$.}
+The annotators corrected C2's pre-labels, and the identity review left box
+geometry untouched, so 90.9\% of motorcycle ground-truth boxes coincide with
+C2's output (IoU $\ge0.999$), against 0.8\% for the baseline. HOTA averaged
+over $\alpha\in[0.05,0.95]$ rewards this agreement: C2's margin is $+0.134$
+averaged but $+0.056$ at $\alpha=0.5$ and $+0.047$ at $\alpha=0.05$. We
+therefore report HOTA at the IoU of the other metrics; at that threshold C2
+keeps a residual localization advantage of about 0.01 in detection accuracy.
 
 \subsection{Context adaptation (C1)}\label{subsec:c1-results}
 
@@ -849,8 +907,10 @@ error seen from two sides.
 
 \subsection{Threats to validity}\label{subsec:threats}
 
-\emph{Internal.} The pre-labels came from C2; we bound the bias in both
-directions, but over-merges outside the audit's heuristic may remain, and the
+\emph{Internal.} The pre-labels came from C2, whose boxes survive in 91\% of
+motorcycle ground-truth boxes (hence $\mathrm{HOTA}_{0.5}$); we bound the
+identity bias in both directions, but over-merges outside the audit's heuristic
+may remain, and the
 identity review was done by one author on sheets without tracker output. C1 was
 calibrated in-sample, which favours it; C2 was not tuned on the annotated
 segment. \emph{External.} All annotated results come from one camera, one
@@ -868,7 +928,8 @@ and latency were measured at different detector operating points
 We presented a context-aware perception pipeline for motorcycle-dominant mixed
 traffic. On human-annotated rush-hour footage, its class-conditioned CTRV motion
 model raises motorcycle IDF1 from 0.858 to 0.907 and removes 80\% of identity
-switches on identical detections, at 0.85~ms per frame on the tracker side and
+switches on identical detections, ahead of OC-SORT and BoT-SORT with matched
+thresholds, at 0.85~ms per frame on the tracker side and
 2.8\% of an end-to-end CPU frame; uncertainty gating harms identity on its own
 and becomes effective only with confidence-scaled noise. Context adaptation and
 the reliability score do not yet earn their place: the annotated segment never
