@@ -78,3 +78,6 @@ configs/tele_api.yaml
 CLAUDE.md
 SCOPE.md
 .claude/
+
+# Detector training run: keep the records and metric plots; the batch mosaics are dataset images
+ket_qua_train/*.jpg
