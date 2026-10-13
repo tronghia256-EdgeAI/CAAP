@@ -856,6 +856,11 @@ best.pt, 448~px & 0.499 & 0.574 & 0.536 & 1.00 & 0.71 & 0.20 \\
 \end{tabular}
 \end{table}
 
+\todo{Confounded, rewrite after the masking ablation and Nghia's protocol
+decision: the best.pt rows mask pixels outside the region before detection, the
+1,280~px row does not. Under the same masked protocol the reference detector
+loses small motorcycles too (C2 dense IDF1 0.758), because the mask truncates
+small motorcycles that straddle the region's far boundary.}
 The real-time operating points lose small motorcycles
 (Table~\ref{tab:operating}). At 640~px the detector misses 99\% of the
 motorcycles under 20~px tall and 47\% of those between 20 and 40~px, against
