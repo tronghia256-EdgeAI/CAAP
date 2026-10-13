@@ -108,6 +108,11 @@ head, latency fits the 40~ms budget of a 25~fps stream at
 \section{Introduction}\label{sec:intro}
 %% =====================================================================
 
+\todo{Abstract, introduction and conclusion still state the earlier
+protocol's results. Rewrite them to the agreed framing (C1--C3 as measured; seed
+bias and the size-stratified cost of the real-time operating point as
+evaluation contributions) once the C1 re-run, the 960 and 1,280~px points and
+the latency run are in.}
 Road traffic crashes killed an estimated 1.19 million people in 2021; 92\% of
 these deaths occur in low- and middle-income countries, and riders of powered
 two- and three-wheelers account for 30\% of them~\cite{WHO2023_roadsafety}. In
@@ -624,7 +629,7 @@ MOTA~\cite{Bernardin2008_mota},
 IDF1~\cite{Ristani2016_idf1}, identity switches (IDSW), fragmentations (Frag),
 misses (FN) and false positives (FP) at IoU 0.5, and with
 HOTA~\cite{Luiten2021_hota} at the same localization threshold
-($\mathrm{HOTA}_{0.5}$; Sect.~\ref{subsec:ablation} gives the reason), for
+($\mathrm{HOTA}_{0.5}$; Sect.~\ref{subsec:seedbias} gives the reason), for
 motorcycles and over all classes; our implementation is cross-validated against
 py-motmetrics~\cite{Heindl_pymotmetrics} and the official HOTA code. C3's discriminative power is
 the ROC AUC for separating true from false track-frames.
@@ -660,143 +665,148 @@ noise setting we tried removed this without degrading prediction; it follows
 from Proposition~\ref{prop:obs}, since $\omega$ is identified only from second
 differences of position.
 
-\subsection{Ablation on annotated footage}\label{subsec:ablation}
+\subsection{Tracking on the annotated segments}\label{subsec:ablation}
 
-\todo{Every number from here to the end of Sect.~\ref{sec:realtime} comes from
-the superseded protocol (yolo11\_vn at 1,280~px, full frame, dense segment and
-its pre-audit ground truth). Replace it with the v5 run (best.pt at 640 and
-448~px, region of interest, three reconciled segments) and add a membership-bias
-bracket per segment. The draft is now 13 pages: the rewrite must return it to
-12, and Fig.~\ref{fig:gtversions} and the old-ground-truth numbers of
-Sect.~\ref{subsec:annotation} are superseded.}
+\todo{Pending: best.pt at 960 and 1,280~px (Table~\ref{tab:operating}) and the
+end-to-end latency at all four input sizes (Sect.~\ref{subsec:latency}).}
 
-%% Source: experiments/gt_qa/reviewed/20261007T161301Z_126e0b66/review.json
-%% (reviewed GT, 427 identities; metric engine code/evaluation/metrics.py) and
-%% experiments/external_trackers/metrics.json (HOTA_0.5 and external trackers;
-%% code/scripts/eval_hota_ci.py, rows checked identical to review.json).
+%% Source: data/processed/paper_runs/best85_roi_20261013_v5/640/metrics.json
+%% (protocol 97f8e667); rows generated from the file; C3 checked inert.
 \begin{table*}[t]
-\caption{Ablation on the annotated segment (600 frames, reviewed ground truth,
-427 identities) and two external trackers. All rows consume identical
-detections; Exp3 equals Exp2 frame by frame (Sect.~\ref{subsec:c3-results}).
-$\mathrm{HOTA}_{0.5}$: HOTA at localization threshold $\alpha=0.5$
-(Sect.~\ref{subsec:ablation}). Published: MOT17 parameters; matched: ByteTrack's
-detection-score thresholds (Sect.~\ref{subsec:configs}). Higher is better for
-MOTA, IDF1 and $\mathrm{HOTA}_{0.5}$, lower for the counts. \textbf{Bold}: best
-per column.}
+\caption{Motorcycle tracking on the three segments at 640~px input (best.pt,
+region of interest, reconciled ground truth with 19,213, 7,268 and 2,294
+motorcycle boxes). All rows consume identical detections. Exp3 equals Exp2
+because C3 filters nothing, and C1 stayed in its default row, i.e.\ ByteTrack
+at a 0.45 threshold with the linear model (Sect.~\ref{subsec:c1-results}). Matched: ByteTrack's detection-score
+thresholds, with OC-SORT's single threshold at 0.5 or 0.6. $\mathrm{H}_{0.5}$:
+HOTA at $\alpha=0.5$. Not corrected for seed bias (Table~\ref{tab:seedbias}).
+\textbf{Bold}: best per column.}
 \label{tab:ablation}
 \footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lccccccccccc@{}}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccccccccc@{}}
 \toprule
- & \multicolumn{7}{c}{Motorcycle (21,312 boxes)} & \multicolumn{4}{c}{All classes (27,513 boxes)} \\
-\cmidrule(lr){2-8}\cmidrule(l){9-12}
-Configuration & MOTA & IDF1 & $\mathrm{HOTA}_{0.5}$ & IDSW & Frag & FN & FP & MOTA & IDF1 & $\mathrm{HOTA}_{0.5}$ & IDSW \\
+ & \multicolumn{4}{c}{Dense} & \multicolumn{4}{c}{Mixed} & \multicolumn{4}{c}{Freeflow} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(l){10-13}
+Configuration & MOTA & IDF1 & $\mathrm{H}_{0.5}$ & IDSW & MOTA & IDF1 & $\mathrm{H}_{0.5}$ & IDSW & MOTA & IDF1 & $\mathrm{H}_{0.5}$ & IDSW \\
 \midrule
-Exp0: ByteTrack (baseline)   & 0.845 & 0.858 & 0.845 & 137 & 156 & 1547 & 1618 & 0.879 & 0.889 & 0.879 & 141 \\
-\quad + CTRV                 & 0.859 & 0.866 & 0.855 & 110 & 142 & 1381 & 1509 & 0.891 & 0.895 & 0.887 & 114 \\
-\quad + CTRV, NSA            & 0.871 & 0.887 & 0.877 &  78 & 101 & 1251 & 1420 & 0.900 & 0.911 & 0.904 &  80 \\
-\quad + CTRV, gate           & 0.856 & 0.862 & 0.846 & 139 & 133 & 1228 & 1712 & 0.888 & 0.892 & 0.880 & 144 \\
-Exp1: + C2 (CTRV, gate, NSA) & \textbf{0.893} & \textbf{0.907} & \textbf{0.900} & \textbf{27} & \textbf{60} & \textbf{872} & 1376 & \textbf{0.917} & \textbf{0.927} & \textbf{0.922} & \textbf{29} \\
-Exp2/3: + C1, C2 (+ C3)      & 0.879 & 0.896 & 0.885 &  69 &  86 &  990 & 1510 & 0.906 & 0.918 & 0.910 &  73 \\
+Exp0: ByteTrack (baseline)   & 0.406 & 0.590 & 0.504 & 154 & 0.566 & 0.726 & 0.626 & 9 & 0.527 & 0.693 & 0.568 & 2 \\
+\quad + CTRV                 & 0.419 & 0.597 & 0.510 & 97 & 0.566 & 0.723 & 0.623 & 7 & 0.530 & 0.697 & 0.572 & \textbf{1} \\
+\quad + CTRV, NSA            & 0.422 & 0.600 & 0.511 & 96 & 0.573 & 0.726 & 0.626 & 9 & 0.533 & 0.698 & 0.574 & \textbf{1} \\
+\quad + CTRV, gate           & 0.418 & 0.600 & 0.509 & 115 & 0.566 & 0.725 & 0.623 & 8 & 0.530 & 0.697 & 0.572 & \textbf{1} \\
+Exp1: C2 (CTRV, gate, NSA)   & 0.422 & 0.602 & 0.512 & 95 & 0.573 & 0.729 & 0.628 & 8 & 0.533 & 0.698 & 0.574 & \textbf{1} \\
+Exp2/3: C1 default row       & \textbf{0.427} & 0.610 & 0.526 & 159 & 0.604 & 0.748 & \textbf{0.658} & 13 & 0.563 & 0.723 & 0.603 & 2 \\
 \midrule
-OC-SORT, published           & 0.605 & 0.721 & 0.659 &  93 & 342 & 7335 & \textbf{998} & 0.635 & 0.745 & 0.688 & 101 \\
-OC-SORT, matched             & 0.734 & 0.812 & 0.780 & 148 & 195 & 1966 & 3563 & 0.774 & 0.836 & 0.806 & 172 \\
-BoT-SORT, published          & 0.721 & 0.794 & 0.755 & 147 & 117 & 4559 & 1244 & 0.745 & 0.812 & 0.776 & 153 \\
-BoT-SORT, matched            & 0.841 & 0.858 & 0.846 & 221 & 128 & 1136 & 2024 & 0.870 & 0.875 & 0.868 & 230 \\
+OC-SORT, published           & 0.318 & 0.491 & 0.409 & \textbf{34} & 0.453 & 0.619 & 0.515 & 6 & 0.457 & 0.624 & 0.497 & 2 \\
+OC-SORT, matched 0.5         & 0.426 & \textbf{0.626} & \textbf{0.537} & 79 & \textbf{0.609} & \textbf{0.757} & 0.657 & 11 & \textbf{0.568} & \textbf{0.726} & \textbf{0.606} & 2 \\
+OC-SORT, matched 0.6         & 0.409 & 0.603 & 0.503 & 51 & 0.554 & 0.719 & 0.607 & \textbf{4} & 0.511 & 0.678 & 0.553 & \textbf{1} \\
+BoT-SORT, published          & 0.324 & 0.516 & 0.437 & 161 & 0.458 & 0.642 & 0.544 & 29 & 0.432 & 0.598 & 0.479 & 15 \\
+BoT-SORT, matched            & 0.409 & 0.597 & 0.516 & 266 & 0.555 & 0.721 & 0.630 & 32 & 0.531 & 0.697 & 0.578 & 15 \\
 \bottomrule
 \end{tabular*}
 \end{table*}
 
-C2 is the decisive component (Table~\ref{tab:ablation}). On motorcycles it
-raises IDF1 from 0.858 to 0.907, MOTA from 0.845 to 0.893 and
-$\mathrm{HOTA}_{0.5}$ from 0.845 to 0.900, and it reduces
-identity switches from 137 to 27 ($-80\%$) and fragmentations from 156 to 60.
-It also misses fewer motorcycles (FN $1547\rightarrow872$) and reports fewer
-spurious ones (FP $1618\rightarrow1376$), because tracks that survive an
-occlusion keep covering their vehicle instead of being deleted and re-born. Cars
-are tracked almost perfectly by every configuration (MOTA and IDF1 $\ge0.995$,
-two switches), so the all-class gain is smaller. At the box level the detector
-alone reaches precision 0.890 and recall 0.847 at the confirmation threshold of
-0.50 (mAP@0.5 0.925 over all detections); after tracking with C2 both rise, to
-0.950 and 0.968, which no confidence threshold can achieve.
+Table~\ref{tab:ablation} reports the motorcycle results at 640~px. At 448~px
+every configuration loses a further 0.08--0.22 IDF1
+(Sect.~\ref{subsec:operating}), and the order of baseline, C2, C1's default row
+and OC-SORT is unchanged. C2 reduces identity switches against ByteTrack on dense,
+the one segment with enough of them to test, from 154 to 95 ($-38\%$; at
+448~px from 141 to 62, $-56\%$); mixed and freeflow have at most 13 switches
+for any ByteTrack configuration. The reduction comes from the CTRV motion model
+alone (97 switches): the gate on its own adds 18 (115), and NSA only cancels
+that cost (95), so the super-additivity of gate and NSA that we observed under
+our earlier protocol does not reproduce. C2's IDF1 gain over ByteTrack is small,
+about $+0.01$ on dense and less on mixed and freeflow; paired moving-block
+bootstrap intervals over 30-frame blocks~\cite{Kunsch1989_bootstrap} (10,000
+replicates) are $[0.007, 0.020]$, $[-0.002, 0.007]$ and $[0.001, 0.012]$,
+conditional on the ground truth.
 
-\paragraph{The parts of C2 are super-additive.}
-Starting from CTRV alone (110 motorcycle switches), NSA alone removes 29\% (78),
-the gate alone \emph{adds} 26\% (139) and lowers IDF1, and together they remove
-75\% (27). An additive model predicts $110-32+29=107$ switches for the
-combination. The same pattern holds on the ground truth before the
-identity-split review (158, 123, 182 and 29 switches), so it is not an artefact
-of the review. An implementation that adopted the gate without the noise model
-would measure worse than the filter it was meant to improve.
+OC-SORT with matched thresholds is the stronger tracker. With its threshold at
+0.5 it has the highest IDF1 on every segment (0.626, 0.757 and 0.726 against
+C2's 0.602, 0.729 and 0.698); at 0.6 it makes fewer switches than C2 on dense
+(51 against 95) at C2's IDF1. BoT-SORT with matched thresholds comes close to
+C2's IDF1 but switches identities almost three times as often on dense (266).
+With their published MOT17 thresholds both trail ByteTrack.
 
-\paragraph{Other trackers.}
-With their published MOT17 parameters, OC-SORT and BoT-SORT trail even the
-baseline (motorcycle IDF1 0.721 and 0.794), mostly through misses: OC-SORT uses
-only detections above 0.6, which leaves 24\% of motorcycle ground-truth boxes
-without a usable detection, and BoT-SORT starts tracks only from detections
-above 0.7, which 40\% of the boxes lack. With ByteTrack's thresholds, BoT-SORT
-matches the baseline (IDF1 0.858, MOTA 0.841) with more identity switches (221
-vs.\ 137), and OC-SORT reaches IDF1 0.812 but recovers its misses through
-low-score associations that add false positives (3,563; at a threshold of 0.5,
-IDF1 0.768). C2 leads the strongest of them, BoT-SORT with matched thresholds,
-by $+0.037$ motorcycle IDF1 per 30-frame block (95\% CI $[0.030, 0.045]$;
-$+0.049$ over the full window) with 27 identity switches against 221.
+\subsection{Seed bias in pre-labelled ground truth}\label{subsec:seedbias}
 
-\paragraph{Uncertainty.}
-A paired moving-block bootstrap~\cite{Kunsch1989_bootstrap} over 30-frame
-blocks (10,000 replicates; no identity spans two blocks) puts the motorcycle
-C2$-$baseline difference, scored per block, at $+0.034$ IDF1 (95\% CI
-$[0.028, 0.041]$) and $+0.046$ MOTA ($[0.039, 0.055]$). Per-block scoring drops
-identity errors that cross a block boundary, so the IDF1 difference is smaller
-than the full-window $+0.049$ and grows with block length. Every interval
-excludes zero for blocks of 15, 30 and 60 frames, also for Exp2/3. The intervals
-cover frame sampling within this window only and are conditional on the
-detections and the ground truth.
+Each ground truth favours the tracker that pre-labelled it. Scored on the
+reconciled ground truth, the tracks of our earlier detector give C2 an IDF1
+margin over ByteTrack with the sign of the seed: $+0.045$ on dense and $+0.030$
+on freeflow (C2-seeded), but $-0.037$ on mixed (baseline-seeded). Box geometry
+does not explain it: replacing every ground-truth and predicted box by the
+detection it overlaps changes IDF1 and $\mathrm{HOTA}_{0.5}$ by at most 0.002.
+HOTA averaged over localization thresholds is the exception (on dense the
+margin falls from $+0.124$ to $+0.055$), which is why we report
+$\mathrm{HOTA}_{0.5}$. The bias lies in which boxes the ground truth contains.
+The reviewer saw every box of the seeding tracker and could delete its errors,
+but never saw the boxes that only the other tracker produced, so their absence
+is a default rather than a judgement. The blind audit confirms this
+(Table~\ref{tab:seedbias}): 8 of 10 sampled runs that the non-seed tracker
+reported and the ground truth lacked were real motorcycles, on dense and on
+mixed alike, whereas 9 of 10 of its sampled identity switches were real.
+Membership is biased; identity switches are not.
 
-\paragraph{Why $\mathrm{HOTA}_{0.5}$.}
-The annotators corrected C2's pre-labels, and the identity review left box
-geometry untouched, so 90.9\% of motorcycle ground-truth boxes coincide with
-C2's output (IoU $\ge0.999$), against 0.8\% for the baseline. HOTA averaged
-over $\alpha\in[0.05,0.95]$ rewards this agreement: C2's margin is $+0.134$
-averaged but $+0.056$ at $\alpha=0.5$ and $+0.047$ at $\alpha=0.05$. We
-therefore report HOTA at the IoU of the other metrics; at that threshold,
-anchoring every box to the detection it came from changes IDF1 and
-$\mathrm{HOTA}_{0.5}$ by at most 0.002.
-\todo{Seed bias (experiments/seed\_bias/evidence.md): each reviewed ground truth
-favours the tracker that pre-labelled it by about 0.04 motorcycle IDF1 (dense,
-C2-seeded: C2 $+0.048$; mixed, baseline-seeded: baseline $+0.038$), through
-which boxes it contains, not their geometry. Reframe every C2 margin here, in
-the abstract, introduction and conclusion after the blind audit of 146
-disagreement runs.}
+%% Sources: experiments/seed_bias/audit_shares.json and
+%% bracket_best85_roi_20261013_v5_{640,448}.json.
+\begin{table}[t]
+\caption{Seed bias. Top: blind audit of runs in which the tracker that did not
+seed the ground truth (dense: ByteTrack; mixed: C2) disagrees with it; share in
+which the ground truth is wrong, with Wilson 95\% interval. Bottom: motorcycle
+IDF1 gaps corrected for the remaining membership bias, 640 / 448~px.}
+\label{tab:seedbias}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Audited runs & Dense & Mixed & \\
+\midrule
+Extra, not in GT & 8/10 [.49,.94] & 8/10 [.49,.94] & \\
+Missed, in GT & 2/10 [.06,.51] & 1/10 [.02,.40] & \\
+ID switches & 1/10 [.02,.40] & 1/10 [.02,.40] & \\
+\midrule
+Corrected gap & Dense & Mixed & Freeflow \\
+\midrule
+C2$-$ByteTrack & $+.002$/$+.012$ & $+.011$/$+.020$ & $+.004$/$+.018$ \\
+Default row$-$C2 & $+.025$/$+.035$ & $+.029$/$+.022$ & $+.027$/$+.023$ \\
+OC-SORT$-$C2 & $+.062$/$+.071$ & $+.033$/$+.071$ & $+.032$/$+.055$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+We bracket each IDF1 gap between the reconciled ground truth (lower bound) and
+the same ground truth extended by the unmatched boxes of the trackers that did
+not seed it (upper bound), and interpolate with the audit's share of real
+vehicles (0.80, and 0.56 for freeflow, whose strata were sampled completely).
+After correction, C2's gain over ByteTrack is $+0.002$ to $+0.020$, while
+OC-SORT's lead over C2 grows (Table~\ref{tab:seedbias}).
 
 \subsection{Context adaptation (C1)}\label{subsec:c1-results}
 
-C1 as first configured was harmful: its \textsc{dense-peak} row $(0.35,45)$,
-active almost all the time in the dense segment, lowered MOTA from 0.917 to
-0.731 as false positives grew 4.5-fold (1,390 to 6,254) while misses fell only
-from 875 to 807. A grid search over the row has a sharp optimum at $(0.50,30)$,
-\emph{stricter} than \textsc{default}: with about 46 objects per frame, weak
-detections admitted by a low threshold create far more false tracks than they
-recover. Calibrated, C1 still trails C2 alone (MOTA 0.906 vs.\ 0.917) because of
-the 21 frames it spends in \textsc{default} during warm-up and hysteresis. The
-segment never changes regime---its density signal never falls below the
-switching threshold---so C1's premise is untested rather than refuted. The second
-segment, whose density lies below the threshold in 369 of 600 frames, can decide
-it. \todo{C1 result on the second segment.}
+C1 never left its default row in the paper run. The smoothed track count that
+selects \textsc{dense-peak} stayed below its threshold of 30 in every frame of
+every segment (at most 29 on dense at 640~px): the threshold was set for
+full-frame track counts under our earlier protocol, and the region of interest
+and the new detector roughly halve them. The C1 arm therefore ran ByteTrack with
+the default row's confirmation threshold of 0.45 instead of 0.50 and with the
+linear motion model for motorcycles. Its effect is that of the lower threshold:
+after correction, IDF1 rises by $+0.022$ to $+0.035$ over C2
+(Table~\ref{tab:seedbias}) through recall (dense misses 9,870 to 9,309), at the
+cost of false positives (1,148 to 1,533) and of the switch reduction that the
+CTRV model provided (95 to 159). These rows therefore measure a fixed
+threshold, not adaptation, and C1's premise, that changing the operating point
+with the traffic regime helps, remains untested by them. We recalibrate the
+switching threshold by a rule fixed before scoring, on frames outside the
+annotated segments only: the 75th percentile of the arm's own smoothed track
+count (18 at 640~px, 14 at 448~px). \todo{C1 re-run with the recalibrated
+thresholds and its logged regime per frame.}
 
 \subsection{Track reliability (C3)}\label{subsec:c3-results}
 
-At $\tau_{\mathrm{obs}}=0.40$ the observation branch filters nothing (the lowest
-score on the segment is 0.435), so Exp3 equals Exp2. Raising
-$\tau_{\mathrm{obs}}$ is strictly worse: MOTA falls monotonically to 0.705 at
-0.80, and moving from 0.40 to 0.70 removes 271 false positives at the cost of
-1,516 misses. The score separates true from false track-frames only weakly (ROC
-AUC 0.609 over 28,055 track-frames), and false positives make up only 5.5\% of
-track-frames once C2 has halved the number of short-lived tracks (1,061 to 529
-on the full clip). Even at its most enriched cut-off ($\tau=0.65$) filtering
-discards about four true track-frames per false one. The asymmetry that
-motivates C3 may still hold on the accident branch, which requires accident
-footage with event-level labels to test.
+At $\tau_{\mathrm{obs}}=0.40$ C3 filters nothing on any segment at either input
+size, so Exp3 equals Exp2 frame by frame. The asymmetry that motivates C3
+belongs to the accident branch, which needs accident footage with event-level
+labels to test.
 
 %% =====================================================================
 \section{Real-time feasibility}\label{sec:realtime}
@@ -806,133 +816,89 @@ footage with event-level labels to test.
 
 CTRV prediction and update cost $\mathcal{O}(d^3)$ per motorcycle track with
 $d=5$, against $d=8$ for the linear filter, and the Jacobian is closed-form.
-Association keeps ByteTrack's $\mathcal{O}(nm)$ cost matrix and linear
+Association keeps ByteTrack's $\mathcal{O}(nm)$ cost matrix and its
 assignment; the gate adds one $2\times2$ Mahalanobis test per lost motorcycle
 track and same-class detection, and NSA one scalar product per update. C1 is
 $\mathcal{O}(HW+n)$, dominated by the frame mean, and C3 is $\mathcal{O}(n)$.
 Each motorcycle track carries about 1~kB of filter state, so 100 tracks occupy
-0.1~MB, negligible next to the detector's 11~MB of weights. Our CTRV filters are
-updated track by track while the linear filter is batched, so the overheads
-below are an upper bound.
+0.1~MB, negligible next to the detector's weights.
 
-\subsection{Measured latency}\label{subsec:latency}
+\subsection{The accuracy cost of the operating point}\label{subsec:operating}
 
-With the detector excluded, C2 adds 0.85~ms per frame to the tracker ($+22\%$;
-mean 4.78~ms, 95th percentile 14.1~ms in the densest window at about 47 tracks).
-End to end (Table~\ref{tab:e2e}), C2 costs only 2.8\% of a frame, C1 and C3 fall
-within run-to-run noise, and context estimation takes about 1~ms. In a separate
-breakdown of the baseline, detection takes 130.7~ms of a 143.2~ms frame (91\%),
-tracking 10.1~ms and decoding 1.4~ms. Real-time feasibility is therefore decided
-by the detector, and the deployed configuration, at 7.0--8.5~fps, misses the
-40~ms budget of the 25~fps source by a factor of about three.
-
-%% Source: experiments/realtime/evidence.md section 1b and baseline/exp*.json.
+%% Source: experiments/operating_point/operating_points.json (de46481).
 \begin{table}[t]
-\caption{End-to-end latency per frame with the deployed detector (segmentation
-head, 640~px; 100 frames after 20 warm-up frames; one process per row).}
-\label{tab:e2e}
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}lccccc@{}}
+\caption{Accuracy cost of the detector operating point: C2's motorcycle IDF1
+per segment and its miss rate on dense by ground-truth box height.
+$^{*}$Earlier detector with full-frame tracking; its tracks seeded the ground
+truth, which favours it.}
+\label{tab:operating}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lcccccc@{}}
 \toprule
-Configuration & Detect & Track & Total & p95 & fps \\
-              & (ms)   & (ms)  & (ms)  & (ms) & \\
+ & \multicolumn{3}{c}{IDF1} & \multicolumn{3}{c}{Miss rate (dense)} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-7}
+Operating point & Dense & Mixed & Free & $<$20 & 20--40 & $\ge$40~px \\
 \midrule
-Exp0: ByteTrack     & 109.8 & 5.8 & 117.1 & 131.5 & 8.5 \\
-Exp1: + C2          & 109.5 & 9.5 & 120.4 & 135.0 & 8.3 \\
-Exp2: + C1, C2      & 110.9 & 7.8 & 120.1 & 140.8 & 8.3 \\
-Exp3: + C1, C2, C3  & 110.4 & 7.4 & 120.3 & 133.3 & 8.3 \\
+yolo11\_vn, 1,280~px$^{*}$ & 0.911 & 0.950 & 0.962 & 0.10 & 0.03 & 0.03 \\
+best.pt, 640~px & 0.602 & 0.729 & 0.698 & 0.99 & 0.47 & 0.12 \\
+best.pt, 448~px & 0.499 & 0.574 & 0.536 & 1.00 & 0.71 & 0.20 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Reaching the budget: head before runtime}\label{subsec:operating}
+The real-time operating points lose small motorcycles
+(Table~\ref{tab:operating}). At 640~px the detector misses 99\% of the
+motorcycles under 20~px tall and 47\% of those between 20 and 40~px, against
+10\% and 3\% at 1,280~px, while motorcycles of 40~px and taller are tracked
+almost as well. Because 69--76\% of the annotated motorcycles are under 40~px,
+C2's IDF1 on dense falls from 0.911 to 0.602 at 640~px and 0.499 at 448~px, and
+the loss is driven by misses (9,870 and 12,263 against 883 at 1,280~px) rather
+than false positives. The input is 800~px wide, so 640~px downscales it where
+1,280~px upscaled it. The 1,280~px row differs in detector and tracking scope,
+and its tracks seeded the ground truth; \todo{best.pt at 960 and 1,280~px
+separates input size from detector.} The order of the trackers is the same at
+every operating point.
 
-The cause of the miss is the detector's head, not its scale. The deployed
-checkpoint computes a $160\times160\times32$ mask-prototype tensor that the
-pipeline discards; a detection head of the same scale costs 58.2~ms against
-130.7~ms at 640~px ($2.25\times$). With a detection head the budget is met at
-448~px and below (Fig.~\ref{fig:realtime}): 26.6~ms per frame (37.6~fps, 95th
-percentile 32.9~ms) at 448~px, 19.5~ms at 320~px and 16.3~ms at 256~px. Exporting
-the network was no help on this machine: with default export settings, OpenVINO
-(FP32) cost 25\% more than PyTorch for both heads, OpenVINO FP16 36\% for the
-detection head and ONNX Runtime 75\% for the segmentation head; integer
-quantization was not evaluated because it needs a calibration set
-from the training data. Choosing the head was worth a factor of 2.25, changing
-the runtime cost 25--75\%.
+\subsection{Measured latency}\label{subsec:latency}
 
-%% Source: experiments/realtime/evidence.md sections 1, 2 and 4.
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/fig_realtime.pdf}
-\caption{End-to-end latency per frame on a laptop CPU, split into detector and
-remaining stages, against the 40~ms budget of the 25~fps source. Top bar:
-deployed segmentation head; other bars: detection head at decreasing input
-sizes. PyTorch, one process per bar, warm-up discarded.}
-\label{fig:realtime}
-\end{figure}
-
-Two caveats bound this result. The detection-head bars use a COCO-pretrained
-YOLO11n, which finds fewer vehicles in this domain, so part of the speed-up
-comes from less tracking work (0.81~ms at 448~px against 10.1~ms); substituting
-the tracking time measured with the deployed detector gives about 36~ms per frame
-at 448~px, still within the budget. And the
-accuracy of Sect.~\ref{sec:results} was obtained at 1,280~px, so accuracy and
-latency currently belong to different operating points; the comparison between
-tracker configurations is unaffected, because all of them consume identical
-detections. \todo{Evaluate the detection-head model trained on our data at 640
-and 448~px (accuracy and latency) and report the accuracy--latency curve.}
+\todo{End-to-end latency (decoding, masking, detection, tracking, scoring) of
+ByteTrack, C2 and the C1 arm at 448, 640, 960 and 1,280~px under a verified
+performance state, and the accuracy--latency curve.}
+Under our earlier protocol, C2 added about 0.85~ms per frame to the tracker
+($+22\%$ at about 47 tracks per frame), and the detector took 91\% of a frame.
+A detection head cost 58.2~ms against 130.7~ms for a segmentation head of the
+same scale at 640~px ($2.25\times$; COCO-pretrained YOLO11n), which is why the
+paper run uses one; exporting either network to OpenVINO (FP32, FP16) or ONNX
+Runtime with default settings was 25--75\% slower than PyTorch on this CPU.
 
 \subsection{Measurement protocol}\label{subsec:protocol-lessons}
 
-Two protocol rules matter because violating either produces differences larger
-than those under study. Timed in one process, the same baseline measured
+Three protocol rules matter because violating any of them produces differences
+larger than those under study. Timed in one process, the same baseline measured
 13.19~ms per frame when it ran first and 4.07~ms when it ran last, a $3.2\times$
-spread that flatters whichever configuration runs last; our first latency table
-made this mistake. Warm-up frames must be discarded (219~ms against 143~ms in
-steady state). Absolute numbers also drift across sessions (109.8 vs.\ 130.7~ms
-for the same detector), so every comparison above is made within one sweep on an
-otherwise idle machine.
+spread that flatters whichever configuration runs last. Warm-up frames must be
+discarded (219~ms against 143~ms in steady state). And the processor's
+performance state must be checked: the benchmark phase of the paper run met the
+laptop throttled to 32--64\% of nominal performance and was discarded.
 
 %% =====================================================================
 \section{Discussion}\label{sec:discussion}
 %% =====================================================================
 
-\subsection{Annotation error is direction-dependent}\label{subsec:annotation}
+\subsection{Pre-labelled ground truth needs symmetric adjudication}\label{subsec:annotation}
 
-Tracking ground truth can be wrong in two directions. \emph{Under-merging}
-leaves one vehicle split into several identities; because our pre-labels came
-from C2, its own fragmentations that the annotator missed would survive as
-agreement. Correcting all 29 automatically flagged fragmentations, a deliberate
-worst case, moved the C2 margin only from $+0.089$ to $+0.085$ motorcycle IDF1 on
-the pre-review ground truth. \emph{Over-merging} chains several vehicles into one
-identity, and it proved to be the damaging direction: the most striking
-``baseline splits, C2 keeps the identity'' example we found was one identity
-whose box diagonal shrank and grew several times (104, 47, 74, 50, 39 and 62~px)
----several motorcycles chained into one. An over-merged identity rewards a
-tracker that bridges the gap between two vehicles, which is exactly what C2's
-gate does. Figure~\ref{fig:gtversions} shows the consequence: as more joins are
-cut, the baseline's IDF1 rises and C2's falls, and the effect isolates the gate.
-
-%% Source: experiments/gt_qa/sensitivity.md (heuristic splits) and the
-%% reviewed run experiments/gt_qa/reviewed/20261007T161301Z_126e0b66.
-\begin{figure}[t]
-\centering
-\includegraphics[width=\columnwidth]{figures/fig_gt_versions.pdf}
-\caption{Motorcycle IDF1 of the baseline and of C2 under five versions of the
-ground truth. Heuristic rows cut every join flagged at a displacement or area
-ratio above 3.0, 2.0 and 1.5; the human-review row cuts the 92 of 105 candidates
-adjudicated as two vehicles. Labels give the C2 margin.}
-\label{fig:gtversions}
-\end{figure}
-
-Three lessons follow. Both directions must be checked, and the cheap one is not
-the dangerous one. Over-merges were invisible to a per-frame check that divides
-displacement by gap length; testing physical plausibility across the gap---a
-vehicle approaching a fixed camera grows monotonically---found them. And
-bounding before reviewing pays: with all 105 candidates read as joins the margin
-was $+0.089$, with all read as cuts $+0.037$, so C2's lead was known before a
-single sheet was reviewed; the review settled it at $+0.049$.
+Pre-labelling from a tracker is the economical way to build tracking ground
+truth, and our audit shows its price: the seed decided the sign of a
+0.04-IDF1 comparison, as large as the effects under study, and confidence
+intervals over frames cannot reveal it. Two practices address it. Pre-labels
+can come from the union of the trackers to be compared, so that every box any
+of them reports reaches the reviewer. Where the seed is fixed, a blind audit of
+sampled disagreements estimates the share of real objects among the non-seed
+tracker's extras, and the bracket of Sect.~\ref{subsec:seedbias} turns it into
+a corrected gap. Identity errors behave differently because the reviewer sees
+them: an earlier identity review of dense cut 92 over-merged identities, which
+had rewarded gap bridging, and the audited switches were real.
 
 \subsection{Proxy metrics can be optimized into wrong merges}\label{subsec:proxy}
 
@@ -942,24 +908,16 @@ Before ground truth existed, development used proxy metrics on frames
 teleport check stayed flat, because a wrong re-association is smooth: track A
 continues on motorcycle B. The share of bridged gaps whose heading reverses by
 more than $90^\circ$ nearly doubled (23.7\% to 44.4\%), revealing wrong merges, and
-we kept the textbook gate.
-%% Source: experiments/c2_sensitivity/evidence.md (gate rows).
-The annotated segment confirms the choice: a 99\% gate raises motorcycle
-identity switches from 27 to 173 and a cheaper rescue ($c_0=0.3$) to 265, while
-the tighter settings
-(90\%, $c_0=0.7$) cost less (69 and 77). The ground truth was corrected from the
-default run, which favours it, but these variants still share 78--91\% of its
-boxes; noise-model variants share only 5--14\% and await the baseline-seeded
-segment. The two failure modes of this section are the same error seen from two
-sides.
+we kept the textbook gate. In the paper run the gate on its own again adds
+identity switches (97 to 115 on dense, Table~\ref{tab:ablation}).
 
 \subsection{Threats to validity}\label{subsec:threats}
 
 \emph{Internal.} Each ground truth was corrected from one tracker's pre-labels
 and favours that tracker (Sect.~\ref{subsec:annotation}); the blind audit
 sampled at most ten items per stratum, so residual errors remain, and every
-review was done by one author. C1's \textsc{dense-peak} row was calibrated on the
-dense segment, which favours C1; C2 was not tuned on any annotated segment.
+review was done by one author. C1's rows were set under our earlier protocol and
+never switched in the paper run; C2 was not tuned on any annotated segment.
 \emph{External.} All results are development results from the single camera on
 which the method was designed: three 24-second segments of one morning with
 only cars and motorcycles. No independent camera was annotated, and the
