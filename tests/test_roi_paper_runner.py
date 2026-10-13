@@ -33,10 +33,11 @@ def small_run(tmp_path):
                manifest_sha256=run.digest(bundle / 'manifest.json'))
     run.write_json(bundle / 'roi.json', roi)
     gt = tmp_path / 'gt.txt'
-    gt.write_text(''.join(f'{i+1},1,{10+i},20,10,10,1,2,1\n' for i in range(8)), encoding='utf-8')
+    gt.write_text(''.join(f'{i+1},1,{10+i},20,10,10,1,2,1\n' for i in range(6)), encoding='utf-8')
+    # frames 6-7 lie outside the GT segment: the C1 rule calibrates there
     protocol = dict(num_frames=8, roi=roi, source_fps=25, role='DEVELOPMENT_ONLY_SAME_CAMERA',
-                    segments={'dense': {'gt': str(gt), 'segment': [0, 8]}},
-                    bootstrap={'block_lengths': [2, 4]})
+                    segments={'dense': {'gt': str(gt), 'segment': [0, 6]}},
+                    bootstrap={'block_lengths': [2, 4]}, c1_density_threshold='test rule')
     run.write_json(root / 'protocol.json', protocol)
     directory.mkdir()
     path = directory / 'detections_00000_00008.npz'
@@ -63,6 +64,20 @@ def test_replay_and_score_all_arms_without_detector_or_alerts(tmp_path):
     assert (directory / 'summary.md').exists()
     pipe = run.paper_pipeline(directory, 'baseline', [120.] * 8)
     assert pipe.detector is None and pipe.accident_classifier is None and pipe.alert is None
+    record = json.loads((directory / 'c1_threshold.json').read_text(encoding='utf-8'))
+    assert record['calibration_frames'] == 2 and record['rule'] == 'test rule'
+    assert run.paper_pipeline(directory, 'c1c2c3').adaptive_controller.density_threshold == record['threshold']
+    states = json.loads((directory / 'context_c1c2c3.json').read_text(encoding='utf-8'))['frames']
+    assert all('regime' in s for s in states)
+    assert not any('regime' in s for s in json.loads((directory / 'context_baseline.json').read_text(encoding='utf-8'))['frames'])
+
+
+def test_c1_rule_uses_only_frames_outside_gt():
+    record = run.c1_rule([100] * 6 + [1, 2, 3, 4], {'dense': (0, 6)})
+    assert record['threshold'] == 3.25 and record['calibration_frames'] == 4
+    assert record['share_frames_at_or_above'] == {'dense': 1.0}
+    with pytest.raises(ValueError, match='outside the GT'):
+        run.c1_rule([1, 2], {'dense': (0, 2)})
 
 
 def test_changed_cache_fails_closed(tmp_path):
@@ -84,6 +99,9 @@ def test_ablations_are_explicit_and_do_not_inherit_nsa(tmp_path):
         assert configs[name]['tracker']['frame_rate'] == 25
         assert not configs[name]['ctrv']['scale_adaptive']
     assert not configs['baseline']['ablation']['use_C2_ctrv']
+    # C1 arms carry no threshold until c1_calibrate fixes it per size
+    assert configs['c1_ctrv_gate']['adaptive_controller']['density_threshold'] is None
+    assert configs['c1c2c3']['adaptive_controller']['density_threshold'] is None
 
 
 def test_partial_cache_cannot_be_scored(tmp_path):

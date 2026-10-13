@@ -1,18 +1,18 @@
 """
 code/scripts/operating_points.py
 ────────────────────────────────
-Accuracy at three detector operating points on the reconciled ROI GT.
+Accuracy at detector operating points on the reconciled ROI GT.
 
-  yolo11_vn_1280  old cached tracks (experiments/gt_ablation, external_trackers),
-                  tracked on the full frame, ROI applied only when scoring
-  best_640/448    paper run (ROI mask before the detector, state expiry)
+  label=<run>/<size>  a paper run's size dir (ROI mask before the detector, state expiry)
+  label=old           old cached yolo11_vn@1280 tracks (experiments/gt_ablation,
+                      external_trackers), tracked on the full frame, ROI only when scoring
 Per segment, class and tracker: MOTA, IDF1, HOTA@0.5, FN, FP, IDSW (repository
 evaluator, IoU 0.5). For motorcycles also the miss rate by GT box height and
 where the unmatched predictions lie (max IoU with any GT box of any class;
 < 0.1 = nothing in the GT there, the detector-level seed caveat), both from
 per-frame one-to-one matching at IoU >= 0.5.
 
-    python -m code.scripts.operating_points <paper run dir>
+    python -m code.scripts.operating_points best_640=<run>/640 best_448=<run>/448 yolo11_vn_1280=old
         -> experiments/operating_point/operating_points.json
 """
 
@@ -42,9 +42,11 @@ def old_dump(name: str) -> Path:
 
 
 def main() -> None:
-    run = Path(sys.argv[1])
-    protocol = json.loads((run / "protocol.json").read_text(encoding="utf-8"))
-    ops = {"yolo11_vn_1280": None, "best_640": run / "640", "best_448": run / "448"}
+    ops = {label: None if path == "old" else Path(path) for label, path in (a.split("=", 1) for a in sys.argv[1:])}
+    protocol = json.loads((next(f for f in ops.values() if f).parent / "protocol.json").read_text(encoding="utf-8"))
+    for folder in filter(None, ops.values()):
+        if json.loads((folder.parent / "protocol.json").read_text(encoding="utf-8"))["segments"] != protocol["segments"]:
+            raise ValueError(f"{folder}: different GT segments")
     result = {"note": __doc__.split("\n\n")[1].strip(), "operating_points": {}}
     for op, folder in ops.items():
         if folder is not None and not (folder / "tracks_baseline.json").exists():

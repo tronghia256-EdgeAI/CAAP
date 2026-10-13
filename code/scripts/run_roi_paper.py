@@ -37,6 +37,7 @@ ARMS = ('baseline', 'ctrv', 'ctrv_nsa', 'ctrv_gate', 'ctrv_gate_nsa',
 EXTERNAL = ('ocsort', 'ocsort_matched', 'ocsort_byte', 'botsort', 'botsort_matched')
 SCORED = (*ARMS, *EXTERNAL, 'c1c2c3_raw')
 CLASSES = {'motorcycle': 1, 'car': 0, 'bus': 2, 'truck': 3, 'ALL': None}
+C1_PERCENTILE = 75  # pre-registered, experiments/c1_recalibration
 
 
 def digest(path):
@@ -112,6 +113,10 @@ def resolved_config(name, roi_file, weights, size, fps):
         'uncertainty_gating', cfg['tracker'].get('uncertainty_gating', False)))
     cfg['ctrv']['nsa_noise'] = bool(overrides.get('nsa', cfg['ctrv'].get('nsa_noise', False)))
     cfg['ctrv']['scale_adaptive'] = bool(overrides.get('scale_adaptive', False))
+    if cfg.get('ablation', {}).get('use_C1_adaptive', True):  # Pipeline's default
+        # Set per size after caching by the pre-registered rule (c1_calibrate);
+        # null fails loudly if a C1 arm is ever built without it.
+        cfg['adaptive_controller']['density_threshold'] = None
     return cfg
 
 
@@ -189,6 +194,10 @@ def prepare(args):
                     tracking_output='tracks_mappo (C3 task threshold); also save raw tracks',
                     roi_exit_policy='expire tracked and lost states outside ROI after each update; '
                                     'a non-finite or inverted external state counts as outside',
+                    c1_density_threshold=f'per size, fixed after caching and before any C1 arm: p{C1_PERCENTILE} '
+                                         'of the density EMA of c1_ctrv_gate replayed with an infinite density '
+                                         'threshold, over source frames outside every GT segment '
+                                         '(pre-registered in experiments/c1_recalibration); {size}/c1_threshold.json',
                     runtime=dict(python=platform.python_version(), torch=torch.__version__,
                                  ultralytics=ultralytics.__version__, numpy=np.__version__,
                                  opencv=cv2.__version__, device='cpu',
@@ -251,7 +260,8 @@ def cache(directory, protocol, size, stop_after=None):
     if index['num_frames'] >= target:
         return
     detector = Detector(protocol['weights'], img_size=size, roi=protocol['roi'])
-    if detector.using_coco_fallback or detector.model.task != 'detect':
+    # A segment checkpoint (yolo11_vn) is read for its boxes only.
+    if detector.using_coco_fallback or detector.model.task not in ('detect', 'segment'):
         raise ValueError('Expected the exact custom detection checkpoint')
     # Ultralytics selects a CPU thread count during its first prediction.
     # Warm up before setting the recorded value, rather than silently measuring
@@ -292,7 +302,7 @@ def cache(directory, protocol, size, stop_after=None):
         cap.release()
 
 
-def paper_pipeline(directory, name, brightness=None):
+def paper_pipeline(directory, name, brightness=None, density_threshold=None):
     pipe = Pipeline.from_config(str(directory / 'configs' / f'{name}.yaml'),
                                 build_detector=False, dry_run_alerts=True)
     pipe.alert = None
@@ -301,7 +311,47 @@ def paper_pipeline(directory, name, brightness=None):
     if brightness is not None:
         pipe.context_estimator = CachedContext(brightness)
     pipe.context_estimator.hour_override = 8
+    if pipe.use_c1:
+        if density_threshold is None:
+            record = json.loads((directory / 'c1_threshold.json').read_text(encoding='utf-8'))
+            if record['protocol_sha256'] != digest(directory.parent / 'protocol.json'):
+                raise ValueError('C1 threshold belongs to another protocol')
+            density_threshold = record['threshold']
+        pipe.adaptive_controller.density_threshold = density_threshold
     return pipe
+
+
+def c1_rule(density, segments):
+    """Pre-registered C1 threshold: the C1_PERCENTILE-th percentile of the density
+    EMA over frames outside every GT segment, so no evaluated frame sets it."""
+    density = np.asarray(density, float)
+    outside = np.ones(len(density), bool)
+    for start, end in segments.values():
+        outside[start:end] = False
+    if not outside.any():
+        raise ValueError('The C1 rule needs frames outside the GT segments')
+    threshold = float(np.percentile(density[outside], C1_PERCENTILE))
+    return dict(threshold=threshold, calibration_frames=int(outside.sum()),
+                percentiles={str(p): float(np.percentile(density[outside], p)) for p in (50, 75, 90, 99)},
+                # what the threshold implies on the evaluated segments (density only, no GT)
+                share_frames_at_or_above={k: round(float((density[s:e] >= threshold).mean()), 3)
+                                          for k, (s, e) in segments.items()})
+
+
+def c1_calibrate(directory, protocol, detections, brightness):
+    """Probe: c1_ctrv_gate with an infinite density threshold never enters DENSE_PEAK,
+    so its density is the DEFAULT-regime signal the controller would compare."""
+    path = directory / 'c1_threshold.json'
+    if path.exists():
+        return
+    w, h = protocol['roi']['image_size']
+    dummy = np.zeros((h, w, 3), np.uint8)
+    pipe = paper_pipeline(directory, 'c1_ctrv_gate', brightness, density_threshold=float('inf'))
+    density = [pipe.process(dummy, detections=d)['state'].density for d in detections]
+    record = c1_rule(density, {k: v['segment'] for k, v in protocol['segments'].items()})
+    write_json(path, dict(protocol_sha256=digest(directory.parent / 'protocol.json'),
+                          rule=protocol['c1_density_threshold'], **record))
+    print(f'c1 threshold {directory.name}: {record["threshold"]}', flush=True)
 
 
 def pack(tracks):
@@ -350,6 +400,7 @@ def replay(directory, protocol):
         raise ValueError('Replay/scoring requires a complete cache')
     w, h = protocol['roi']['image_size']
     dummy = np.zeros((h, w, 3), np.uint8)  # C1 brightness is injected from real frames.
+    c1_calibrate(directory, protocol, detections, brightness)
     for name in (*ARMS, *EXTERNAL):
         path = directory / f'tracks_{name}.json'
         if path.exists():
@@ -364,7 +415,10 @@ def replay(directory, protocol):
                 result = pipe.process(dummy, detections=d)
                 frames.append(pack(result['tracks_mappo']))
                 raw_frames.append(pack(pipe._last_tracks))
-                states.append(asdict(result['state']))
+                state = asdict(result['state'])
+                if pipe.use_c1:
+                    state['regime'] = pipe.adaptive_controller._active.name  # applied this frame
+                states.append(state)
                 if (i+1) % 2000 == 0:
                     print(f'replay {directory.name}/{name}: {i+1}/{len(detections)}', flush=True)
         else:

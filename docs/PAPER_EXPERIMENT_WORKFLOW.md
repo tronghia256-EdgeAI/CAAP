@@ -26,6 +26,12 @@ C1+C2, C1+C2+C3; thêm OC-SORT và BoT-SORT theo tham số công bố và
 các đối chứng khớp threshold. OC-SORT còn có nhánh 0.6 + BYTE.
 Trong tất cả nhánh, không giữ state ngoài ROI.
 
+Ngưỡng density của C1 không nằm trong config (để `null`, dựng nhánh C1 mà thiếu ngưỡng sẽ lỗi ngay).
+Sau khi cache xong và trước mọi nhánh C1, runner replay `c1_ctrv_gate` với ngưỡng vô cực (không bao giờ
+vào DENSE_PEAK), lấy **p75 của density EMA trên các frame ngoài ba đoạn GT**, ghi `{size}/c1_threshold.json`
+(luật đăng ký trước ở `experiments/c1_recalibration/`). Benchmark của C1+C2+C3 đọc cùng file đó.
+`context_c1_ctrv_gate.json` và `context_c1c2c3.json` ghi thêm `regime` đã áp dụng ở từng frame.
+
 Với tracker ngoài, một state có box không hữu hạn hoặc bị ngược cũng bị coi là ngoài ROI và bị bỏ (`8a0dc26`):
 - **Nguyên nhân:** Kalman của OC-SORT có thể ra diện tích âm, làm box thành NaN.
 - **Upstream:** xoá tracker này ở lần predict kế tiếp. Nếu state hóa NaN ngay trong một lần update, upstream vẫn có thể xuất box NaN ở frame đó; runner thì bỏ box này. Hai cách cho kết quả tương đương trong thực tế.
@@ -69,9 +75,13 @@ Double-click **`run_paper_experiments.cmd`**, hoặc từ repo root:
 
 Kết quả mặc định dưới `data/processed/paper_runs/best85_roi_20261013_v4/`.
 
-v4 đã dừng (FAILED) ở bước replay. Run hiện hành là `best85_roi_20261013_v5`:
-- **Code:** chạy theo commit `8a0dc26`, tham số `--out` trỏ tới thư mục v5.
-- **Khóa code:** không sửa `.py`/`.yaml` trong `code/` và `configs/` cho tới khi run xong.
+v4 FAILED. v5 (640/448) và `best85_roi_20261013_pareto` (960/1280) dùng ngưỡng C1 cũ (30, C1 không
+bao giờ đổi regime), nên chỉ là số sơ bộ. Run cuối dùng **một commit** cho cả hai thư mục:
+- `best85_roi_final`: best.pt, `--sizes 448 640 960 1280`;
+- `yolo11vn_roi_final`: `--weights weights/yolo11_vn.pt --sizes 1280` (checkpoint segment, chỉ đọc box).
+
+Cả hai chạy cache → replay → score; benchmark chạy riêng khi máy nguội.
+- **Khóa code:** không sửa `.py`/`.yaml` trong `code/` và `configs/` cho tới khi mọi phase, kể cả benchmark, xong.
 - **Latency:** chỉ dùng số đo khi `% Processor Performance` đạt khoảng 90% trở lên.
 
 Trong thư mục run:
@@ -84,6 +94,7 @@ Trong thư mục run:
 | `640/summary.md`, `448/summary.md` | Bảng motorcycle sau khi score xong |
 | `640/metrics.json`, `448/metrics.json` | Đầy đủ class/variant/HOTA/CI/cross-check |
 | `640/benchmark.json`, `448/benchmark.json` | Các lần đo end-to-end riêng process |
+| `{size}/c1_threshold.json` | Ngưỡng C1 theo luật p75 ngoài GT, kèm phân vị và tỉ lệ frame vượt ngưỡng |
 
 Nếu Codex khởi chạy ở nền, `run.log`, `error.log` và `launcher.json` nằm trong
 cùng thư mục. Không mở thêm một run vào đó; khóa OS chặn hai process cùng ghi.

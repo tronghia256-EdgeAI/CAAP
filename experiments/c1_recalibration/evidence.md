@@ -36,14 +36,27 @@ using a rule fixed in advance. No retuning on the evaluation segments.
 |---|---:|---:|---:|---:|---|
 | 640 | 6 | **18** | 21 | 27 | 0.84 / 0.00 / 0.31 |
 | 448 | 5 | **14** | 17 | 22 | 0.84 / 0.00 / 0.35 |
+| 960 | 7 | **21** | 26 | 32 | 0.87 / 0.00 / 0.27 |
+| 1280 | 7 | **23** | 29 | 35 | 0.92 / 0.00 / 0.27 |
 
 The last column is computed from the DEFAULT-regime density only. No GT and
 no metric is involved. Once the controller switches, density shifts
 (confirmation threshold 0.50 and CTRV in `DENSE_PEAK`), so the re-run must
 log the actual regime per frame.
 
-**Next.** The 960 and 1280 thresholds will come from the same rule on the
-Pareto run's context logs. After tonight's latency measurement, the code
-freeze ends. Then a new paper run applies the thresholds per input size and
-logs the regime per frame. Arms without C1 are unaffected and serve as a
-reproducibility check against v5.
+**In-run rule (2026-10-13, before the final run).** The Pareto run's C1 arm
+did switch at 960 and 1280 (its density reached 34 and 36 under the old
+threshold of 30), so its context log is not DEFAULT-regime density. The rule
+is therefore applied inside `run_roi_paper.py` (`c1_calibrate`):
+
+- after caching, `c1_ctrv_gate` is replayed with an infinite density
+  threshold, so it never enters `DENSE_PEAK`;
+- the threshold is the same percentile over the same frames, written to
+  `{size}/c1_threshold.json` before any C1 arm runs;
+- the frozen C1 configs carry `density_threshold: null`, and the C1 context
+  logs record the regime applied in each frame.
+
+On the v5 caches the probe's density equals v5's logged C1 density frame for
+frame at 640 and 448, and gives 18 and 14. The 960 and 1280 rows above come
+from the probe on the Pareto caches. The yolo11_vn@1280 threshold comes from
+its own run by the same rule.
