@@ -587,21 +587,25 @@ for dense, mixed and freeflow.
 
 %% Sources: ket_qua_train/{args.yaml,report.json,development_metrics.json},
 %% experiments/detector_leakage/evidence.md.
-The detector is YOLO11n~\cite{Jocher2024_yolo11} with a detection head (about
-2.6~M parameters), initialized from its COCO weights and trained by the authors
-for 100 epochs at 640~px (AdamW, cosine learning-rate decay, mosaic
+The real-time detector is YOLO11n~\cite{Jocher2024_yolo11} with a detection
+head (about 2.6~M parameters), initialized from its COCO weights and trained by
+the authors for 100 epochs at 640~px (AdamW, cosine learning-rate decay, mosaic
 augmentation) on 3,975 images with five classes (accident, bus, car,
 motorcycle, truck); on 992 validation images from the same collection it
-reaches mAP@0.5 0.621 and mAP@0.5:0.95 0.427. The images come from public web
-sources and from traffic cameras other than the evaluation camera: comparing
-perceptual hashes of every training image with frames sampled once per second
-from all our recordings, and inspecting every near match, found no image of the
-evaluation camera. \todo{Confirm the sources and terms of use of the training
-images. Add the accuracy reference, yolo11\_vn (segmentation head, re-run under
-the region-of-interest protocol at 640 and 1,280~px): name and source of its
-training set, which the audit above does not cover.} The pipeline reads only boxes. For all accuracy experiments,
-detections were computed once per input size (640 and 448~px) on frames masked
-outside the region of interest, with a confidence floor of 0.1, and cached;
+reaches mAP@0.5 0.621 and mAP@0.5:0.95 0.427. As a high-accuracy reference we
+also report the authors' earlier YOLO11n checkpoint with a segmentation head
+(2.84~M parameters) at 1,280~px; the pipeline reads only its boxes. Both were
+trained from the same annotated collection of public web images and frames of
+traffic cameras other than the evaluation camera. Comparing perceptual hashes of
+every image in the version used for the real-time detector (4,980 images) with
+frames sampled once per second from all our recordings, and inspecting every
+near match, found no image of the evaluation camera; the version behind the
+reference was not recorded, so images unique to it are unaudited.
+\todo{Confirm the sources and terms of use of the training images.} For all
+accuracy experiments, detections were computed once per detector and input size
+(448, 640, 960 and 1,280~px for the real-time detector, 1,280~px for the
+reference) on frames masked outside the region of interest, with a confidence
+floor of 0.1, and cached;
 every tracker consumes the same cache, so differences between configurations
 are attributable to tracking, and latency is measured at the same operating
 points (Sect.~\ref{sec:realtime}).
@@ -669,8 +673,10 @@ differences of position.
 
 \subsection{Tracking on the annotated segments}\label{subsec:ablation}
 
-\todo{Pending: best.pt at 960 and 1,280~px (Table~\ref{tab:operating}) and the
-end-to-end latency at all four input sizes (Sect.~\ref{subsec:latency}).}
+\todo{Every number in Sects.~\ref{sec:results} and~\ref{sec:realtime} comes
+from the preliminary run v5. Replace it with the final runs: best.pt at 448, 640,
+960 and 1,280~px and the reference at 1,280~px under one protocol, with C1's
+pre-registered thresholds applied inside each run. Latency follows on 14/10.}
 
 %% Source: data/processed/paper_runs/best85_roi_20261013_v5/640/metrics.json
 %% (protocol 97f8e667); rows generated from the file; C3 checked inert.
