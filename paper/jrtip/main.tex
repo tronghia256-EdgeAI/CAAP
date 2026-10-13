@@ -77,29 +77,28 @@ X.~L. Vo: \emailLanh}}
 
 %% JRTIP: 150-250 words, no citations.
 \begin{abstract}
-Traffic-surveillance pipelines pair a one-stage detector with a tracker
-that applies one linear motion model and fixed thresholds to every object. Both
-choices are strained in motorcycle-dominant mixed traffic, where weaving
-fragments identities and a fixed operating point cannot follow changing
-conditions. We present a context-aware perception pipeline with three
-components: (C1) a context estimator and hysteresis-stabilized controller that
-set the tracker's operating point online; (C2) a class-conditioned motion model
-that tracks motorcycles with a constant-turn-rate-and-velocity extended Kalman
-filter, re-associates lost tracks inside the filter's innovation ellipse and
-scales measurement noise by detection confidence; and (C3) a track reliability
-score with separate thresholds for incident alerting and signal-control
-observations. On 600 human-annotated rush-hour CCTV frames from Ho Chi Minh
-City, C2 raises motorcycle IDF1 from 0.858 to 0.907 and cuts identity switches
-by 80\% over ByteTrack on identical detections. Its components are
-super-additive: covariance gating alone increases identity switches by 26\% and
-helps only together with confidence-scaled noise. Context adaptation did not
-outperform a calibrated fixed threshold in the single traffic regime our labels
-cover, and the reliability score separated true from false tracks too weakly
-(ROC AUC 0.609) to filter usefully after C2; we report both as characterized
-negative results. On a CPU, C2 adds 2.8\% to the end-to-end frame time while
-the detector takes 91\%; with a detection head instead of a segmentation
-head, latency fits the 40~ms budget of a 25~fps stream at
-448-pixel input.
+Traffic-surveillance pipelines pair a one-stage detector with a tracker that
+applies one linear motion model and fixed thresholds to every object, and
+motorcycle-dominant mixed traffic strains both choices. We present a
+context-aware perception pipeline with three components: (C1) a context
+estimator and hysteresis-stabilized controller that set the tracker's operating
+point online; (C2) a class-conditioned motion model that tracks motorcycles
+with a constant-turn-rate-and-velocity extended Kalman filter inside ByteTrack,
+with covariance gating for lost tracks and confidence-scaled measurement noise;
+and (C3) a track reliability score with separate thresholds for incident
+alerting and signal-control observations. On three human-annotated segments of
+Ho Chi Minh City CCTV, at real-time detector input sizes and with identical
+detections for every configuration, C2 cuts motorcycle identity switches in
+dense traffic by 38--56\% against ByteTrack, through its CTRV model alone,
+while its IDF1 gain stays below 0.02; OC-SORT with matched thresholds tracks
+better on both counts. C3 filters nothing at its threshold, and \todo{C1 after
+recalibration}. Two evaluation findings transfer beyond this pipeline. Ground
+truth corrected from one tracker's pre-labels favours that tracker by about
+0.04 IDF1 through the boxes it contains rather than their geometry; a blind
+audit finds 80\% of the other tracker's unmatched runs to be real vehicles,
+and we bracket the bias. And the real-time operating point costs accuracy
+where motorcycles are small: at 640-pixel input the detector misses 99\% of
+those under 20 pixels tall. \todo{Latency at the four input sizes.}
 \keywords{Multi-object tracking \and Extended Kalman filter \and Mixed traffic
 \and Motorcycles \and Context-aware perception \and Real-time video analytics}
 \end{abstract}
@@ -108,11 +107,8 @@ head, latency fits the 40~ms budget of a 25~fps stream at
 \section{Introduction}\label{sec:intro}
 %% =====================================================================
 
-\todo{Abstract, introduction and conclusion still state the earlier
-protocol's results. Rewrite them to the agreed framing (C1--C3 as measured; seed
-bias and the size-stratified cost of the real-time operating point as
-evaluation contributions) once the C1 re-run, the 960 and 1,280~px points and
-the latency run are in.}
+\todo{Verify the v5-derived numbers in the abstract, introduction and
+conclusion against the final run.}
 Road traffic crashes killed an estimated 1.19 million people in 2021; 92\% of
 these deaths occur in low- and middle-income countries, and riders of powered
 two- and three-wheelers account for 30\% of them~\cite{WHO2023_roadsafety}. In
@@ -152,7 +148,8 @@ estimation~\cite{Schubert2008_ctrv,BarShalom2001_estimation} but rare in
 image-plane tracking-by-detection and, to our knowledge, have not been selected
 by the detected object class. This paper studies a pipeline that adapts along
 two axes, per object class through the motion model and per traffic regime
-through the operating point, with three contributions:
+through the operating point. It contributes three components and two
+evaluation results:
 \begin{itemize}
 \item \textbf{C1}, a context estimator and adaptive controller that select the
 tracker's confirmation threshold, lost-track buffer and motorcycle motion model
@@ -164,20 +161,21 @@ measurement noise is scaled by detection confidence; we derive the filter, bound
 its discretization error and characterize its observability (Sect.~\ref{sec:c2});
 \item \textbf{C3}, one reliability score per track, split by two thresholds into a
 precision-first alerting branch and a recall-first observation branch
-(Sect.~\ref{sec:c3}).
+(Sect.~\ref{sec:c3});
+\item a measurement of seed bias in pre-labelled tracking ground truth, with a
+blind audit and a bracketed correction (Sect.~\ref{subsec:seedbias});
+\item the size-stratified accuracy cost of real-time detector operating points
+(Sect.~\ref{subsec:operating}).
 \end{itemize}
 
-We evaluate every component on 600 human-annotated rush-hour frames from Ho Chi
-Minh City with identical detections for every configuration, and we measure the
-pipeline end to end on a commodity CPU. C2 is the validated contribution: it
-raises motorcycle IDF1 from 0.858 to 0.907, removes 80\% of identity switches
-relative to ByteTrack, and its parts are strongly super-additive. C1 and C3 do
-not improve the tracking metrics on these data; we report both as characterized
-negative results. Two methodological findings transfer beyond this pipeline:
-annotation error in tracking ground truth is direction-dependent, and
-over-merged identities inflate exactly the gap bridging that a motion model
-supplies; and on a CPU the detector, not the tracker, decides real-time
-feasibility, with the detection head mattering more than the inference runtime.
+We evaluate every configuration under one development protocol: three
+600-frame segments of one camera, ground truth reconciled after a blind audit,
+a region of interest, and identical cached detections at real-time input
+sizes. C2 reduces identity switches in dense traffic by 38--56\% against
+ByteTrack, entirely through its CTRV model, while its IDF1 gain stays below
+0.02 after correcting for seed bias; OC-SORT~\cite{Cao2023_ocsort} with matched
+thresholds is stronger on both counts. C3 filters nothing at its threshold,
+and \todo{C1 after recalibration}. We report these results as measured.
 
 %% =====================================================================
 \section{Related work}\label{sec:related}
@@ -939,21 +937,21 @@ performance state verified.
 \section{Conclusion}\label{sec:conclusion}
 %% =====================================================================
 
-We presented a context-aware perception pipeline for motorcycle-dominant mixed
-traffic. On human-annotated rush-hour footage, its class-conditioned CTRV motion
-model raises motorcycle IDF1 from 0.858 to 0.907 and removes 80\% of identity
-switches on identical detections, at 0.85~ms per frame on the tracker side and
-2.8\% of an end-to-end CPU frame; uncertainty gating harms identity on its own
-and becomes effective only with confidence-scaled noise. Context adaptation and
-the reliability score do not yet earn their place: the annotated segment never
-leaves one regime, and the score is too weakly discriminative once C2 has removed
-most spurious tracks. On a commodity CPU, real-time feasibility is decided by the
-detector's operating point, and the choice of head matters more than the choice
-of runtime. Future work covers a segment that crosses C1's switching threshold,
-event-level accident footage for C3's precision branch, the accuracy--latency
-curve of a detection-head model trained on our data, and an
-interacting-multiple-model filter~\cite{Blom1988_imm} that combines CTRV with a
-constant-velocity model to handle turn-rate reversals and stop-and-go motion.
+We presented and evaluated a context-aware perception pipeline for
+motorcycle-dominant mixed traffic on one camera. Its CTRV motion model reduces
+motorcycle identity switches in dense traffic by 38--56\% against ByteTrack on
+identical detections, with an IDF1 gain below 0.02 after correcting for seed
+bias; gating alone does not help, and OC-SORT with matched thresholds tracks
+better still. C3 filters nothing at its threshold, and \todo{C1 after
+recalibration}. Two lessons reach beyond this pipeline: ground truth
+pre-labelled from one tracker favours it through the boxes it contains, which
+union pre-labels or a blind audit of disagreements correct; and on a commodity
+CPU the real-time operating point bounds accuracy through small objects.
+\todo{Latency and the accuracy--latency curve.} Future work covers an
+independent camera annotated from union pre-labels, accident footage for C3's
+precision branch, C2's motion model inside OC-SORT, and an
+interacting-multiple-model filter~\cite{Blom1988_imm} combining CTRV with a
+constant-velocity model.
 
 \section*{Statements and Declarations}
 
