@@ -37,6 +37,19 @@ Với tracker ngoài, một state có box không hữu hạn hoặc bị ngượ
 - **Upstream:** xoá tracker này ở lần predict kế tiếp. Nếu state hóa NaN ngay trong một lần update, upstream vẫn có thể xuất box NaN ở frame đó; runner thì bỏ box này. Hai cách cho kết quả tương đương trong thực tế.
 - **Lý do sửa:** chính lỗi này đã làm run v4 dừng ở bước replay.
 
+Hai luật bổ sung, cùng tinh thần (chỉ xử lý trường hợp biên, không đổi hành vi tracker):
+- **`9d2a0f6` (nhánh `fix/invalid-tracker-state`):** luật trên áp cho **mọi** tracker,
+  kể cả tracker của mình (`gt_roi.contains_state`).
+  - Nguyên nhân: Kalman tuyến tính của một ô tô đi ra mép dưới khung có thể dự đoán chiều cao âm.
+  - Tác động: với yolo11_vn@1280 có 4 lần mỗi nhánh, một lần trong dense.
+- **`3cff2dc` (nhánh `exp/roi-filter-only`):** box ghi ra dump được xét thuộc ROI hay không
+  **trên chính box đã làm tròn 0.1 px**, đúng box mà bước score kiểm tra.
+  - Nguyên nhân: bottom-center cách biên dưới 0.05 px có thể bị làm tròn ra ngoài.
+  - Tác động: 1–2 box mỗi nhánh CTRV ở chế độ không mask, không box nào trong đoạn GT.
+
+Runner cũ dừng ngay khi gặp các trường hợp này (fail closed). Vì vậy run nào chạy xong
+bằng code cũ thì không gặp chúng, và kết quả giống hệt khi chạy bằng code mới.
+
 Hệ số gate/NSA/scale được ghi
 rõ, tránh kế thừa config làm hai ablation trùng nhau. Lưu cả track trước/sau C3;
 `c1c2c3_raw` trong bảng điểm là đối chứng trước bộ lọc C3 trên cùng run.
@@ -76,11 +89,26 @@ Double-click **`run_paper_experiments.cmd`**, hoặc từ repo root:
 Kết quả mặc định dưới `data/processed/paper_runs/best85_roi_20261013_v4/`.
 
 v4 FAILED. v5 (640/448) và `best85_roi_20261013_pareto` (960/1280) dùng ngưỡng C1 cũ (30, C1 không
-bao giờ đổi regime), nên chỉ là số sơ bộ. Run cuối dùng **một commit** cho cả hai thư mục:
-- `best85_roi_final`: best.pt, `--sizes 448 640 960 1280`;
-- `yolo11vn_roi_final`: `--weights weights/yolo11_vn.pt --sizes 1280` (checkpoint segment, chỉ đọc box).
+bao giờ đổi regime), nên chỉ là số sơ bộ. Các run cuối (14/10/2026):
 
-Cả hai chạy cache → replay → score; benchmark chạy riêng khi máy nguội.
+| Run | Code (nơi chạy) | Protocol ROI | Trạng thái |
+|---|---|---|---|
+| `best85_roi_final` (best.pt 448/640/960/1280) | `35d85b1` (repo chính) | mask pixel ngoài ROI | COMPLETED, đã kiểm |
+| `yolo11vn_roi_final2` (yolo11_vn 1280, chỉ đọc box) | `9d2a0f6` (worktree `../CAAP-fix`) | mask pixel ngoài ROI | COMPLETED |
+| `best85_roi_nomask2` (best.pt 448/640/960/1280) | `3cff2dc` (worktree `../CAAP-nomask`) | detect toàn khung, lọc bottom-center (`--no-roi-pixel-mask`) | đang chạy |
+| `yolo11vn_roi_nomask2` (yolo11_vn 1280) | `3cff2dc` (worktree `../CAAP-nomask`) | như trên | đang chạy |
+
+- **Run hỏng hoặc đã thay thế:**
+  - `yolo11vn_roi_final` (FAILED, lỗi state suy biến);
+  - `best85_roi_nomask` (INTERRUPTED);
+  - `yolo11vn_roi_nomask` (FAILED, lỗi làm tròn biên).
+- **Protocol chính:** mask hay không mask là quyết định của Nghĩa. Protocol còn lại thành ablation.
+- **Tham số:** mỗi run ghi tham số đầy đủ (đường dẫn tuyệt đối) trong `launcher.json`. Benchmark
+  phải chạy từ đúng repo hoặc worktree đó, với đúng tham số đó.
+- **Bản ghi:** commit, nhánh và hash protocol nằm ở `experiments/paper_final/<run>/provenance.json`.
+- **Merge worktree:** chỉ merge các nhánh worktree vào main sau khi mọi benchmark xong.
+
+Mọi run chạy cache → replay → score; benchmark chạy riêng khi máy nguội.
 - **Khóa code:** không sửa `.py`/`.yaml` trong `code/` và `configs/` cho tới khi mọi phase, kể cả benchmark, xong.
 - **Latency:** chỉ dùng số đo khi `% Processor Performance` đạt khoảng 90% trở lên.
 
