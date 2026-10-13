@@ -1,0 +1,52 @@
+{
+ "rule": "p75 of the c1_ctrv_gate arm's density EMA over frames outside the GT segments, per input size",
+ "gt_segments": {
+  "dense": [
+   10700,
+   11300
+  ],
+  "freeflow": [
+   6400,
+   7000
+  ],
+  "mixed": [
+   2500,
+   3100
+  ]
+ },
+ "old_threshold": 30,
+ "sizes": {
+  "640": {
+   "source": "data\\processed\\paper_runs\\best85_roi_20261013_v5\\640\\context_c1_ctrv_gate.json",
+   "calibration_frames": 9500,
+   "percentiles": {
+    "50": 6.0,
+    "75": 18.0,
+    "90": 21.0,
+    "99": 27.0
+   },
+   "threshold": 18.0,
+   "share_frames_at_or_above": {
+    "dense": 0.842,
+    "freeflow": 0.0,
+    "mixed": 0.305
+   }
+  },
+  "448": {
+   "source": "data\\processed\\paper_runs\\best85_roi_20261013_v5\\448\\context_c1_ctrv_gate.json",
+   "calibration_frames": 9500,
+   "percentiles": {
+    "50": 5.0,
+    "75": 14.0,
+    "90": 17.0,
+    "99": 22.0
+   },
+   "threshold": 14.0,
+   "share_frames_at_or_above": {
+    "dense": 0.842,
+    "freeflow": 0.0,
+    "mixed": 0.348
+   }
+  }
+ }
+}
