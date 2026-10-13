@@ -72,3 +72,49 @@ Small motorcycles are common in the GT, so these misses weigh heavily:
 - Latency at these operating points: v5's benchmark ran on a throttled CPU
   (41–49% processor performance) and is not reportable.
 - Whether best.pt at a larger input (960, 1280) recovers the small motorcycles.
+
+## Pre-registered: the input size of Table 2
+
+Fixed on 2026-10-13, before any latency trial of the final runs
+(`best85_roi_final`, `yolo11vn_roi_final`). Agreed with the manuscript owner.
+
+**What is measured.** `run_roi_paper --phase benchmark`, with each run's own
+launcher arguments. Timing covers all four best.pt sizes (448/640/960/1280) and
+yolo11_vn@1280.
+
+- Arms: baseline, C2 (`ctrv_gate_nsa`) and C1+C2+C3 (`c1c2c3`).
+- Three trials per arm, each in a fresh process.
+- Each trial replays the full prehistory, then runs 20 warm-up frames and
+  200 measured frames from the start of the dense GT segment.
+- A frame's time covers decode, ROI/context, detection, tracking and C3. It
+  excludes the severity branch and network alerts.
+
+**Statistics.**
+
+- Per trial: p95 of the 200 measured frame times.
+- Per arm: the median of its three valid trials' p95.
+
+**Valid trial.**
+
+- An external sampler reads `\Processor Information(_Total)\% Processor
+  Performance` once per second. It runs during every trial.
+- The trial's measured window is reconstructed as [t_end − Σ frame_ms, t_end].
+  t_end is the write time of the trial file.
+- The trial is valid if the median of the samples inside that window is
+  ≥ 90%.
+- An invalid trial is moved, with its samples, to `benchmark_trials_invalid/`
+  and re-measured. Nothing is deleted.
+
+**Decision.**
+
+1. Table 2 uses the largest best.pt input size at which **every** arm has
+   median p95 ≤ 40 ms (the source is 25 fps). This is the maximum over the
+   measured arms, not an arm assumed to be slowest.
+2. A size with fewer than three valid trials for any arm is re-measured, not
+   decided. A throttled night therefore cannot read as "no size meets the
+   budget".
+3. Only if every size has three valid trials per arm and none meets the
+   budget does Table 2 use 448. The text then states that real time was not
+   met at p95.
+4. The other sizes and yolo11_vn@1280 go to Table 4 and to the
+   accuracy–latency curve.
