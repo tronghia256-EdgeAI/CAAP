@@ -9,8 +9,12 @@
 Does a GT favour the tracker that seeded it, and through what?
 
 **Method.** `python -m code.scripts.check_seed_bias` scores every frozen dump in
-`experiments/gt_ablation` on the three final ROI exports listed in
-`docs/GT_COMPLETION_20261012.md`. Motorcycles only, within each review's ROI.
+`experiments/gt_ablation` on the three ROI exports listed in
+`docs/GT_COMPLETION_20261012.md`. Those exports come *before* the audit
+reconciliation (`docs/GT_RECONCILED_20261013.md`). On the reconciled GT, the
+old-protocol margins are in `experiments/operating_point/operating_points.json`
+(row `yolo11_vn_1280`): +0.045 dense, +0.030 freeflow, −0.037 mixed.
+Motorcycles only, within each review's ROI.
 Scored two ways:
 
 - **as published**;
