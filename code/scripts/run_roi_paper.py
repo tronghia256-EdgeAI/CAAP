@@ -26,7 +26,7 @@ import yaml
 from code.models.context_estimator import ContextEstimator
 from code.pipeline import Pipeline, load_config
 from code.scripts.compare_motion_models import VARIANTS, open_video
-from code.scripts.gt_roi import contains_box, contains_state, load_roi, pixel_mask
+from code.scripts.gt_roi import contains_box, contains_state, filter_detections, load_roi, pixel_mask
 from code.scripts.import_gt import load_mot, to_framelist, tracks_json_slice
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -191,6 +191,7 @@ def prepare(args):
                     trackeval_dir=str(trackeval.resolve()) if trackeval else None,
                     confidence=0.1, chunk_frames=200, torch_threads=args.threads,
                     cv2_threads=1, severity_enabled=False, alerts_enabled=False,
+                    roi_pixel_mask=not args.no_roi_pixel_mask,
                     tracking_output='tracks_mappo (C3 task threshold); also save raw tracks',
                     roi_exit_policy='expire tracked and lost states outside ROI after each update; '
                                     'a non-finite or inverted tracker state (any tracker) counts as outside',
@@ -229,6 +230,12 @@ def verify_inputs(protocol):
             raise ValueError(f'Frozen input changed: {path}')
 
 
+def detector_roi(protocol):
+    """The ROI the detector masks pixels with: none when the protocol detects on the full
+    frame and filters detections by bottom-centre only (the GT's membership rule)."""
+    return protocol['roi'] if protocol.get('roi_pixel_mask', True) else None
+
+
 def read_cache(directory, protocol):
     index = json.loads((directory / 'cache_index.json').read_text(encoding='utf-8'))
     if index['protocol_sha256'] != digest(directory.parent / 'protocol.json'):
@@ -259,7 +266,7 @@ def cache(directory, protocol, size, stop_after=None):
     target = min(protocol['num_frames'], stop_after or protocol['num_frames'])
     if index['num_frames'] >= target:
         return
-    detector = Detector(protocol['weights'], img_size=size, roi=protocol['roi'])
+    detector = Detector(protocol['weights'], img_size=size, roi=detector_roi(protocol))
     # A segment checkpoint (yolo11_vn) is read for its boxes only.
     if detector.using_coco_fallback or detector.model.task not in ('detect', 'segment'):
         raise ValueError('Expected the exact custom detection checkpoint')
@@ -280,7 +287,8 @@ def cache(directory, protocol, size, stop_after=None):
                 raise ValueError(f'Source ended at {frame_no}')
             mask = pixel_mask(frame, protocol['roi'])
             light.append(float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)[mask > 0].mean()))
-            detections = detector.detect(frame).astype(np.float64)
+            # bottom-centre filter in both modes (idempotent when the detector masked)
+            detections = filter_detections(detector.detect(frame), protocol['roi']).astype(np.float64)
             if not np.isfinite(detections).all():
                 raise ValueError('Non-finite detections')
             pending.append(detections)
@@ -530,7 +538,7 @@ def benchmark_trial(directory, protocol, name, measured=200, warmup=20):
     real = ContextEstimator(hour_override=8)
     real._brightness_ema, real._density_ema = cached._brightness_ema, cached._density_ema
     pipe.context_estimator = real
-    pipe.detector = Detector(protocol['weights'], img_size=int(directory.name), roi=protocol['roi'])
+    pipe.detector = Detector(protocol['weights'], img_size=int(directory.name), roi=detector_roi(protocol))
     import torch
     pipe.detector.detect(dummy)
     torch.set_num_threads(protocol['torch_threads'])
@@ -630,6 +638,8 @@ def main():
     ap.add_argument('--threads', type=int, default=8)
     ap.add_argument('--trackeval', type=Path, help='Directory containing the official trackeval package (optional cross-check)')
     ap.add_argument('--stop-after', type=int, help='Cache smoke test only; partial cache cannot be scored')
+    ap.add_argument('--no-roi-pixel-mask', action='store_true',
+                    help='Detect on the full frame; keep only detections whose bottom-centre is in the ROI')
     args = ap.parse_args()
     if args.threads < 1 or any(s < 32 or s % 32 for s in args.sizes) or len(set(args.sizes)) != len(args.sizes):
         ap.error('Positive threads, unique image sizes divisible by 32 are required')

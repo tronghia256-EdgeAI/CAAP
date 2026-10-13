@@ -215,3 +215,24 @@ def test_degenerate_own_tracker_state_is_expired_not_fatal(tmp_path):
     track.mean[2] = -0.5
     pipe.process(np.zeros((48, 64, 3), np.uint8), detections=np.zeros((0, 6)))
     assert track not in pipe.tracker.tracked_stracks + pipe.tracker.lost_stracks
+
+
+def test_filter_only_mode_detects_full_frame_but_keeps_roi_detections(tmp_path, monkeypatch):
+    directory, protocol = small_run(tmp_path)
+    directory = tmp_path / '96'
+    protocol.update(video=str(synthetic_video(tmp_path)), weights='fake.pt', chunk_frames=8, torch_threads=1,
+                    roi_pixel_mask=False)
+    run.write_json(tmp_path / 'protocol.json', protocol)
+    seen = []
+
+    class FullFrameDetector(FakeDetector):
+        def __init__(self, *args, roi=None, **kwargs):
+            seen.append(roi)
+
+        def detect(self, frame):  # one box inside the ROI (y >= 16), one outside
+            return np.array([[10., 20, 20, 30, .9, 1], [10., 0, 20, 10, .9, 1]])
+    monkeypatch.setattr('code.detection.detector.Detector', FullFrameDetector)
+    run.cache(directory, protocol, 96)
+    _, dets, _ = run.read_cache(directory, protocol)
+    assert seen == [None] and all(len(d) == 1 and d[0][1] == 20 for d in dets)
+    assert run.detector_roi(dict(roi=protocol['roi'])) == protocol['roi']   # masking stays the default
