@@ -60,3 +60,35 @@ On the v5 caches the probe's density equals v5's logged C1 density frame for
 frame at 640 and 448, and gives 18 and 14. The 960 and 1280 rows above come
 from the probe on the Pareto caches. The yolo11_vn@1280 threshold comes from
 its own run by the same rule.
+
+## Why C1 adds dense ID switches (masked final runs, 2026-10-14)
+
+The final runs (`best85_roi_final`, `yolo11vn_roi_final2`) use the
+pre-registered thresholds. On dense, C1 holds DENSE_PEAK in 80–90% of frames,
+yet it switches identities more often than C2. The table shows the cause.
+
+- Under the lifetime rule (`_should_use_ctrv`), a motorcycle track created
+  while the controller is in DEFAULT keeps the linear filter for life.
+- Dense opens with a DEFAULT stretch: 85, 119, 97, 63 and 59 frames for the
+  five rows below. In those frames the density EMA is still below the
+  threshold, and the 15-frame hysteresis has to elapse.
+- Tracks created there carry the share of dense motorcycle track-frames shown
+  in the table.
+- Columns: the share of C1's dense switches that involve such a track (on
+  either side of the switch), and the switch counts.
+
+| Run / size | Track-frames from DEFAULT-born tracks | Switches involving them | C1 IDSW | C2 IDSW |
+|---|---:|---:|---:|---:|
+| best.pt 448 | 0.18 | 44 of 100 (0.44) | 100 | 62 |
+| best.pt 640 | 0.20 | 55 of 139 (0.40) | 139 | 95 |
+| best.pt 960 | 0.16 | 35 of 101 (0.35) | 101 | 81 |
+| best.pt 1280 | 0.14 | 13 of 111 (0.12) | 111 | 103 |
+| yolo11_vn 1280 | 0.14 | 15 of 131 (0.11) | 131 | 125 |
+
+From 448 to 960 the linear tracks are over-represented in switches by about
+2×. Removing their switches leaves counts close to C2's (640: 139 − 55 = 84,
+against 95). At 1280 the effect is small.
+
+This is a measured consequence of the lifetime design choice, not a tuning
+target. Scripts: `c1_birth_regime.py` and `c1_switch_attrib.py`; the switch
+counts reproduce the evaluator's IDSW exactly.
