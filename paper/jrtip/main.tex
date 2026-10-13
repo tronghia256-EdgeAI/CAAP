@@ -597,7 +597,9 @@ sources and from traffic cameras other than the evaluation camera: comparing
 perceptual hashes of every training image with frames sampled once per second
 from all our recordings, and inspecting every near match, found no image of the
 evaluation camera. \todo{Confirm the sources and terms of use of the training
-images.} The pipeline reads only boxes. For all accuracy experiments,
+images. Add the accuracy reference, yolo11\_vn (segmentation head, re-run under
+the region-of-interest protocol at 640 and 1,280~px): name and source of its
+training set, which the audit above does not cover.} The pipeline reads only boxes. For all accuracy experiments,
 detections were computed once per input size (640 and 448~px) on frames masked
 outside the region of interest, with a confidence floor of 0.1, and cached;
 every tracker consumes the same cache, so differences between configurations
