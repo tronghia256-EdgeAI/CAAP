@@ -26,7 +26,7 @@ import yaml
 from code.models.context_estimator import ContextEstimator
 from code.pipeline import Pipeline, load_config
 from code.scripts.compare_motion_models import VARIANTS, open_video
-from code.scripts.gt_roi import contains_box, load_roi, pixel_mask
+from code.scripts.gt_roi import contains_box, contains_state, load_roi, pixel_mask
 from code.scripts.import_gt import load_mot, to_framelist, tracks_json_slice
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -193,7 +193,7 @@ def prepare(args):
                     cv2_threads=1, severity_enabled=False, alerts_enabled=False,
                     tracking_output='tracks_mappo (C3 task threshold); also save raw tracks',
                     roi_exit_policy='expire tracked and lost states outside ROI after each update; '
-                                    'a non-finite or inverted external state counts as outside',
+                                    'a non-finite or inverted tracker state (any tracker) counts as outside',
                     c1_density_threshold=f'per size, fixed after caching and before any C1 arm: p{C1_PERCENTILE} '
                                          'of the density EMA of c1_ctrv_gate replayed with an infinite density '
                                          'threshold, over source frames outside every GT segment '
@@ -358,22 +358,14 @@ def pack(tracks):
     return [(int(t.track_id), int(t.class_id), [round(float(x), 1) for x in t.tlbr]) for t in tracks]
 
 
-def inside_roi(box, roi):
-    """contains_box for tracker states. OC-SORT's Kalman filter can reach a
-    negative area, whose box is NaN; upstream OC-SORT deletes such a tracker at
-    its next predict, so a non-finite or inverted box counts as outside here."""
-    b = np.asarray(box, dtype=float)
-    return bool(np.isfinite(b).all() and b[2] >= b[0] and b[3] >= b[1]) and contains_box(b.tolist(), roi)
-
-
 def expire_external(tracker, name, roi):
     if name.startswith('ocsort'):
-        tracker.trackers = [t for t in tracker.trackers if inside_roi(t.get_state()[0], roi)]
+        tracker.trackers = [t for t in tracker.trackers if contains_state(t.get_state()[0], roi)]
     else:
         for attr in ('tracked_stracks', 'lost_stracks'):
             kept = []
             for t in getattr(tracker, attr):
-                if inside_roi(t.tlbr, roi):
+                if contains_state(t.tlbr, roi):
                     kept.append(t)
                 else:
                     t.mark_removed()
@@ -427,7 +419,7 @@ def replay(directory, protocol):
                 out = tracker.update(d)
                 expire_external(tracker, name, protocol['roi'])
                 rows = [(int(r[4]), int(r[5]), [round(float(x), 1) for x in r[:4]]) for r in out] if name.startswith('ocsort') else pack(out)
-                frames.append([row for row in rows if inside_roi(row[2], protocol['roi'])])
+                frames.append([row for row in rows if contains_state(row[2], protocol['roi'])])
         if name in ARMS:
             write_json(directory / f'raw_tracks_{name}.json', dict(start_frame=0, num_frames=len(raw_frames),
                         protocol_sha256=index['protocol_sha256'], frames=raw_frames))

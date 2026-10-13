@@ -196,10 +196,22 @@ def test_benchmark_dispatches_fresh_trials_and_resumes(tmp_path, monkeypatch):
 
 def test_non_finite_external_state_counts_as_outside_roi():
     roi = {'enabled': True, 'polygon': [[0, 0], [800, 0], [800, 450], [0, 450]]}
-    assert run.inside_roi([10, 10, 50, 50], roi)
-    assert not run.inside_roi([np.nan, 10, np.nan, 50], roi)   # OC-SORT KF with a negative area
-    assert not run.inside_roi([50, 10, 10, 50], roi)           # inverted
+    assert run.contains_state([10, 10, 50, 50], roi)
+    assert not run.contains_state([np.nan, 10, np.nan, 50], roi)   # OC-SORT KF with a negative area
+    assert not run.contains_state([50, 10, 10, 50], roi)           # inverted
     tracker = SimpleNamespace(trackers=[SimpleNamespace(get_state=lambda: [[10, 10, 50, 50]]),
                                         SimpleNamespace(get_state=lambda: [[np.nan, 1, np.nan, 2]])])
     run.expire_external(tracker, 'ocsort', roi)                # used to raise ValueError
     assert len(tracker.trackers) == 1
+
+
+def test_degenerate_own_tracker_state_is_expired_not_fatal(tmp_path):
+    # A linear-KF track whose aspect turns negative has an inverted box; the
+    # pipeline's ROI expiry used to raise on it (yolo11_vn@1280 replay).
+    directory, _ = small_run(tmp_path)
+    pipe = run.paper_pipeline(directory, 'baseline', [120.] * 8)
+    pipe.process(np.zeros((48, 64, 3), np.uint8), detections=np.array([[10., 20, 20, 30, .9, 1]]))
+    track = pipe.tracker.tracked_stracks[0]
+    track.mean[2] = -0.5
+    pipe.process(np.zeros((48, 64, 3), np.uint8), detections=np.zeros((0, 6)))
+    assert track not in pipe.tracker.tracked_stracks + pipe.tracker.lost_stracks
