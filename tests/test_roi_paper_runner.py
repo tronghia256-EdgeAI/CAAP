@@ -236,3 +236,11 @@ def test_filter_only_mode_detects_full_frame_but_keeps_roi_detections(tmp_path, 
     _, dets, _ = run.read_cache(directory, protocol)
     assert seen == [None] and all(len(d) == 1 and d[0][1] == 20 for d in dets)
     assert run.detector_roi(dict(roi=protocol['roi'])) == protocol['roi']   # masking stays the default
+
+
+def test_dump_rows_keep_roi_membership_after_rounding():
+    # A box 0.01 px inside the bottom edge rounds 0.04 px outside it (yolo11vn no-mask run).
+    roi = {'enabled': True, 'polygon': [[0, 0], [64, 0], [64, 30.07], [0, 30.07]]}
+    track = SimpleNamespace(track_id=1, class_id=1, tlbr=[10.0, 20.0, 20.0, 30.06])
+    assert run.contains_state(track.tlbr, roi)
+    assert run.pack([track])[0][2][3] == 30.1 and run.inside(run.pack([track]), roi) == []

@@ -366,6 +366,13 @@ def pack(tracks):
     return [(int(t.track_id), int(t.class_id), [round(float(x), 1) for x in t.tlbr]) for t in tracks]
 
 
+def inside(rows, roi):
+    """Rows whose stored box is in the ROI. pack() rounds to 0.1 px, which can move a
+    bottom-centre lying within 0.05 px of the boundary outside; membership is decided on
+    the box the dump keeps, as scoring checks it. Tracker state is not affected."""
+    return [r for r in rows if contains_box(r[2], roi)]
+
+
 def expire_external(tracker, name, roi):
     if name.startswith('ocsort'):
         tracker.trackers = [t for t in tracker.trackers if contains_state(t.get_state()[0], roi)]
@@ -413,8 +420,8 @@ def replay(directory, protocol):
             pipe = paper_pipeline(directory, name, brightness)
             for i, d in enumerate(detections):
                 result = pipe.process(dummy, detections=d)
-                frames.append(pack(result['tracks_mappo']))
-                raw_frames.append(pack(pipe._last_tracks))
+                frames.append(inside(pack(result['tracks_mappo']), protocol['roi']))
+                raw_frames.append(inside(pack(pipe._last_tracks), protocol['roi']))
                 state = asdict(result['state'])
                 if pipe.use_c1:
                     state['regime'] = pipe.adaptive_controller._active.name  # applied this frame
