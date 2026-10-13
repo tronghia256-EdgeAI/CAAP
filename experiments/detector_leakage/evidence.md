@@ -83,11 +83,15 @@ Decoded lengths: the `.asf` headers report about 22,800 frames, but every
 - **Certifies:** the Roboflow v12 export (the training set of `best.pt`)
   contains no frame recognisable as the NKKN view, and it does contain the
   `7_20_2017` camera.
-- **Does not certify `weights/yolo11_vn.pt`**, the segmentation checkpoint
-  behind every tracking number in the manuscript. Its training data is not
-  documented in the repository. If it was trained on an earlier version of
-  the same Roboflow project, the finding carries over, but that link is
-  unverified.
+- **`weights/yolo11_vn.pt`, the segmentation checkpoint, only partly.**
+  Nghĩa stated on 2026-10-13 that it was trained from the same Roboflow
+  project, `Vehicle-Accident_Final`, the source of this export. The finding
+  therefore carries over to every image the version behind yolo11_vn shares
+  with v12.
+  - Which version that was has not been recorded.
+  - Images in that version and absent from v12 have not been audited.
+  - Closing the gap needs that version's export run through this audit
+    (`--images <export dir>`).
 - **Not covered:** crops or rotations stronger than Roboflow's augmentations.
   The positive control shows that Roboflow's own copies stay within 12 bits.
 - **Inspection:** the visual verdicts were made on 2026-10-12. An author should
