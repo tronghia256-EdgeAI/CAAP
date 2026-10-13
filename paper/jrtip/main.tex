@@ -784,6 +784,8 @@ We bracket each IDF1 gap between the reconciled ground truth (lower bound) and
 the same ground truth extended by the unmatched boxes of the trackers that did
 not seed it (upper bound), and interpolate with the audit's share of real
 vehicles (0.80, and 0.56 for freeflow, whose strata were sampled completely).
+The audit sampled tracks built on the earlier detector, so applying its shares
+to the paper run assumes that they transfer across detectors.
 After correction, C2's gain over ByteTrack is $+0.002$ to $+0.020$, while
 OC-SORT's lead over C2 grows (Table~\ref{tab:seedbias}).
 
