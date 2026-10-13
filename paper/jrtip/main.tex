@@ -615,7 +615,8 @@ threshold 0.8, second-stage IoU 0.5, a lost-track buffer of 30 frames at 30~fps,
 i.e.\ one second at the source's 25~fps); Exp1 adds C2, Exp2 adds C1 and Exp3
 adds C3. In every configuration, detections whose bottom centre lies outside the
 region of interest are dropped before tracking, and a track whose state leaves
-it is removed from both the active and the lost pool; C1 measures brightness
+it is removed from both the active and the lost pool (a state whose box becomes
+non-finite or inverted counts as having left); C1 measures brightness
 inside the region and takes the time of day from the recording. To expose the interaction of the gate and NSA we also run
 CTRV alone, CTRV with NSA and CTRV with the gate. As external references,
 OC-SORT~\cite{Cao2023_ocsort} and BoT-SORT~\cite{Aharon2022_botsort} run from
