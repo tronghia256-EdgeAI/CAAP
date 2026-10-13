@@ -379,14 +379,17 @@ proxy). Density and brightness are smoothed by an exponential moving average
 $\tilde{x}_t=\alpha x_t+(1-\alpha)\tilde{x}_{t-1}$ with $\alpha=0.1$. The
 controller assigns one of three conditions, with priority \textsc{night} $>$
 \textsc{dense-peak} $>$ \textsc{default}: \textsc{night} if $\tilde\beta_t<80$,
-\textsc{dense-peak} if $\tilde\rho_t\ge30$ and $h_t\in[7,20]$. Each condition
+\textsc{dense-peak} if $\tilde\rho_t\ge\rho^{*}$ and $h_t\in[7,20]$, where
+$\rho^{*}$ is the 75th percentile of $\tilde\rho_t$ over the frames outside the
+annotated segments, fixed per detector and input size before any C1 result is
+scored. Each condition
 sets $\Theta_t=(c_{\mathrm{trk}},L_{\mathrm{buf}},\mathcal{M})$: the confirmation
 threshold that replaces ByteTrack's high/low split (new tracks need
 $s\ge c_{\mathrm{trk}}+0.1$), the lost-track buffer in frames, and the filter a
-new motorcycle track receives. \textsc{dense-peak} uses $(0.50,30,\text{CTRV})$,
-calibrated on the annotated segment (Sect.~\ref{subsec:c1-results}; originally
-$(0.35,45)$); \textsc{night} $(0.55,20,\text{linear})$ is never exercised by our
-data; \textsc{default} is $(0.45,30,\text{linear})$. The false-positive proxy is
+new motorcycle track receives and keeps for its lifetime. \textsc{dense-peak}
+uses $(0.50,30,\text{CTRV})$, calibrated on the dense segment under our earlier
+protocol (originally $(0.35,45)$); \textsc{night} $(0.55,20,\text{linear})$ is
+never exercised by our data; \textsc{default} is $(0.45,30,\text{linear})$. The false-positive proxy is
 exposed but not used by the rules. A new condition takes effect only after
 $N_h=15$ consecutive frames (0.6~s), which prevents oscillation near a boundary.
 
