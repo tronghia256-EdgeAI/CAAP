@@ -61,6 +61,22 @@ frame at 640 and 448, and gives 18 and 14. The 960 and 1280 rows above come
 from the probe on the Pareto caches. The yolo11_vn@1280 threshold comes from
 its own run by the same rule.
 
+## Regime actually applied in the final runs (2026-10-14)
+
+The table gives the share of frames in which the C1 arm (`c1_ctrv_gate`)
+applied DENSE_PEAK. It comes from the regime log in each final run
+(`{size}/context_c1_ctrv_gate.json`, field `regime`, the regime applied in
+that frame). The threshold table above gives something else: probe shares,
+computed on DEFAULT-regime density. NIGHT never occurred in any run.
+
+| Run / size | dense | mixed | freeflow | NIGHT frames (whole run) |
+|---|---:|---:|---:|---:|
+| best.pt 448 | 0.80 | 0.35 | 0.00 | 0 |
+| best.pt 640 | 0.80 | 0.28 | 0.00 | 0 |
+| best.pt 960 | 0.84 | 0.29 | 0.00 | 0 |
+| best.pt 1280 | 0.90 | 0.29 | 0.00 | 0 |
+| yolo11_vn 1280 | 0.90 | 0.30 | 0.00 | 0 |
+
 ## Why C1 adds dense ID switches (masked final runs, 2026-10-14)
 
 The final runs (`best85_roi_final`, `yolo11vn_roi_final2`) use the
