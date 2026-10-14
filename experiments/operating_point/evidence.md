@@ -163,3 +163,25 @@ The tracking-level cost of the mask is measured by the no-mask ablation runs,
 `best85_roi_nomask2` and `yolo11vn_roi_nomask2` (worktree branch
 `exp/roi-filter-only`, flag `--no-roi-pixel-mask`). Scripts:
 `det_cut_split.py` and `det_geometry_check.py`.
+
+## Final runs: masked protocol, primary (2026-10-14)
+
+`operating_points.json` now comes from the final runs. Command:
+
+    python -m code.scripts.operating_points best_448=<best85_roi_final>/448 best_640=…/640 best_960=…/960 best_1280=…/1280 yolo11_vn_1280_roi=<yolo11vn_roi_final2>/1280
+
+The miss rate is that of the baseline tracker, used as a proxy for detector
+recall.
+
+| Operating point | dense IDF1 baseline / C2 | baseline miss rate on dense, < 20 / 20–40 / ≥ 40 px |
+|---|---|---|
+| best.pt@448 | 0.477 / 0.499 | 1.00 / 0.71 / 0.22 |
+| best.pt@640 | 0.590 / 0.602 | 0.99 / 0.48 / 0.14 |
+| best.pt@960 | 0.685 / 0.698 | 0.94 / 0.24 / 0.12 |
+| best.pt@1280 | 0.724 / 0.764 | 0.81 / 0.14 / 0.13 |
+| yolo11_vn@1280 (ROI) | 0.746 / 0.758 | 0.74 / 0.11 / 0.10 |
+
+`detector_seed.json` was recomputed with the yolo11_vn ROI row. The reference
+is best.pt@1280, whose empty-GT extras add 1,382 boxes on dense. The tables in
+the earlier sections use the superseded v5 rows and the full-frame yolo11_vn
+row.
