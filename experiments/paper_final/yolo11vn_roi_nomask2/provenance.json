@@ -1,0 +1,41 @@
+{
+ "run": "data\\processed\\paper_runs\\yolo11vn_roi_nomask2",
+ "protocol_sha256": "e46d7fa30612ef13c94cc2f2a5a2ace0a6857150c3b26c659bd506666356c44f",
+ "commit": "3cff2dc",
+ "branch": "exp/roi-filter-only",
+ "cwd": "C:/Users/ASUS/Desktop/CAAP-nomask (git worktree)",
+ "launched": "2026-10-14 06:57",
+ "launcher": {
+  "output": "C:/Users/ASUS/Desktop/CAAP/data/processed/paper_runs/yolo11vn_roi_nomask2",
+  "started_local": "2026-10-14 06:57",
+  "cwd": "C:/Users/ASUS/Desktop/CAAP-nomask (git worktree, branch exp/roi-filter-only)",
+  "args": [
+   "--no-roi-pixel-mask",
+   "--receipt",
+   "C:/Users/ASUS/Desktop/CAAP/data/annotations/paper_gt_reconciliation/reconcile_90026162a7963db7/reconciled_e880ead8.json",
+   "--video",
+   "C:/Users/ASUS/Desktop/CAAP/data/raw/videos/NKKN-VoThiSau 2017-07-18_08_00_00_000.asf",
+   "--weights",
+   "C:/Users/ASUS/Desktop/CAAP/weights/yolo11_vn.pt",
+   "--trackeval",
+   "C:\\Users\\ASUS\\AppData\\Local\\Temp\\claude\\C--Users-ASUS-Desktop-CAAP\\8fa8b3fb-9769-46f5-b733-6644ef189ed0\\scratchpad\\pydeps",
+   "--sizes",
+   "1280",
+   "--out",
+   "C:/Users/ASUS/Desktop/CAAP/data/processed/paper_runs/yolo11vn_roi_nomask2"
+  ],
+  "commands": "run_roi_paper --phase cache, then replay, then score, with args",
+  "commit": "3cff2dc",
+  "replaces": "yolo11vn_roi_nomask (FAILED at score: a rounding-boundary box)",
+  "purpose": "ABLATION pending Nghia decision: full-frame detection + bottom-centre ROI filter instead of the pixel mask",
+  "launched_by": "Claude Code session caap-cb"
+ },
+ "status": {
+  "status": "COMPLETED",
+  "requested_phase": "score",
+  "protocol_sha256": "e46d7fa30612ef13c94cc2f2a5a2ace0a6857150c3b26c659bd506666356c44f",
+  "size": 1280,
+  "phase": "score"
+ },
+ "note": "Masking ablation (option B keeps the mask as primary): full-frame detection plus the bottom-centre ROI filter, no pixel mask. Replaces yolo11vn_roi_nomask (failed scoring on a rounding-boundary box, fixed in 3cff2dc)."
+}
