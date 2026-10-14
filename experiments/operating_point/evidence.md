@@ -118,3 +118,48 @@ yolo11_vn@1280.
    met at p95.
 4. The other sizes and yolo11_vn@1280 go to Table 4 and to the
    accuracy–latency curve.
+
+## What the ROI pixel mask costs (2026-10-14)
+
+**Setup.** The paper protocol masks pixels outside the ROI before detection,
+then keeps detections whose bottom-centre lies in the ROI. Nghia confirmed this
+choice on 14/10 (option B); it was first set on 12/10 in `docs/PAPER_SCOPE.md`.
+
+The GT keeps a box by its bottom-centre. Many small motorcycles straddle the
+ROI's far boundary: the top-centre of a GT motorcycle under 20 px lies outside
+the polygon in 34% of cases on dense, 58% on freeflow and 44% on mixed. The
+masked detector sees only the lower part of these objects.
+
+**Detector-level recall** of GT motorcycles, at conf ≥ 0.5 (the tracker's
+threshold) and IoU ≥ 0.5, one-to-one per frame. The "yolo11_vn full frame" row
+is the old unmasked cache, which also seeded the GT
+(`experiments/c2_real_vnweights_full/detections_full13726.npz`).
+
+| Dense | < 20 px, cut by the mask (n = 1810) | < 20 px, whole (n = 3520) | ≥ 20 px (n = 13883) |
+|---|---:|---:|---:|
+| yolo11_vn full frame | 0.76 | 0.65 | 0.93 |
+| yolo11_vn@1280 masked | 0.20 | 0.37 | 0.90 |
+| best.pt@1280 masked | 0.16 | 0.31 | 0.87 |
+| best.pt@960 masked | 0.02 | 0.17 | 0.82 |
+| best.pt@640 masked | 0.00 | 0.03 | 0.71 |
+
+For objects the mask cuts, freeflow and mixed show the same drop. yolo11_vn
+goes from 0.88 to 0.34 (freeflow) and from 0.90 to 0.27 (mixed). best.pt@1280
+masked reaches 0.24 and 0.23.
+
+**Findings.**
+
+- **These are real misses, not geometry.** Lowering the IoU threshold from 0.5
+  to 0.1 barely changes masked recall at conf ≥ 0.5: on dense, under 20 px, it
+  goes from 0.31 to 0.33 (`det_geometry_check.py`).
+- **The detectors are about equal under one protocol.** At 1280, yolo11_vn and
+  best.pt reach dense C2 IDF1 0.758 and 0.764. Their tracker-level miss rates
+  under 20 px are 0.73 and 0.68. The earlier 0.10 for yolo11_vn came from the
+  unmasked full-frame row.
+- **Within the masked protocol, input size is the large effect** for best.pt.
+- **The mask buys no runtime.** The detector still infers on the whole frame.
+
+The tracking-level cost of the mask is measured by the no-mask ablation runs,
+`best85_roi_nomask2` and `yolo11vn_roi_nomask2` (worktree branch
+`exp/roi-filter-only`, flag `--no-roi-pixel-mask`). Scripts:
+`det_cut_split.py` and `det_geometry_check.py`.
