@@ -1,0 +1,63 @@
+# C2's motion model inside OC-SORT (pre-registered 2026-10-14, before any metric)
+
+**Question.** Does C2's class-conditioned motion model improve the strongest
+baseline? The test is OC-SORT at matched thresholds (`ocsort_matched`: 0.5
+plus a BYTE second stage).
+
+**Arms.**
+
+- `ocsort_matched_ctrv`: motorcycle tracks use C2's CTRV EKF with NSA, with
+  the same settings as the `ctrv_gate_nsa` arm. Every other class keeps
+  OC-SORT's linear Kalman filter.
+- `ocsort_matched`: unchanged.
+
+The two arms run on identical cached detections, with the masked protocol
+(Nghia's option B). Code: `code/tracker/ocsort_ctrv.py`, branch
+`exp/ocsort-ctrv`, commit 2d50fae, fixed before any metric was computed.
+
+**Deviations from a plain filter swap**, stated so they are not tuning knobs:
+
+1. C2's covariance gating is part of ByteTrack's lost-track matching and is
+   not carried over. The arm is C2's motion model (CTRV + NSA) only.
+2. Observation-centric re-update (ORU) is reproduced as upstream does it.
+   - The filter state is saved at the first missed frame.
+   - On re-observation it is restored and re-updated along a linear virtual
+     trajectory.
+   - The re-observed box is then applied again, a double application that
+     upstream's linear filter performs too.
+3. NSA and the virtual observations of the re-update:
+   - The virtual observations have no detector score, so they use the plain
+     measurement noise R.
+   - Only real detections, including the re-observed one, scale R by their
+     score.
+4. OC-SORT's association (OCM, OCR, BYTE) and all of its parameters are
+   unchanged.
+
+**Sanity checks before the run, without metrics.** On the final 640 masked
+cache:
+
+- `ocsort_matched` under the new code reproduces the final dump byte for byte.
+- The new arm runs all 11,300 frames with finite boxes and no ROI-rounding
+  violation.
+
+**Reading, fixed in advance.**
+
+- **Primary: mixed.** That GT was seeded by the baseline tracker, so it is
+  neutral between the two arms. The statistic is the seed-corrected motorcycle
+  IDF1 difference `ocsort_matched_ctrv − ocsort_matched` (`seed_bracket`
+  mid value, bracket [s_lo, s_hi]) at every input size, with the size of
+  Table 2 named first. The verdict is:
+  - **helps** if the whole bracket is above 0;
+  - **hurts** if it is entirely below 0;
+  - **no clear effect** otherwise.
+- **Secondary:** dense motorcycle IDSW and the dense and freeflow IDF1
+  differences, reported as ranges.
+  - Those GTs were seeded by C2's own output, and the new arm shares C2's
+    motion model. Its boxes and identities may therefore be partly seed-like,
+    which would inflate it against `ocsort_matched` in the hoped-for
+    direction. The bracket treats both arms as non-seed and cannot remove
+    this.
+  - Diagnostic: each arm's exact-box share against the dense GT (from
+    `metrics.json`, `exact_box_share`), reported beside the difference.
+- **No parameter of either arm is changed after the results exist.** A
+  negative or null result is reported as measured.
