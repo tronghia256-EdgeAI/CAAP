@@ -878,13 +878,17 @@ same range, and the loss at small input sizes is in misses (12,263 at 448~px
 against 5,364 at 1,280~px) rather than false positives. Under the same protocol
 the reference detector at 1,280~px performs like the real-time detector at that
 size (dense IDF1 0.758, 74\% of the small motorcycles missed), so the choice of
-detector matters little for small objects here. Much of their cost comes from
-the region-of-interest mask. A ground-truth box belongs to the region by its
-bottom centre, but 34, 44 and 58\% of the motorcycles under 20~px on dense,
-mixed and freeflow straddle the region's far boundary, and the masked detector
-sees only their lower part: on dense the reference detector at 1,280~px finds
-20\% of these cut motorcycles with the mask against 76\% without it, while
-motorcycles of 20~px and taller barely change (90 against 93\%). The unmasked
+detector matters little for small objects here. At the real-time sizes input
+size dominates: at 640~px the detector finds 3.5\% of the small dense
+motorcycles that the region-of-interest mask leaves whole. The mask adds a
+second loss that appears as resolution recovers recall. A ground-truth box
+belongs to the region by its bottom centre, but 34, 44 and 58\% of the
+motorcycles under 20~px on dense, mixed and freeflow straddle the region's far
+boundary, and the masked detector sees only their lower part: on dense at
+1,280~px the real-time detector finds 16\% of these cut motorcycles against
+about 30\% of the whole ones, and the reference detector 20\% of the cut ones
+with the mask against 76\% without it, while motorcycles of 20~px and taller
+barely change (90 against 93\%). The unmasked
 detections are the ones that seeded the ground truth, which favours them, and
 the mask buys no runtime, because the detector still processes the whole frame.
 \todo{Add the no-mask ablation (best85\_roi\_nomask2 at four sizes,
