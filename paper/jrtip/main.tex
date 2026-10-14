@@ -740,7 +740,13 @@ and 95) at an IDF1 within 0.01 of C2's. At 960 and 1,280~px the raw dense
 ranking turns in C2's favour; Sect.~\ref{subsec:seedbias} traces this mostly to
 seed bias. BoT-SORT with matched thresholds comes close to C2's IDF1 but
 switches identities 2.7 to 4.3 times as often on dense. With their published
-MOT17 thresholds both trail ByteTrack at the real-time input sizes.
+MOT17 thresholds both trail ByteTrack at the real-time input sizes. Placing
+C2's motion model inside OC-SORT (CTRV with NSA for motorcycles, association
+unchanged, design fixed before the run) has no clear effect: on mixed the
+pre-registered criterion, a seed-corrected bracket and a block-bootstrap
+interval of one sign, is met at no input size, and on dense the combination
+switches identities more often than OC-SORT at every size (104 against 79 at
+640~px).
 
 \subsection{Seed bias in pre-labelled ground truth}\label{subsec:seedbias}
 
@@ -893,17 +899,18 @@ with the mask against 76\% without it, while motorcycles of 20~px and taller
 barely change (90 against 93\%). The unmasked
 detections are the ones that seeded the ground truth, which favours them, and
 the mask buys no runtime, because the detector still processes the whole frame.
-\todo{Add the no-mask ablation (best85\_roi\_nomask2 at four sizes,
-yolo11vn\_roi\_nomask2); for best.pt it compares masked and unmasked detections
-that did not seed the ground truth.}
+Rerunning the real-time detector without the mask, all else equal, measures
+the mask's net effect on tracking: C2's IDF1 rises on freeflow at every input
+size (by 0.06 to 0.18), where most small motorcycles are cut, changes by at most
+0.02 on dense and mixed above 448~px, and falls on dense at 960 and 1,280~px
+(by 0.007 and 0.022, with more misses). \todo{Explain the dense loss without
+the mask at 960 and 1,280~px.}
 
 \subsection{Measured latency}\label{subsec:latency}
 
 \todo{End-to-end latency (decoding, masking, detection, tracking, scoring) of
 ByteTrack, C2 and the C1 arm at 448, 640, 960 and 1,280~px under a verified
 performance state, and the accuracy--latency curve.}
-Under our earlier protocol, C2 added about 0.85~ms per frame to the tracker
-($+22\%$ at about 47 tracks per frame), and the detector took 91\% of a frame.
 A detection head cost 58.2~ms against 130.7~ms for a segmentation head of the
 same scale at 640~px ($2.25\times$; COCO-pretrained YOLO11n), which is why the
 paper run uses one; exporting either network to OpenVINO (FP32, FP16) or ONNX
@@ -940,8 +947,7 @@ had rewarded gap bridging, and the audited switches were real.
 \subsection{Proxy metrics can be optimized into wrong merges}\label{subsec:proxy}
 
 Before ground truth existed, development used proxy metrics on frames
-0--8,999. Widening the gate improved every proxy monotonically
-(re-identification events 125 to 68, mean lifetime 72 to 105 frames), while a
+0--8,999. Widening the gate improved every proxy monotonically, while a
 teleport check stayed flat, because a wrong re-association is smooth: track A
 continues on motorcycle B. The share of bridged gaps whose heading reverses by
 more than $90^\circ$ nearly doubled (23.7\% to 44.4\%), revealing wrong merges, and
