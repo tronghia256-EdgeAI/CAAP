@@ -677,21 +677,19 @@ differences of position.
 
 \subsection{Tracking on the annotated segments}\label{subsec:ablation}
 
-\todo{Every number in Sects.~\ref{sec:results} and~\ref{sec:realtime} comes
-from the preliminary run v5. Replace it with the final runs: best.pt at 448, 640,
-960 and 1,280~px and the reference at 1,280~px under one protocol, with C1's
-pre-registered thresholds applied inside each run. Latency follows on 14/10.}
+\todo{Table~\ref{tab:ablation} is shown at 640~px until the pre-registered
+latency rule (ce8f3d5: the largest input size whose slowest arm meets 40~ms at
+the 95th percentile) fixes its size; regenerate it then.}
 
-%% Source: data/processed/paper_runs/best85_roi_20261013_v5/640/metrics.json
-%% (protocol 97f8e667); rows generated from the file; C3 checked inert.
+%% Source: experiments/paper_final/best85_roi_final/640/metrics.json (final
+%% masked run, commit 35d85b1); rows generated from the file; C3 checked inert.
 \begin{table*}[t]
 \caption{Motorcycle tracking on the three segments at 640~px input (best.pt,
 region of interest, reconciled ground truth with 19,213, 7,268 and 2,294
-motorcycle boxes). All rows consume identical detections. Exp3 equals Exp2
-because C3 filters nothing, and C1 stayed in its default row, i.e.\ ByteTrack
-at a 0.45 threshold with the linear model (Sect.~\ref{subsec:c1-results}). Matched: ByteTrack's detection-score
-thresholds, with OC-SORT's single threshold at 0.5 or 0.6. $\mathrm{H}_{0.5}$:
-HOTA at $\alpha=0.5$. Not corrected for seed bias (Table~\ref{tab:seedbias}).
+motorcycle boxes). All rows consume identical detections, and Exp3 equals Exp2
+because C3 filters nothing. Matched: ByteTrack's detection-score thresholds,
+with OC-SORT's single threshold at 0.5 or 0.6. $\mathrm{H}_{0.5}$: HOTA at
+$\alpha=0.5$. Not corrected for seed bias (Table~\ref{tab:seedbias}).
 \textbf{Bold}: best per column.}
 \label{tab:ablation}
 \footnotesize
@@ -707,10 +705,10 @@ Exp0: ByteTrack (baseline)   & 0.406 & 0.590 & 0.504 & 154 & 0.566 & 0.726 & 0.6
 \quad + CTRV, NSA            & 0.422 & 0.600 & 0.511 & 96 & 0.573 & 0.726 & 0.626 & 9 & 0.533 & 0.698 & 0.574 & \textbf{1} \\
 \quad + CTRV, gate           & 0.418 & 0.600 & 0.509 & 115 & 0.566 & 0.725 & 0.623 & 8 & 0.530 & 0.697 & 0.572 & \textbf{1} \\
 Exp1: C2 (CTRV, gate, NSA)   & 0.422 & 0.602 & 0.512 & 95 & 0.573 & 0.729 & 0.628 & 8 & 0.533 & 0.698 & 0.574 & \textbf{1} \\
-Exp2/3: C1 default row       & \textbf{0.427} & 0.610 & 0.526 & 159 & 0.604 & 0.748 & \textbf{0.658} & 13 & 0.563 & 0.723 & 0.603 & 2 \\
+Exp2/3: C1, C2 (+ C3)        & 0.420 & 0.599 & 0.511 & 139 & 0.587 & 0.736 & 0.639 & 9 & 0.563 & 0.723 & 0.603 & 2 \\
 \midrule
 OC-SORT, published           & 0.318 & 0.491 & 0.409 & \textbf{34} & 0.453 & 0.619 & 0.515 & 6 & 0.457 & 0.624 & 0.497 & 2 \\
-OC-SORT, matched 0.5         & 0.426 & \textbf{0.626} & \textbf{0.537} & 79 & \textbf{0.609} & \textbf{0.757} & 0.657 & 11 & \textbf{0.568} & \textbf{0.726} & \textbf{0.606} & 2 \\
+OC-SORT, matched 0.5         & \textbf{0.426} & \textbf{0.626} & \textbf{0.537} & 79 & \textbf{0.609} & \textbf{0.757} & \textbf{0.657} & 11 & \textbf{0.568} & \textbf{0.726} & \textbf{0.606} & 2 \\
 OC-SORT, matched 0.6         & 0.409 & 0.603 & 0.503 & 51 & 0.554 & 0.719 & 0.607 & \textbf{4} & 0.511 & 0.678 & 0.553 & \textbf{1} \\
 BoT-SORT, published          & 0.324 & 0.516 & 0.437 & 161 & 0.458 & 0.642 & 0.544 & 29 & 0.432 & 0.598 & 0.479 & 15 \\
 BoT-SORT, matched            & 0.409 & 0.597 & 0.516 & 266 & 0.555 & 0.721 & 0.630 & 32 & 0.531 & 0.697 & 0.578 & 15 \\
@@ -718,27 +716,28 @@ BoT-SORT, matched            & 0.409 & 0.597 & 0.516 & 266 & 0.555 & 0.721 & 0.6
 \end{tabular*}
 \end{table*}
 
-Table~\ref{tab:ablation} reports the motorcycle results at 640~px. At 448~px
-every configuration loses a further 0.08--0.22 IDF1
-(Sect.~\ref{subsec:operating}), and the order of baseline, C2, C1's default row
-and OC-SORT is unchanged. C2 reduces identity switches against ByteTrack on dense,
-the one segment with enough of them to test, from 154 to 95 ($-38\%$; at
-448~px from 141 to 62, $-56\%$); mixed and freeflow have at most 13 switches
-for any ByteTrack configuration. The reduction comes from the CTRV motion model
-alone (97 switches): the gate on its own adds 18 (115), and NSA only cancels
-that cost (95), so the super-additivity of gate and NSA that we observed under
-our earlier protocol does not reproduce. C2's IDF1 gain over ByteTrack is small,
-about $+0.01$ on dense and less on mixed and freeflow; paired moving-block
-bootstrap intervals over 30-frame blocks~\cite{Kunsch1989_bootstrap} (10,000
-replicates) are $[0.007, 0.020]$, $[-0.002, 0.007]$ and $[0.001, 0.012]$,
-conditional on the ground truth.
+C2 reduces identity switches against ByteTrack on dense, the one segment with
+enough of them to test, at every input size: by 56, 38, 29 and 27\% at 448,
+640, 960 and 1,280~px (141 to 62, 154 to 95, 114 to 81 and 141 to 103). The
+CTRV motion model accounts for most of this: CTRV alone gives 55, 97, 76 and
+111 switches, the gate on its own adds 12 to 18 at every size, and NSA offsets
+that cost, so the super-additivity of gate and NSA that we observed under our
+earlier protocol does not reproduce. C2's IDF1 gain over ByteTrack is small; at
+640~px the paired moving-block bootstrap intervals~\cite{Kunsch1989_bootstrap}
+over 30-frame blocks (10,000 replicates) are $[0.007, 0.020]$,
+$[-0.002, 0.007]$ and $[0.001, 0.012]$ on dense, mixed and freeflow,
+conditional on the ground truth (seed-corrected values in
+Sect.~\ref{subsec:seedbias}).
 
-OC-SORT with matched thresholds is the stronger tracker. With its threshold at
-0.5 it has the highest IDF1 on every segment (0.626, 0.757 and 0.726 against
-C2's 0.602, 0.729 and 0.698); at 0.6 it makes fewer switches than C2 on dense
-(51 against 95) at C2's IDF1. BoT-SORT with matched thresholds comes close to
-C2's IDF1 but switches identities almost three times as often on dense (266).
-With their published MOT17 thresholds both trail ByteTrack.
+At real-time input sizes, OC-SORT with matched thresholds is the stronger
+tracker. With its threshold at 0.5 it has the highest IDF1 on every segment at
+448 and 640~px (0.626, 0.757 and 0.726 at 640~px, against C2's 0.602, 0.729
+and 0.698); at 0.6 it makes fewer dense switches than C2 (17 and 51 against 62
+and 95) at an IDF1 within 0.01 of C2's. At 960 and 1,280~px the raw dense
+ranking turns in C2's favour; Sect.~\ref{subsec:seedbias} traces this mostly to
+seed bias. BoT-SORT with matched thresholds comes close to C2's IDF1 but
+switches identities 2.7 to 4.3 times as often on dense. With their published
+MOT17 thresholds both trail ByteTrack at the real-time input sizes.
 
 \subsection{Seed bias in pre-labelled ground truth}\label{subsec:seedbias}
 
@@ -760,28 +759,32 @@ mixed alike, whereas 9 of 10 of its sampled identity switches were real.
 Membership is biased; identity switches are not.
 
 %% Sources: experiments/seed_bias/audit_shares.json and
-%% bracket_best85_roi_20261013_v5_{640,448}.json.
+%% bracket_best85_roi_final_{448,640,960,1280}.json.
 \begin{table}[t]
 \caption{Seed bias. Top: blind audit of runs in which the tracker that did not
 seed the ground truth (dense: ByteTrack; mixed: C2) disagrees with it; share in
 which the ground truth is wrong, with Wilson 95\% interval. Bottom: motorcycle
-IDF1 gaps corrected for the remaining membership bias, 640 / 448~px.}
+IDF1 gaps corrected for the remaining membership bias, per input size (D, M,
+F: dense, mixed, freeflow).}
 \label{tab:seedbias}
 \scriptsize
 \setlength{\tabcolsep}{2.5pt}
-\begin{tabular}{@{}lccc@{}}
+\begin{tabular}{@{}lcccccc@{}}
 \toprule
-Audited runs & Dense & Mixed & \\
+Audited runs & \multicolumn{3}{c}{Dense} & \multicolumn{3}{c}{Mixed} \\
 \midrule
-Extra, not in GT & 8/10 [.49,.94] & 8/10 [.49,.94] & \\
-Missed, in GT & 2/10 [.06,.51] & 1/10 [.02,.40] & \\
-ID switches & 1/10 [.02,.40] & 1/10 [.02,.40] & \\
+Extra, not in GT & \multicolumn{3}{c}{8/10 [.49,.94]} & \multicolumn{3}{c}{8/10 [.49,.94]} \\
+Missed, in GT & \multicolumn{3}{c}{2/10 [.06,.51]} & \multicolumn{3}{c}{1/10 [.02,.40]} \\
+ID switches & \multicolumn{3}{c}{1/10 [.02,.40]} & \multicolumn{3}{c}{1/10 [.02,.40]} \\
 \midrule
-Corrected gap & Dense & Mixed & Freeflow \\
+ & \multicolumn{3}{c}{C2$-$ByteTrack} & \multicolumn{3}{c}{OC-SORT 0.5$-$C2} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-7}
+Input size & D & M & F & D & M & F \\
 \midrule
-C2$-$ByteTrack & $+.002$/$+.012$ & $+.011$/$+.020$ & $+.004$/$+.018$ \\
-Default row$-$C2 & $+.025$/$+.035$ & $+.029$/$+.022$ & $+.027$/$+.023$ \\
-OC-SORT$-$C2 & $+.062$/$+.071$ & $+.033$/$+.071$ & $+.032$/$+.055$ \\
+448~px & $+.012$ & $+.020$ & $+.017$ & $+.071$ & $+.071$ & $+.055$ \\
+640~px & $+.001$ & $+.011$ & $+.004$ & $+.062$ & $+.032$ & $+.032$ \\
+960~px & $-.001$ & $+.019$ & $+.003$ & $+.030$ & $+.006$ & $+.020$ \\
+1,280~px & $+.026$ & $+.013$ & $+.043$ & $+.007$ & $+.014$ & $-.008$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -791,34 +794,35 @@ the same ground truth extended by the unmatched boxes of the trackers that did
 not seed it (upper bound), and interpolate with the audit's share of real
 vehicles (0.80, and 0.56 for freeflow, whose strata were sampled completely).
 The audit sampled tracks built on the earlier detector, so applying its shares
-to the paper run assumes that they transfer across detectors.
-After correction, C2's gain over ByteTrack is $+0.002$ to $+0.020$, while
-OC-SORT's lead over C2 grows (Table~\ref{tab:seedbias}).
+to the paper run assumes that they transfer across detectors. After correction
+(Table~\ref{tab:seedbias}), C2's gain over ByteTrack lies between $-0.001$ and
+$+0.026$ on dense and mixed at every input size and reaches $+0.043$ on
+freeflow at 1,280~px. OC-SORT's lead over C2 shrinks with input size and
+disappears at 1,280~px, where the two tie on dense and C2 leads slightly on
+freeflow. On mixed, whose seed favours neither of them, OC-SORT leads at all
+four sizes, so the raw dense reversal at 960 and 1,280~px is mostly seed bias.
 
 \subsection{Context adaptation (C1)}\label{subsec:c1-results}
 
-C1 never left its default row in the paper run. The smoothed track count that
-selects \textsc{dense-peak} stayed below its threshold of 30 in every frame of
-every segment (at most 29 on dense at 640~px): the threshold was set for
-full-frame track counts under our earlier protocol, and the region of interest
-and the new detector roughly halve them. The C1 arm therefore ran ByteTrack with
-the default row's confirmation threshold of 0.45 instead of 0.50 and with the
-linear motion model for motorcycles. Its effect is that of the lower threshold:
-after correction, IDF1 rises by $+0.022$ to $+0.035$ over C2
-(Table~\ref{tab:seedbias}) through recall (dense misses 9,870 to 9,309), at the
-cost of false positives (1,148 to 1,533) and of the switch reduction that the
-CTRV model provided (95 to 159). These rows therefore measure a fixed
-threshold, not adaptation, and C1's premise, that changing the operating point
-with the traffic regime helps, remains untested by them. We recalibrate the
-switching threshold by a rule fixed before scoring, on frames outside the
-annotated segments only: the 75th percentile of the arm's own smoothed track
-count (18 at 640~px, 14 at 448~px). \todo{C1 re-run with the recalibrated
-thresholds and its logged regime per frame.}
+With its pre-registered thresholds (14, 18, 21 and 23 tracks at 448 to
+1,280~px) C1 switches as intended: it holds \textsc{dense-peak} in 80--90\% of
+dense frames, in 28--35\% of mixed frames and never in freeflow. It does not
+improve tracking. After correction its IDF1 differs from C2's by $-0.003$ to
+$-0.002$ on dense and by $+0.001$ to $+0.010$ on mixed, and it adds dense
+switches at every size (62 to 100, 95 to 139, 81 to 101 and 103 to 111).
+Tracks created during the \textsc{default} stretch that opens the dense segment
+(63 to 119 frames, while the smoothed density is still below $\rho^{*}$ and the
+hysteresis holds) keep the linear model for life; they carry 14--20\% of the
+motorcycle track-frames but take part in 35--44\% of C1's switches at 448 to
+960~px (12\% at 1,280~px), so the lifetime rule explains most of C1's switch
+cost. On freeflow C1 never leaves \textsc{default}, so its difference there
+($+0.019$ to $+0.027$ at 448 to 960~px, $-0.048$ at 1,280~px) is the effect of
+that row's 0.45 threshold and linear model, not of adaptation.
 
 \subsection{Track reliability (C3)}\label{subsec:c3-results}
 
-At $\tau_{\mathrm{obs}}=0.40$ C3 filters nothing on any segment at either input
-size, so Exp3 equals Exp2 frame by frame. The asymmetry that motivates C3
+At $\tau_{\mathrm{obs}}=0.40$ C3 filters nothing on any segment, input size or
+detector, so Exp3 equals Exp2 frame by frame. The asymmetry that motivates C3
 belongs to the accident branch, which needs accident footage with event-level
 labels to test.
 
