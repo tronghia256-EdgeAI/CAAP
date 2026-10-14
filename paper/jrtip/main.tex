@@ -176,9 +176,9 @@ a region of interest, and identical cached detections at real-time input
 sizes. C2 reduces identity switches in dense traffic by 38--56\% against
 ByteTrack, entirely through its CTRV model, while its IDF1 gain stays below
 0.02 after correcting for seed bias; OC-SORT~\cite{Cao2023_ocsort} with matched
-thresholds is stronger on both counts. C3 filters nothing at its threshold,
-and C1, recalibrated, switches regimes as intended without improving tracking.
-We report these results as measured.
+thresholds is stronger on both counts, and C2's motion model does not improve
+it. C3 filters nothing at its threshold, and C1, recalibrated, switches regimes
+as intended without improving tracking.
 
 %% =====================================================================
 \section{Related work}\label{sec:related}
@@ -974,21 +974,21 @@ performance state verified.
 \section{Conclusion}\label{sec:conclusion}
 %% =====================================================================
 
-We presented and evaluated a context-aware perception pipeline for
+We evaluated a context-aware perception pipeline for
 motorcycle-dominant mixed traffic on one camera. Its CTRV motion model reduces
 motorcycle identity switches in dense traffic against ByteTrack on identical
 detections, by 38--56\% at real-time input sizes and 27--29\% at
 960--1,280~px; the seed-corrected IDF1 gain stays below 0.02 at real-time sizes
-and reaches 0.043 at 1,280~px. Gating alone does not help, and OC-SORT with
-matched thresholds leads in seed-corrected IDF1 up to 960~px but not at
-1,280~px. C3 filters nothing at its threshold, and C1, recalibrated, switches
+and reaches 0.043 at 1,280~px. Gating alone does not help, nor does C2's
+motion model inside OC-SORT; OC-SORT with matched thresholds leads in
+seed-corrected IDF1 up to 960~px but not at 1,280~px. C3 filters nothing at its threshold, and C1, recalibrated, switches
 regimes as intended without improving tracking. Two lessons reach beyond this pipeline: ground truth
 pre-labelled from one tracker favours it through the boxes it contains, which
 union pre-labels or a blind audit of disagreements correct; and on a commodity
 CPU the real-time input size and the region-of-interest mask bound accuracy
 through small objects. \todo{Latency and the accuracy--latency curve.} Future work covers an
 independent camera annotated from union pre-labels, accident footage for C3's
-precision branch, C2's motion model inside OC-SORT, and an
+precision branch, and an
 interacting-multiple-model filter~\cite{Blom1988_imm} combining CTRV with a
 constant-velocity model.
 
