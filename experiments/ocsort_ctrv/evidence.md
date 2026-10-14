@@ -101,3 +101,36 @@ and all 12 earlier arms equal `yolo11vn_roi_final2` exactly. Records:
 
 The best.pt sizes follow when `best85_roi_ocsortctrv` completes. Table 2's size
 is not fixed yet: the night benchmark of 14/10 stopped on a throttled CPU.
+
+## Result: best.pt at 448/640/960/1280 (2026-10-15, read as fixed above)
+
+Run `best85_roi_ocsortctrv` (2d50fae, masked). At every size its detections,
+C1 threshold and all 12 earlier arms equal `best85_roi_final` exactly.
+
+Primary, mixed: `ocsort_matched_ctrv − ocsort_matched`, motorcycle IDF1.
+Table 2's size is not fixed yet, so sizes are listed in order.
+
+| Size | Seed-corrected [bracket] | Raw diff | Block bootstrap 95% | Verdict |
+|---|---|---|---|---|
+| 448 | +0.0065 [+0.0034, +0.0079] | −0.0015 | [−0.0061, +0.0012] | no clear effect |
+| 640 | +0.0018 [−0.0017, +0.0034] | −0.0072 | [−0.0135, −0.0014] | no clear effect |
+| 960 | −0.0012 [−0.0040, +0.00003] | −0.0084 | [−0.0095, −0.0030] | no clear effect |
+| 1280 | +0.0013 [+0.0011, +0.0014] | +0.0008 | [−0.0076, +0.0070] | no clear effect |
+
+- At 960, "hurts" is missed only by the bracket's upper end, which is
+  +0.00003. The bootstrap interval is entirely below 0.
+- At 640, the two intervals point in opposite directions.
+
+Secondary, seed-corrected (dense and freeflow GT were seeded by C2; see above):
+
+- **Dense IDF1:** −0.0026, +0.0031, −0.0043, −0.0054.
+- **Dense IDSW, new arm vs `ocsort_matched`:** 88 vs 39, 104 vs 79, 108 vs 106,
+  and 158 vs 121. The new arm switches more at every size, as it does with
+  yolo11_vn (155 vs 138).
+- **Freeflow IDF1:** +0.0087, +0.0063, +0.0076, −0.0012.
+- **Exact-box share against the dense GT:** 0 for both arms at every size.
+
+**Overall:** C2's motion model inside OC-SORT gives no clear effect on mixed
+for either detector at any size. On dense it adds identity switches
+everywhere. The motorcycle motion model does not carry over to the strongest
+baseline.
