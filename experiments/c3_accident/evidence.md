@@ -61,3 +61,31 @@ that feeds incident alerting.
   estimate.
 - No threshold or weight of C3 or C1 is changed after the results exist.
   Whatever happens is reported.
+
+## Amendment (2026-10-14 15:21, before any clip has run)
+
+Small false-alert counts need explicit handling.
+
+1. **Counts and rates.** False-alert episodes are reported as counts per
+   camera and in total, raw and with C3. Each rate per hour carries an exact
+   Poisson 95% interval (chi-square bounds).
+2. **Verdict.**
+   - "C3 helps" requires both of the following:
+     - C3 removes at least one visually confirmed false episode;
+     - C3 still alerts on the accident.
+   - If the raw pipeline has 0–2 false episodes in total, the counts are
+     reported and the false-alert comparison is called inconclusive.
+3. **Accident clip, raw and C3 side by side:**
+   - whether each alerts;
+   - the first alerting frame;
+   - the latency from frame 55;
+   - the duration of the episode that covers the accident.
+
+   C3's cost in delay is therefore visible even when both alert.
+4. **Blind visual check.**
+   - Only raw episodes are reviewed. C3's alerting frames are a subset of the
+     raw ones, so C3's episodes inherit those verdicts.
+   - Review sheets carry neutral random ids and no variant label.
+   - The verdicts (accident / false / unclear) are written before C3's
+     episodes are computed: `--review`, then the verdict file, then
+     `--analyze`, which refuses to run until every raw episode has a verdict.
