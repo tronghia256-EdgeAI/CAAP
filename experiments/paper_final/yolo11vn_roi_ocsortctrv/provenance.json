@@ -1,0 +1,39 @@
+{
+ "run": "data\\processed\\paper_runs\\yolo11vn_roi_ocsortctrv",
+ "protocol_sha256": "005dd18a9f4856a6ee443cd1a06840406643386d7b820448f5c7756eda233542",
+ "commit": "2d50fae",
+ "branch": "exp/ocsort-ctrv",
+ "cwd": "C:/Users/ASUS/Desktop/CAAP-ocsort (git worktree)",
+ "launched": "2026-10-15 00:34",
+ "launcher": {
+  "output": "C:/Users/ASUS/Desktop/CAAP/data/processed/paper_runs/yolo11vn_roi_ocsortctrv",
+  "started_local": "2026-10-15 00:34",
+  "cwd": "C:/Users/ASUS/Desktop/CAAP-ocsort (git worktree, branch exp/ocsort-ctrv)",
+  "args": [
+   "--receipt",
+   "C:/Users/ASUS/Desktop/CAAP/data/annotations/paper_gt_reconciliation/reconcile_90026162a7963db7/reconciled_e880ead8.json",
+   "--video",
+   "C:/Users/ASUS/Desktop/CAAP/data/raw/videos/NKKN-VoThiSau 2017-07-18_08_00_00_000.asf",
+   "--trackeval",
+   "C:\\Users\\ASUS\\AppData\\Local\\Temp\\claude\\C--Users-ASUS-Desktop-CAAP\\8fa8b3fb-9769-46f5-b733-6644ef189ed0\\scratchpad\\pydeps",
+   "--weights",
+   "C:/Users/ASUS/Desktop/CAAP/weights/yolo11_vn.pt",
+   "--sizes",
+   "1280",
+   "--out",
+   "C:/Users/ASUS/Desktop/CAAP/data/processed/paper_runs/yolo11vn_roi_ocsortctrv"
+  ],
+  "commands": "run_roi_paper --phase cache, then replay, then score, with args",
+  "commit": "2d50fae",
+  "purpose": "Pre-registered OC-SORT+C2 test (experiments/ocsort_ctrv/evidence.md): new arm ocsort_matched_ctrv, masked protocol (option B); every other arm must reproduce yolo11vn_roi_final2",
+  "launched_by": "Claude Code session caap-cb (night fallback bbc1270f; benchmark stopped: CPU throttled)"
+ },
+ "status": {
+  "status": "COMPLETED",
+  "requested_phase": "score",
+  "protocol_sha256": "005dd18a9f4856a6ee443cd1a06840406643386d7b820448f5c7756eda233542",
+  "size": 1280,
+  "phase": "score"
+ },
+ "note": "Pre-registered OC-SORT+C2 test (experiments/ocsort_ctrv/evidence.md), masked protocol. Detections, C1 threshold and all 12 earlier arms equal yolo11vn_roi_final2 exactly; the only new arm is ocsort_matched_ctrv."
+}

@@ -79,3 +79,25 @@ The bootstrap uses the same deterministic code as the runner:
 `eval_hota_ci.block_table` and `run_roi_paper.paired_ci`, with 30-frame
 blocks, 10,000 replicates and the seed `[20261013, 30]`. The runner computes
 CIs only for its fixed pairs, so this pair is computed post hoc.
+
+## Result: yolo11_vn at 1280 (2026-10-15, read as fixed above)
+
+Run `yolo11vn_roi_ocsortctrv` (2d50fae, masked). Its detections, C1 threshold
+and all 12 earlier arms equal `yolo11vn_roi_final2` exactly. Records:
+`experiments/paper_final/yolo11vn_roi_ocsortctrv/`,
+`experiments/seed_bias/bracket_yolo11vn_roi_ocsortctrv_1280.json` and
+`yolo11vn_roi_ocsortctrv_1280.json` (from `read_ocsort_ctrv.py`).
+
+- **Primary, mixed:** `ocsort_matched_ctrv − ocsort_matched`, motorcycle IDF1.
+  - Seed-corrected: +0.0003, bracket [−0.0022, +0.0014].
+  - Block bootstrap of the uncorrected difference (−0.0062): 95% interval
+    [−0.0094, +0.0008].
+  - Both intervals include 0. **Verdict: no clear effect.**
+- **Secondary:**
+  - Dense IDF1: seed-corrected +0.0042 [+0.0037, +0.0052]. Dense IDSW: 155 vs
+    138, so the new arm has 17 more switches.
+  - Freeflow IDF1: +0.0056 [+0.0034, +0.0076].
+  - The exact-box share against the dense GT is the same for both arms (5e-5).
+
+The best.pt sizes follow when `best85_roi_ocsortctrv` completes. Table 2's size
+is not fixed yet: the night benchmark of 14/10 stopped on a throttled CPU.
