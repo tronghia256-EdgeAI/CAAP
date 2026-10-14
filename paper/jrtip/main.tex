@@ -845,45 +845,52 @@ Each motorcycle track carries about 1~kB of filter state, so 100 tracks occupy
 
 \subsection{The accuracy cost of the operating point}\label{subsec:operating}
 
-%% Source: experiments/operating_point/operating_points.json (de46481).
+%% Sources: experiments/operating_point/operating_points.json (final runs,
+%% 7efcb78) and mask_cut_split.json (det_cut_split.py).
 \begin{table}[t]
-\caption{Accuracy cost of the detector operating point: C2's motorcycle IDF1
-per segment and its miss rate on dense by ground-truth box height.
-$^{*}$Earlier detector with full-frame tracking; its tracks seeded the ground
-truth, which favours it.}
+\caption{Accuracy cost of the operating point under the region-of-interest
+protocol: C2's motorcycle IDF1 per segment and, with the ByteTrack tracker, the
+miss rate on dense by ground-truth box height.}
 \label{tab:operating}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
- & \multicolumn{3}{c}{IDF1} & \multicolumn{3}{c}{Miss rate (dense)} \\
+ & \multicolumn{3}{c}{IDF1 (C2)} & \multicolumn{3}{c}{Miss rate (dense)} \\
 \cmidrule(lr){2-4}\cmidrule(l){5-7}
-Operating point & Dense & Mixed & Free & $<$20 & 20--40 & $\ge$40~px \\
+Detector, input & Dense & Mixed & Free & $<$20 & 20--40 & $\ge$40~px \\
 \midrule
-yolo11\_vn, 1,280~px$^{*}$ & 0.911 & 0.950 & 0.962 & 0.10 & 0.03 & 0.03 \\
-best.pt, 640~px & 0.602 & 0.729 & 0.698 & 0.99 & 0.47 & 0.12 \\
-best.pt, 448~px & 0.499 & 0.574 & 0.536 & 1.00 & 0.71 & 0.20 \\
+best.pt, 448~px & 0.499 & 0.574 & 0.536 & 1.00 & 0.71 & 0.22 \\
+best.pt, 640~px & 0.602 & 0.729 & 0.698 & 0.99 & 0.48 & 0.14 \\
+best.pt, 960~px & 0.698 & 0.812 & 0.774 & 0.94 & 0.24 & 0.12 \\
+best.pt, 1,280~px & 0.764 & 0.859 & 0.833 & 0.81 & 0.14 & 0.13 \\
+Reference, 1,280~px & 0.758 & 0.877 & 0.818 & 0.74 & 0.11 & 0.10 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\todo{Confounded, rewrite after the masking ablation and Nghia's protocol
-decision: the best.pt rows mask pixels outside the region before detection, the
-1,280~px row does not. Under the same masked protocol the reference detector
-loses small motorcycles too (C2 dense IDF1 0.758), because the mask truncates
-small motorcycles that straddle the region's far boundary.}
-The real-time operating points lose small motorcycles
-(Table~\ref{tab:operating}). At 640~px the detector misses 99\% of the
-motorcycles under 20~px tall and 47\% of those between 20 and 40~px, against
-10\% and 3\% at 1,280~px, while motorcycles of 40~px and taller are tracked
-almost as well. Because 69--76\% of the annotated motorcycles are under 40~px,
-C2's IDF1 on dense falls from 0.911 to 0.602 at 640~px and 0.499 at 448~px, and
-the loss is driven by misses (9,870 and 12,263 against 883 at 1,280~px) rather
-than false positives. The input is 800~px wide, so 640~px downscales it where
-1,280~px upscaled it. The 1,280~px row differs in detector and tracking scope,
-and its tracks seeded the ground truth; \todo{best.pt at 960 and 1,280~px
-separates input size from detector.} The order of the trackers is the same at
-every operating point.
+Input size buys small-object recall (Table~\ref{tab:operating}). With the
+ByteTrack tracker the real-time detector misses 100, 99, 94 and 81\% of the
+dense motorcycles under 20~px at 448, 640, 960 and 1,280~px, and 71, 48, 24
+and 14\% of those between 20 and 40~px, whereas motorcycles of 40~px and taller
+are missed at 12--22\% throughout. Because 69--76\% of the annotated
+motorcycles are under 40~px, C2's dense IDF1 rises from 0.499 to 0.764 over the
+same range, and the loss at small input sizes is in misses (12,263 at 448~px
+against 5,364 at 1,280~px) rather than false positives. Under the same protocol
+the reference detector at 1,280~px performs like the real-time detector at that
+size (dense IDF1 0.758, 74\% of the small motorcycles missed), so the choice of
+detector matters little for small objects here. Much of their cost comes from
+the region-of-interest mask. A ground-truth box belongs to the region by its
+bottom centre, but 34, 44 and 58\% of the motorcycles under 20~px on dense,
+mixed and freeflow straddle the region's far boundary, and the masked detector
+sees only their lower part: on dense the reference detector at 1,280~px finds
+20\% of these cut motorcycles with the mask against 76\% without it, while
+motorcycles of 20~px and taller barely change (90 against 93\%). The unmasked
+detections are the ones that seeded the ground truth, which favours them, and
+the mask buys no runtime, because the detector still processes the whole frame.
+\todo{Add the no-mask ablation (best85\_roi\_nomask2 at four sizes,
+yolo11vn\_roi\_nomask2); for best.pt it compares masked and unmasked detections
+that did not seed the ground truth.}
 
 \subsection{Measured latency}\label{subsec:latency}
 
