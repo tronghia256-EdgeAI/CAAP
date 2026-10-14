@@ -61,3 +61,21 @@ cache:
     `metrics.json`, `exact_box_share`), reported beside the difference.
 - **No parameter of either arm is changed after the results exist.** A
   negative or null result is reported as measured.
+
+## Amendment (2026-10-14 14:25, still before any metric)
+
+The bracket spans only the audit share's Wilson range, not frame-sampling
+variability. The verdicts above are therefore tightened.
+
+- **helps** requires both of the following:
+  - the whole seed-corrected mixed bracket is above 0;
+  - the 95% paired moving-block bootstrap interval of the UNcorrected mixed
+    motorcycle IDF1 difference `ocsort_matched_ctrv − ocsort_matched` is
+    above 0.
+- **hurts** requires both intervals entirely below 0.
+- **no clear effect** covers everything else.
+
+The bootstrap uses the same deterministic code as the runner:
+`eval_hota_ci.block_table` and `run_roi_paper.paired_ci`, with 30-frame
+blocks, 10,000 replicates and the seed `[20261013, 30]`. The runner computes
+CIs only for its fixed pairs, so this pair is computed post hoc.
