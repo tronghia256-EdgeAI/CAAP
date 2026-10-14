@@ -1,0 +1,63 @@
+# C3's accident branch: false alerts and one real accident (pre-registered 2026-10-14)
+
+Fixed before the detector or any pipeline has run on the clips below. Nghia
+chose this test on 14/10.
+
+**Question.** Does C3's precision branch keep the real accident while it
+suppresses false accident alerts? The branch is the reliability score ≥ 0.7
+that feeds incident alerting.
+
+**Footage.** All files are in `data/raw/videos/`; none has GT.
+
+- **Normal traffic, 9 clips:**
+  - NKKN-VoThiSau, CongHoa-TruongChinh, CongHoa-UtTich1 (14:15 and 17:15),
+    DuongBaTrac-TaQuangBuu1 and HAMQ1. These are 6 cameras, about 75 min in
+    all. No accident is known in them, so every alert counts as false.
+  - The two `7_20_2017` clips are a camera with 75 frames in best.pt's
+    training export (`experiments/detector_leakage/`). They are reported
+    separately as a seen camera.
+- **`accident_tonghop.mp4`:** 1920×1080, 30 fps, 481 frames. It is one CCTV
+  scene in rain in which a car hits a motorcycle.
+  - Onset is frame 55, the first contact, fixed by eye on frames 30–95 before
+    any detector output existed. The rider is down by frames 70–75.
+  - The accident interval is frames 55–480, through the end of the clip,
+    including the aftermath.
+  - Leakage check: pHash against best.pt's 4,980 training images gives a
+    nearest distance of 12 bits. The 8 nearest images are other scenes on
+    visual check, so the clip is not in best.pt's training data.
+
+**Pipeline.**
+
+- The paper's full pipeline (`c1c2c3`) with best.pt, at the input size that
+  the ce8f3d5 rule selects for Table 2.
+- Detection runs on the full frame (these cameras have no ROI) with the
+  paper's confidence floor of 0.1. The tracker frame rate is each clip's own,
+  and the hour comes from each file name; all are inside the peak hours.
+- C1's density threshold is the NKKN value for that size, applied unchanged.
+  Nothing is recalibrated on these clips.
+
+**Alerts.**
+
+- Raw (without C3): a frame alerts if the pipeline's confirmed tracks before
+  C3 include a track of class Accident.
+- With C3: the same, using C3's accident output (reliability ≥ 0.7).
+- An alert episode is a maximal run of alerting frames; gaps shorter than 1 s
+  are merged.
+
+**Metrics.**
+
+- Normal clips: false alert episodes per hour, raw vs with C3, per clip and
+  pooled. The seen camera is reported apart.
+  - Every alert episode is checked visually. One showing a real accident would
+    be reclassified and reported as such.
+- Accident clip: whether an episode overlaps frames 55–480, the first alerting
+  frame and the latency from frame 55, raw vs with C3.
+
+**Reading.**
+
+- C3's precision branch helps if it lowers false alert episodes per hour on
+  the normal clips and still alerts on the accident.
+- With one positive event, the accident side is a case study, not a recall
+  estimate.
+- No threshold or weight of C3 or C1 is changed after the results exist.
+  Whatever happens is reported.
