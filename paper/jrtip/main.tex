@@ -903,8 +903,11 @@ Rerunning the real-time detector without the mask, all else equal, measures
 the mask's net effect on tracking: C2's IDF1 rises on freeflow at every input
 size (by 0.06 to 0.18), where most small motorcycles are cut, changes by at most
 0.02 on dense and mixed above 448~px, and falls on dense at 960 and 1,280~px
-(by 0.007 and 0.022, with more misses). \todo{Explain the dense loss without
-the mask at 960 and 1,280~px.}
+(by 0.007 and 0.022, with more misses). There, without the mask, the detector
+scores interior motorcycles slightly lower (median shift about $-0.015$), and
+680--830 of them fall below the 0.5 first-stage threshold against 220--260 that
+rise above it, so dense misses grow although boundary objects are recovered;
+the cause of the shift is not determined.
 
 \subsection{Measured latency}\label{subsec:latency}
 
@@ -951,8 +954,7 @@ Before ground truth existed, development used proxy metrics on frames
 teleport check stayed flat, because a wrong re-association is smooth: track A
 continues on motorcycle B. The share of bridged gaps whose heading reverses by
 more than $90^\circ$ nearly doubled (23.7\% to 44.4\%), revealing wrong merges, and
-we kept the textbook gate. In the paper run the gate on its own again adds
-identity switches (97 to 115 on dense, Table~\ref{tab:ablation}).
+we kept the textbook gate.
 
 \subsection{Threats to validity}\label{subsec:threats}
 
