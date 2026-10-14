@@ -42,9 +42,10 @@ SEED_LIKE = {"dense": "ctrv_gate_nsa", "freeflow": "ctrv_gate_nsa", "mixed": "ba
 NON_SEED_STRATUM = {"dense": "baseline", "freeflow": "baseline", "mixed": "ctrv_gate_nsa"}
 # c1_ctrv_gate has nsa_noise on in the run's resolved configs, so C1 alone is
 # c1_ctrv_gate - ctrv_gate_nsa; c1c2c3 adds C3 on top of it.
-EXTERNAL = ("ocsort", "ocsort_matched", "ocsort_byte", "botsort", "botsort_matched")
+EXTERNAL = ("ocsort", "ocsort_matched", "ocsort_byte", "botsort", "botsort_matched", "ocsort_matched_ctrv")
 COMPARISONS = ([("ctrv_gate_nsa", "baseline"), ("c1_ctrv_gate", "ctrv_gate_nsa"), ("c1c2c3", "c1c2c3_raw"),
-                ("c1c2c3", "baseline")] + [(e, "ctrv_gate_nsa") for e in EXTERNAL] + [("ocsort_matched", "baseline")])
+                ("c1c2c3", "baseline")] + [(e, "ctrv_gate_nsa") for e in EXTERNAL] + [("ocsort_matched", "baseline"),
+                ("ocsort_matched_ctrv", "ocsort_matched")])
 
 
 def sources_and_shares(seg: str, x: str, y: str, audit: dict) -> dict:

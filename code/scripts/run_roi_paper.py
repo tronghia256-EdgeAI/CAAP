@@ -34,7 +34,7 @@ DEFAULT_RECEIPT = ROOT / 'data/annotations/paper_gt_reconciliation/reconcile_900
 DEFAULT_VIDEO = ROOT / 'data/raw/videos/NKKN-VoThiSau 2017-07-18_08_00_00_000.asf'
 ARMS = ('baseline', 'ctrv', 'ctrv_nsa', 'ctrv_gate', 'ctrv_gate_nsa',
         'c1_ctrv_gate', 'c1c2c3')
-EXTERNAL = ('ocsort', 'ocsort_matched', 'ocsort_byte', 'botsort', 'botsort_matched')
+EXTERNAL = ('ocsort', 'ocsort_matched', 'ocsort_byte', 'botsort', 'botsort_matched', 'ocsort_matched_ctrv')
 SCORED = (*ARMS, *EXTERNAL, 'c1c2c3_raw')
 CLASSES = {'motorcycle': 1, 'car': 0, 'bus': 2, 'truck': 3, 'ALL': None}
 C1_PERCENTILE = 75  # pre-registered, experiments/c1_recalibration
@@ -188,6 +188,9 @@ def prepare(args):
                     start_frame=0, num_frames=end, source_fps=fps, hour_override=8,
                     sizes=args.sizes, variants=list(ARMS), external=list(EXTERNAL),
                     external_params=PARAMS, external_sources=SOURCES,
+                    external_ctrv=dict(arm='ocsort_matched_ctrv', association='ocsort_matched',
+                                       note='C2 CTRV (+NSA) for motorcycles inside OC-SORT; no gating',
+                                       ctrv=c2_ctrv_params()),
                     trackeval_dir=str(trackeval.resolve()) if trackeval else None,
                     confidence=0.1, chunk_frames=200, torch_threads=args.threads,
                     cv2_threads=1, severity_enabled=False, alerts_enabled=False,
@@ -388,12 +391,22 @@ def expire_external(tracker, name, roi):
             setattr(tracker, attr, kept)
 
 
+def c2_ctrv_params():
+    """C2's CTRV settings as the ctrv_gate_nsa arm resolves them."""
+    c = resolved_config('ctrv_gate_nsa', None, None, 640, 25.0)['ctrv']
+    return dict(dt=float(c['dt']), q_diag=[float(v) for v in c['Q_diag']], r_diag=[float(v) for v in c['R_diag']],
+                nsa=bool(c['nsa_noise']), scale_adaptive=bool(c['scale_adaptive']))
+
+
 def external_tracker(name, fps):
     from code.scripts.run_external_trackers import PARAMS
     if name.startswith('ocsort'):
         from code.tracker.external.ocsort import OCSort
         from code.tracker.external.ocsort.ocsort import KalmanBoxTracker
         KalmanBoxTracker.count = 0
+        if name == 'ocsort_matched_ctrv':
+            from code.tracker.ocsort_ctrv import OCSortCTRV
+            return OCSortCTRV(**PARAMS['ocsort_matched'], ctrv=c2_ctrv_params())
         return OCSort(**PARAMS[name])
     from code.tracker.external.botsort import BoTSORT
     from code.tracker.external.botsort.basetrack import BaseTrack

@@ -7,7 +7,10 @@
 # [x1,y1,x2,y2,score,class_id] in frame-native pixels with a final score
 # (no YOLOX obj*cls product, no rescaling); (2) a track keeps the class of the
 # detection that created it, returned as a 6th output column. Class is
-# metadata only and never enters association. Everything else is upstream.
+# metadata only and never enters association; (3) new tracks are created by
+# OCSort.new_tracker (upstream's KalmanBoxTracker by default), so a subclass
+# can choose the filter per class (code/tracker/ocsort_ctrv.py). Everything
+# else is upstream.
 from __future__ import print_function
 
 import numpy as np
@@ -304,7 +307,7 @@ class OCSort(object):
 
         # create and initialise new trackers for unmatched detections
         for i in unmatched_dets:
-            trk = KalmanBoxTracker(dets[i, :], delta_t=self.delta_t)
+            trk = self.new_tracker(dets[i, :], classes_keep[i])  # CAAP patch: factory
             trk.cls = classes_keep[i]  # CAAP patch: class of the birth detection
             self.trackers.append(trk)
         i = len(self.trackers)
@@ -328,6 +331,9 @@ class OCSort(object):
         if(len(ret) > 0):
             return np.concatenate(ret)
         return np.empty((0, 6))
+
+    def new_tracker(self, det, cls):  # CAAP patch: per-class filter choice for subclasses
+        return KalmanBoxTracker(det, delta_t=self.delta_t)
 
     def update_public(self, dets, cates, scores):
         self.frame_count += 1
