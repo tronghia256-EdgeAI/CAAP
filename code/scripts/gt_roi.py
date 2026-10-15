@@ -106,6 +106,17 @@ def contains_box(box, roi):
     return cv2.pointPolygonTest(np.array(roi['polygon'],dtype=np.float32), point, False) >= 0
 
 
+def contains_state(box, roi):
+    """contains_box for tracker states. A degenerate Kalman state (non-finite, or
+    inverted through a negative aspect or area) counts as outside, so the state is
+    expired instead of failing the run; upstream OC-SORT deletes such trackers too."""
+    if not roi or not roi['enabled']: return True
+    b = [float(v) for v in box]
+    if len(b) != 4 or not all(math.isfinite(v) for v in b) or b[2] < b[0] or b[3] < b[1]:
+        return False
+    return contains_box(b, roi)
+
+
 def filter_frames(frames, roi):
     return {frame: [(tid,box,cls) for tid,box,cls in entries if contains_box(box,roi)]
             for frame,entries in frames.items()}

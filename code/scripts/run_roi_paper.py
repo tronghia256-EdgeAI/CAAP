@@ -26,7 +26,7 @@ import yaml
 from code.models.context_estimator import ContextEstimator
 from code.pipeline import Pipeline, load_config
 from code.scripts.compare_motion_models import VARIANTS, open_video
-from code.scripts.gt_roi import contains_box, load_roi, pixel_mask
+from code.scripts.gt_roi import contains_box, contains_state, filter_detections, load_roi, pixel_mask
 from code.scripts.import_gt import load_mot, to_framelist, tracks_json_slice
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +34,7 @@ DEFAULT_RECEIPT = ROOT / 'data/annotations/paper_gt_reconciliation/reconcile_900
 DEFAULT_VIDEO = ROOT / 'data/raw/videos/NKKN-VoThiSau 2017-07-18_08_00_00_000.asf'
 ARMS = ('baseline', 'ctrv', 'ctrv_nsa', 'ctrv_gate', 'ctrv_gate_nsa',
         'c1_ctrv_gate', 'c1c2c3')
-EXTERNAL = ('ocsort', 'ocsort_matched', 'ocsort_byte', 'botsort', 'botsort_matched')
+EXTERNAL = ('ocsort', 'ocsort_matched', 'ocsort_byte', 'botsort', 'botsort_matched', 'ocsort_matched_ctrv')
 SCORED = (*ARMS, *EXTERNAL, 'c1c2c3_raw')
 CLASSES = {'motorcycle': 1, 'car': 0, 'bus': 2, 'truck': 3, 'ALL': None}
 C1_PERCENTILE = 75  # pre-registered, experiments/c1_recalibration
@@ -188,12 +188,16 @@ def prepare(args):
                     start_frame=0, num_frames=end, source_fps=fps, hour_override=8,
                     sizes=args.sizes, variants=list(ARMS), external=list(EXTERNAL),
                     external_params=PARAMS, external_sources=SOURCES,
+                    external_ctrv=dict(arm='ocsort_matched_ctrv', association='ocsort_matched',
+                                       note='C2 CTRV (+NSA) for motorcycles inside OC-SORT; no gating',
+                                       ctrv=c2_ctrv_params()),
                     trackeval_dir=str(trackeval.resolve()) if trackeval else None,
                     confidence=0.1, chunk_frames=200, torch_threads=args.threads,
                     cv2_threads=1, severity_enabled=False, alerts_enabled=False,
+                    roi_pixel_mask=not args.no_roi_pixel_mask,
                     tracking_output='tracks_mappo (C3 task threshold); also save raw tracks',
                     roi_exit_policy='expire tracked and lost states outside ROI after each update; '
-                                    'a non-finite or inverted external state counts as outside',
+                                    'a non-finite or inverted tracker state (any tracker) counts as outside',
                     c1_density_threshold=f'per size, fixed after caching and before any C1 arm: p{C1_PERCENTILE} '
                                          'of the density EMA of c1_ctrv_gate replayed with an infinite density '
                                          'threshold, over source frames outside every GT segment '
@@ -229,6 +233,12 @@ def verify_inputs(protocol):
             raise ValueError(f'Frozen input changed: {path}')
 
 
+def detector_roi(protocol):
+    """The ROI the detector masks pixels with: none when the protocol detects on the full
+    frame and filters detections by bottom-centre only (the GT's membership rule)."""
+    return protocol['roi'] if protocol.get('roi_pixel_mask', True) else None
+
+
 def read_cache(directory, protocol):
     index = json.loads((directory / 'cache_index.json').read_text(encoding='utf-8'))
     if index['protocol_sha256'] != digest(directory.parent / 'protocol.json'):
@@ -259,7 +269,7 @@ def cache(directory, protocol, size, stop_after=None):
     target = min(protocol['num_frames'], stop_after or protocol['num_frames'])
     if index['num_frames'] >= target:
         return
-    detector = Detector(protocol['weights'], img_size=size, roi=protocol['roi'])
+    detector = Detector(protocol['weights'], img_size=size, roi=detector_roi(protocol))
     # A segment checkpoint (yolo11_vn) is read for its boxes only.
     if detector.using_coco_fallback or detector.model.task not in ('detect', 'segment'):
         raise ValueError('Expected the exact custom detection checkpoint')
@@ -280,7 +290,8 @@ def cache(directory, protocol, size, stop_after=None):
                 raise ValueError(f'Source ended at {frame_no}')
             mask = pixel_mask(frame, protocol['roi'])
             light.append(float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)[mask > 0].mean()))
-            detections = detector.detect(frame).astype(np.float64)
+            # bottom-centre filter in both modes (idempotent when the detector masked)
+            detections = filter_detections(detector.detect(frame), protocol['roi']).astype(np.float64)
             if not np.isfinite(detections).all():
                 raise ValueError('Non-finite detections')
             pending.append(detections)
@@ -358,27 +369,33 @@ def pack(tracks):
     return [(int(t.track_id), int(t.class_id), [round(float(x), 1) for x in t.tlbr]) for t in tracks]
 
 
-def inside_roi(box, roi):
-    """contains_box for tracker states. OC-SORT's Kalman filter can reach a
-    negative area, whose box is NaN; upstream OC-SORT deletes such a tracker at
-    its next predict, so a non-finite or inverted box counts as outside here."""
-    b = np.asarray(box, dtype=float)
-    return bool(np.isfinite(b).all() and b[2] >= b[0] and b[3] >= b[1]) and contains_box(b.tolist(), roi)
+def inside(rows, roi):
+    """Rows whose stored box is in the ROI. pack() rounds to 0.1 px, which can move a
+    bottom-centre lying within 0.05 px of the boundary outside; membership is decided on
+    the box the dump keeps, as scoring checks it. Tracker state is not affected."""
+    return [r for r in rows if contains_box(r[2], roi)]
 
 
 def expire_external(tracker, name, roi):
     if name.startswith('ocsort'):
-        tracker.trackers = [t for t in tracker.trackers if inside_roi(t.get_state()[0], roi)]
+        tracker.trackers = [t for t in tracker.trackers if contains_state(t.get_state()[0], roi)]
     else:
         for attr in ('tracked_stracks', 'lost_stracks'):
             kept = []
             for t in getattr(tracker, attr):
-                if inside_roi(t.tlbr, roi):
+                if contains_state(t.tlbr, roi):
                     kept.append(t)
                 else:
                     t.mark_removed()
                     tracker.removed_stracks.append(t)
             setattr(tracker, attr, kept)
+
+
+def c2_ctrv_params():
+    """C2's CTRV settings as the ctrv_gate_nsa arm resolves them."""
+    c = resolved_config('ctrv_gate_nsa', None, None, 640, 25.0)['ctrv']
+    return dict(dt=float(c['dt']), q_diag=[float(v) for v in c['Q_diag']], r_diag=[float(v) for v in c['R_diag']],
+                nsa=bool(c['nsa_noise']), scale_adaptive=bool(c['scale_adaptive']))
 
 
 def external_tracker(name, fps):
@@ -387,6 +404,9 @@ def external_tracker(name, fps):
         from code.tracker.external.ocsort import OCSort
         from code.tracker.external.ocsort.ocsort import KalmanBoxTracker
         KalmanBoxTracker.count = 0
+        if name == 'ocsort_matched_ctrv':
+            from code.tracker.ocsort_ctrv import OCSortCTRV
+            return OCSortCTRV(**PARAMS['ocsort_matched'], ctrv=c2_ctrv_params())
         return OCSort(**PARAMS[name])
     from code.tracker.external.botsort import BoTSORT
     from code.tracker.external.botsort.basetrack import BaseTrack
@@ -413,8 +433,8 @@ def replay(directory, protocol):
             pipe = paper_pipeline(directory, name, brightness)
             for i, d in enumerate(detections):
                 result = pipe.process(dummy, detections=d)
-                frames.append(pack(result['tracks_mappo']))
-                raw_frames.append(pack(pipe._last_tracks))
+                frames.append(inside(pack(result['tracks_mappo']), protocol['roi']))
+                raw_frames.append(inside(pack(pipe._last_tracks), protocol['roi']))
                 state = asdict(result['state'])
                 if pipe.use_c1:
                     state['regime'] = pipe.adaptive_controller._active.name  # applied this frame
@@ -427,7 +447,7 @@ def replay(directory, protocol):
                 out = tracker.update(d)
                 expire_external(tracker, name, protocol['roi'])
                 rows = [(int(r[4]), int(r[5]), [round(float(x), 1) for x in r[:4]]) for r in out] if name.startswith('ocsort') else pack(out)
-                frames.append([row for row in rows if inside_roi(row[2], protocol['roi'])])
+                frames.append([row for row in rows if contains_state(row[2], protocol['roi'])])
         if name in ARMS:
             write_json(directory / f'raw_tracks_{name}.json', dict(start_frame=0, num_frames=len(raw_frames),
                         protocol_sha256=index['protocol_sha256'], frames=raw_frames))
@@ -538,7 +558,7 @@ def benchmark_trial(directory, protocol, name, measured=200, warmup=20):
     real = ContextEstimator(hour_override=8)
     real._brightness_ema, real._density_ema = cached._brightness_ema, cached._density_ema
     pipe.context_estimator = real
-    pipe.detector = Detector(protocol['weights'], img_size=int(directory.name), roi=protocol['roi'])
+    pipe.detector = Detector(protocol['weights'], img_size=int(directory.name), roi=detector_roi(protocol))
     import torch
     pipe.detector.detect(dummy)
     torch.set_num_threads(protocol['torch_threads'])
@@ -638,6 +658,8 @@ def main():
     ap.add_argument('--threads', type=int, default=8)
     ap.add_argument('--trackeval', type=Path, help='Directory containing the official trackeval package (optional cross-check)')
     ap.add_argument('--stop-after', type=int, help='Cache smoke test only; partial cache cannot be scored')
+    ap.add_argument('--no-roi-pixel-mask', action='store_true',
+                    help='Detect on the full frame; keep only detections whose bottom-centre is in the ROI')
     args = ap.parse_args()
     if args.threads < 1 or any(s < 32 or s % 32 for s in args.sizes) or len(set(args.sizes)) != len(args.sizes):
         ap.error('Positive threads, unique image sizes divisible by 32 are required')

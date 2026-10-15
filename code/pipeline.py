@@ -210,7 +210,7 @@ class Pipeline:
         stages: dict[str, float] = {}
 
         # C1: context → params (previous frame's tracks feed the estimator).
-        from code.scripts.gt_roi import pixel_mask,filter_detections,contains_box
+        from code.scripts.gt_roi import pixel_mask,filter_detections,contains_state
         mask=pixel_mask(frame,self.roi)
         state = self.context_estimator.estimate(frame, self._last_tracks,mask) if mask is not None else self.context_estimator.estimate(frame,self._last_tracks)
         params = self.adaptive_controller.get_params(state) if self.use_c1 else None
@@ -231,11 +231,11 @@ class Pipeline:
             for attr in ('tracked_stracks','lost_stracks'):
                 retained=[]
                 for track in getattr(self.tracker,attr):
-                    if contains_box(track.tlbr,self.roi):retained.append(track)
+                    if contains_state(track.tlbr,self.roi):retained.append(track)
                     else:
                         track.mark_removed();self.tracker.removed_stracks.append(track)
                 setattr(self.tracker,attr,retained)
-            tracks=[t for t in tracks if contains_box(t.tlbr,self.roi)]
+            tracks=[t for t in tracks if contains_state(t.tlbr,self.roi)]
         self._last_tracks = tracks
         t_trk = time.perf_counter()
         stages["track"] = (t_trk - t_det) * 1000.0

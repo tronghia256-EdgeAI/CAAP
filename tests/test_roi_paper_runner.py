@@ -196,10 +196,51 @@ def test_benchmark_dispatches_fresh_trials_and_resumes(tmp_path, monkeypatch):
 
 def test_non_finite_external_state_counts_as_outside_roi():
     roi = {'enabled': True, 'polygon': [[0, 0], [800, 0], [800, 450], [0, 450]]}
-    assert run.inside_roi([10, 10, 50, 50], roi)
-    assert not run.inside_roi([np.nan, 10, np.nan, 50], roi)   # OC-SORT KF with a negative area
-    assert not run.inside_roi([50, 10, 10, 50], roi)           # inverted
+    assert run.contains_state([10, 10, 50, 50], roi)
+    assert not run.contains_state([np.nan, 10, np.nan, 50], roi)   # OC-SORT KF with a negative area
+    assert not run.contains_state([50, 10, 10, 50], roi)           # inverted
     tracker = SimpleNamespace(trackers=[SimpleNamespace(get_state=lambda: [[10, 10, 50, 50]]),
                                         SimpleNamespace(get_state=lambda: [[np.nan, 1, np.nan, 2]])])
     run.expire_external(tracker, 'ocsort', roi)                # used to raise ValueError
     assert len(tracker.trackers) == 1
+
+
+def test_degenerate_own_tracker_state_is_expired_not_fatal(tmp_path):
+    # A linear-KF track whose aspect turns negative has an inverted box; the
+    # pipeline's ROI expiry used to raise on it (yolo11_vn@1280 replay).
+    directory, _ = small_run(tmp_path)
+    pipe = run.paper_pipeline(directory, 'baseline', [120.] * 8)
+    pipe.process(np.zeros((48, 64, 3), np.uint8), detections=np.array([[10., 20, 20, 30, .9, 1]]))
+    track = pipe.tracker.tracked_stracks[0]
+    track.mean[2] = -0.5
+    pipe.process(np.zeros((48, 64, 3), np.uint8), detections=np.zeros((0, 6)))
+    assert track not in pipe.tracker.tracked_stracks + pipe.tracker.lost_stracks
+
+
+def test_filter_only_mode_detects_full_frame_but_keeps_roi_detections(tmp_path, monkeypatch):
+    directory, protocol = small_run(tmp_path)
+    directory = tmp_path / '96'
+    protocol.update(video=str(synthetic_video(tmp_path)), weights='fake.pt', chunk_frames=8, torch_threads=1,
+                    roi_pixel_mask=False)
+    run.write_json(tmp_path / 'protocol.json', protocol)
+    seen = []
+
+    class FullFrameDetector(FakeDetector):
+        def __init__(self, *args, roi=None, **kwargs):
+            seen.append(roi)
+
+        def detect(self, frame):  # one box inside the ROI (y >= 16), one outside
+            return np.array([[10., 20, 20, 30, .9, 1], [10., 0, 20, 10, .9, 1]])
+    monkeypatch.setattr('code.detection.detector.Detector', FullFrameDetector)
+    run.cache(directory, protocol, 96)
+    _, dets, _ = run.read_cache(directory, protocol)
+    assert seen == [None] and all(len(d) == 1 and d[0][1] == 20 for d in dets)
+    assert run.detector_roi(dict(roi=protocol['roi'])) == protocol['roi']   # masking stays the default
+
+
+def test_dump_rows_keep_roi_membership_after_rounding():
+    # A box 0.01 px inside the bottom edge rounds 0.04 px outside it (yolo11vn no-mask run).
+    roi = {'enabled': True, 'polygon': [[0, 0], [64, 0], [64, 30.07], [0, 30.07]]}
+    track = SimpleNamespace(track_id=1, class_id=1, tlbr=[10.0, 20.0, 20.0, 30.06])
+    assert run.contains_state(track.tlbr, roi)
+    assert run.pack([track])[0][2][3] == 30.1 and run.inside(run.pack([track]), roi) == []
