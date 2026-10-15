@@ -61,8 +61,9 @@ real-time operation as a design constraint:
 The manuscript follows the journal's double-column template and is within the
 12-page limit including references and author biographies. It has not been
 published and is not under consideration elsewhere, and all authors have
-approved its submission. The data and code are available from the
-corresponding author on reasonable request.
+approved its submission. The annotations and code are available
+from the corresponding author on reasonable request; the source videos are
+third-party recordings and are not redistributed.
 
 Sincerely,
 

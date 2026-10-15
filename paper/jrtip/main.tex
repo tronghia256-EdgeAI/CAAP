@@ -548,7 +548,10 @@ We use a fixed traffic camera at the Nam Ky Khoi Nghia--Vo Thi Sau intersection
 in Ho Chi Minh City, recorded at 08:00 on a weekday in July 2017 at
 $800\times450$ pixels and 25~fps, with motorcycle-dominant rush-hour traffic. The
 stream decodes to 13,726 frames (9.2~min; the container header reports 22,876).
-The recordings were collected by the authors.
+All recordings in this study, including the accident clip of
+Sect.~\ref{subsec:c3-results}, are third-party traffic-camera videos that the
+authors obtained from public online sources; the original links were not
+recorded.
 From the track-count profile of the clip we annotated three 600-frame (24~s)
 segments: \emph{freeflow} (frames 6,400--6,999, about 12 tracks per frame),
 \emph{mixed} (2,500--3,099, about 26, straddling C1's density threshold) and
@@ -589,10 +592,11 @@ motorcycle, truck); on 992 validation images from the same collection it
 reaches mAP@0.5 0.621 and mAP@0.5:0.95 0.427. As a high-accuracy reference we
 also report the authors' earlier YOLO11n checkpoint with a segmentation head
 (2.84~M parameters) at 1,280~px; the pipeline reads only its boxes. Both were
-trained from the same collection, assembled and annotated by the authors, which
-includes frames of traffic cameras other than the evaluation camera. Comparing perceptual hashes of
+trained from the same collection, which the authors assembled and annotated from
+frames of online traffic videos, including traffic cameras other than the
+evaluation camera. Comparing perceptual hashes of
 every image in the version used for the real-time detector (4,980 images) with
-frames sampled once per second from all our recordings, and inspecting every
+frames sampled once per second from all the recordings, and inspecting every
 near match, found no image of the evaluation camera; the version behind the
 reference was not recorded, so images unique to it are unaudited.
 For all
@@ -1001,13 +1005,15 @@ constant-velocity model.
 \paragraph{Competing interests.} The authors declare no competing interests.
 
 \paragraph{Ethics approval and consent.} Not applicable. The study analyses
-recordings of public road traffic from fixed surveillance cameras and extracts
+publicly available videos of public roads from fixed surveillance cameras and
+extracts
 only vehicle bounding boxes; it involves no human participants and no personal
 data. The authors' institution did not require ethics approval for this study.
 
-\paragraph{Data availability.} The video recordings and annotations analysed in
-this study are not publicly available but are available from the corresponding
-author on reasonable request.
+\paragraph{Data availability.} The source videos are third-party recordings
+obtained from public online sources and are not redistributed; the annotations
+and derived data are available from the corresponding author on reasonable
+request.
 
 \paragraph{Code availability.} The code is available from the corresponding
 author on reasonable request.
