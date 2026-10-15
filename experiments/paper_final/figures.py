@@ -65,8 +65,9 @@ def fig_sizes():
     size_axis(ax)
     ax.set_ylabel('Identity switches')
     ax.set_title('(a) Dense, motorcycle identity switches', loc='left')
-    ax.set_ylim(bottom=0)
-    ax.legend(frameon=False, loc='lower right')
+    ax.set_ylim(0, 165)
+    ax.legend(frameon=False, loc='lower right', bbox_to_anchor=(1.02, 0.0), fontsize=6.5,
+              handlelength=1.6, labelspacing=0.25, borderaxespad=0.2)
     for ax, pair, title in ((axes[1], 'ctrv_gate_nsa - baseline', '(b) C2 $-$ ByteTrack, IDF1'),
                             (axes[2], 'ocsort_matched - ctrv_gate_nsa', '(c) OC-SORT (0.5) $-$ C2, IDF1')):
         for k, seg in enumerate(SEGMENTS):
