@@ -1,5 +1,5 @@
 %% =====================================================================
-%% Context-Aware Adaptive Perception for Motorcycle-Dominant Mixed Traffic
+%% Tracking Motorcycles in Dense Mixed Traffic
 %% Target : Journal of Real-Time Image Processing (Springer)
 %% Format : the journal's double-column LaTeX package (svjour3, twocolumn)
 %%          with spmpsci.bst. JRTIP limit: 12 pages INCLUDING references
@@ -38,23 +38,17 @@
 \newcommand{\doi}[1]{\url{https://doi.org/#1}}
 \newcommand{\urlprefix}{}
 
-%% =====================================================================
-%% DIEN EMAIL TAI DAY -- FILL IN THE E-MAIL ADDRESSES HERE
-%% Replace each \textcolor{red}{...} with the plain address, e.g.
-%%   \newcommand{\emailNghia}{name@st.ueh.edu.vn}
-%% =====================================================================
-\newcommand{\emailNghia}{\textcolor{red}{[email Le Trong Nghia]}}
-\newcommand{\emailNam}{\textcolor{red}{[email Nguyen Viet Nam]}}
-\newcommand{\emailHieu}{\textcolor{red}{[email Ho Minh Hieu]}}
-\newcommand{\emailLanh}{\textcolor{red}{[email Vo Xuan Lanh]}}
-\newcommand{\emailBao}{\textcolor{red}{[email Nguyen Thien Bao]}}
+\newcommand{\emailNghia}{nghiale.31241024698@st.ueh.edu.vn}
+\newcommand{\emailNam}{namnguyen.31241021916@st.ueh.edu.vn}
+\newcommand{\emailHieu}{hieuho.31241022078@st.ueh.edu.vn}
+\newcommand{\emailLanh}{lanhvo.31241025950@st.ueh.edu.vn}
+\newcommand{\emailBao}{baont@ueh.edu.vn}
 
 \begin{document}
 
-\title{Context-Aware Adaptive Perception for Motorcycle-Dominant Mixed
-Traffic: Class-Conditioned Motion Modeling and Real-Time Feasibility on
-Commodity CPUs}
-\titlerunning{Adaptive perception for motorcycle-dominant mixed traffic}
+\title{Tracking Motorcycles in Dense Mixed Traffic: A Class-Conditioned CTRV
+Filter, Seed-Biased Ground Truth and the Cost of Real-Time Input Sizes}
+\titlerunning{Motorcycle tracking in dense mixed traffic}
 
 %% Names are ASCII so that pdfLaTeX needs no Vietnamese font encoding;
 %% enter the names with diacritics in the submission system.
@@ -80,7 +74,7 @@ X.~L. Vo: \emailLanh}}
 Traffic-surveillance pipelines pair a one-stage detector with a tracker that
 applies one linear motion model and fixed thresholds to every object, and
 motorcycle-dominant mixed traffic strains both choices. We present a
-context-aware perception pipeline with three components: (C1) a context
+perception pipeline with three components: (C1) a context
 estimator and hysteresis-stabilized controller that set the tracker's operating
 point online; (C2) a class-conditioned motion model that tracks motorcycles
 with a constant-turn-rate-and-velocity extended Kalman filter inside ByteTrack,
@@ -101,7 +95,7 @@ where motorcycles are small: at the 448-pixel input the detector misses virtuall
 those under 20 pixels tall (99\% at 640 pixels), and a region-of-interest mask that truncates small
 vehicles at its far boundary adds to the loss.
 \keywords{Multi-object tracking \and Extended Kalman filter \and Mixed traffic
-\and Motorcycles \and Context-aware perception \and Real-time video analytics}
+\and Motorcycles \and Annotation bias \and Real-time video analytics}
 \end{abstract}
 
 %% =====================================================================
@@ -205,8 +199,8 @@ explicit turn rate, such as CTRV, track maneuvering vehicles better than linear
 ones, interacting-multiple-model filters~\cite{Blom1988_imm,BarShalom2001_estimation}
 switch between such models, and in image-plane tracking K{\i}ratl{\i} and
 Ero{\u{g}}lu~\cite{Kiratli2025_yolo11efac} pair DeepSORT with an EKF for nonlinear
-motion in UAV video. C2 selects a CTRV model by detected class and reuses its
-covariance only to add candidate matches for lost tracks (Table~\ref{tab:positioning}).
+motion in UAV video. C2 selects a CTRV model by class and uses its
+covariance only to add matches for lost tracks (Table~\ref{tab:positioning}).
 
 %% Positioning table: properties as described in the cited papers.
 \begin{table}[t]
@@ -338,7 +332,7 @@ class $\kappa\in\{\textsc{car},\textsc{motorcycle},\textsc{bus},\textsc{truck},\
 \node[contrib, text width=4.0cm] (trs) at (0, -5.6)
   {\textbf{Track reliability score} $S(\tau)$};
 \node[outacc] (acc) at (-1.95, -7.25)
-  {\textbf{Accident branch}\\[-1pt]\tiny event-alert candidates (untested)};
+  {\textbf{Accident branch}\\[-1pt]\tiny incident alerts (case study)};
 \node[outobs] (obs) at (1.95, -7.25)
   {\textbf{Signal-control observations}\\[-1pt]\tiny MAPPO observation builder};
 \node[tag] at (ctx.north west)  {C1};
@@ -389,7 +383,7 @@ uses $(0.50,30,\text{CTRV})$, calibrated on the dense segment under our earlier
 protocol (originally $(0.35,45)$); \textsc{night} $(0.55,20,\text{linear})$ is
 never exercised by our data; \textsc{default} is $(0.45,30,\text{linear})$. The false-positive proxy is
 exposed but not used by the rules. A new condition takes effect only after
-$N_h=15$ consecutive frames (0.6~s), which prevents oscillation near a boundary.
+$N_h=15$ consecutive frames (0.6~s).
 
 \subsection{C2: Class-conditioned CTRV motion model}\label{sec:c2}
 
@@ -397,8 +391,7 @@ ByteTrack's filter assumes constant velocity in the image plane. This suits
 cars, which change heading slowly, but a weaving motorcycle turns continuously,
 so during an occlusion the linear filter coasts along a tangent while the
 vehicle follows an arc. Motorcycle tracks therefore receive a CTRV EKF; other
-classes keep ByteTrack's eight-dimensional linear filter behind the same
-interface.
+classes keep ByteTrack's linear filter behind the same interface.
 
 \paragraph{Process model.}
 The state $\mathbf{x}=[p_x,p_y,v,\theta,\omega]^{\top}$ holds the box centre
@@ -505,7 +498,7 @@ $\mathbf{S}$, stays large; the admission ellipse is then wide and mis-centred,
 and the detection it admits after an occlusion is often a neighbouring
 motorcycle's. NSA reduces both the lag and the posterior covariance, so the same
 gate admits the right detection. We therefore treat C2 as one mechanism
-(Algorithm~\ref{alg:c2}) and ablate its parts only to expose this interaction.
+(Algorithm~\ref{alg:c2}).
 
 \begin{algorithm}[t]
 \caption{C2 for one frame}\label{alg:c2}
@@ -542,8 +535,8 @@ ghost (perfect $A$, $C$ and $K$, $M=0.7$, $D=0.2$) scores 0.685. With fewer than
 which keeps new tracks below the alerting threshold. The accident branch
 consumes tracks with $S\ge\tau_{\mathrm{acc}}=0.70$ and the observation builder of
 a MAPPO controller~\cite{Yu2022_mappo} tracks with $S\ge\tau_{\mathrm{obs}}=0.40$.
-Tracks of class \textsc{accident} that pass $\tau_{\mathrm{acc}}$ are candidates
-for binary event-level alerting; this downstream use remains untested.
+A frame raises an incident alert when a confirmed track of class
+\textsc{accident} passes $\tau_{\mathrm{acc}}$ (tested in Sect.~\ref{subsec:c3-results}).
 
 %% =====================================================================
 \section{Experimental setup}\label{sec:setup}
@@ -555,7 +548,7 @@ We use a fixed traffic camera at the Nam Ky Khoi Nghia--Vo Thi Sau intersection
 in Ho Chi Minh City, recorded at 08:00 on a weekday in July 2017 at
 $800\times450$ pixels and 25~fps, with motorcycle-dominant rush-hour traffic. The
 stream decodes to 13,726 frames (9.2~min; the container header reports 22,876).
-\todo{Data provider and the terms under which the recordings were obtained.}
+The recordings were collected by the authors.
 From the track-count profile of the clip we annotated three 600-frame (24~s)
 segments: \emph{freeflow} (frames 6,400--6,999, about 12 tracks per frame),
 \emph{mixed} (2,500--3,099, about 26, straddling C1's density threshold) and
@@ -596,13 +589,13 @@ motorcycle, truck); on 992 validation images from the same collection it
 reaches mAP@0.5 0.621 and mAP@0.5:0.95 0.427. As a high-accuracy reference we
 also report the authors' earlier YOLO11n checkpoint with a segmentation head
 (2.84~M parameters) at 1,280~px; the pipeline reads only its boxes. Both were
-trained from the same annotated collection of public web images and frames of
-traffic cameras other than the evaluation camera. Comparing perceptual hashes of
+trained from the same collection, assembled and annotated by the authors from
+public web images and frames of traffic cameras other than the evaluation camera. Comparing perceptual hashes of
 every image in the version used for the real-time detector (4,980 images) with
 frames sampled once per second from all our recordings, and inspecting every
 near match, found no image of the evaluation camera; the version behind the
 reference was not recorded, so images unique to it are unaudited.
-\todo{Confirm the sources and terms of use of the training images.} For all
+For all
 accuracy experiments, detections were computed once per detector and input size
 (448, 640, 960 and 1,280~px for the real-time detector, 1,280~px for the
 reference) on frames masked outside the region of interest, with a confidence
@@ -654,7 +647,7 @@ GPU, Windows~11, Python 3.10, PyTorch~\cite{Paszke2019_pytorch} 2.11 on eight
 CPU threads, Ultralytics 8.4.39), made before the region-of-interest protocol
 with a COCO-pretrained YOLO11n of the real-time detector's architecture. End to
 end it covers decoding, context estimation, detection, tracking and scoring over
-60 to 100 frames after discarded warm-up frames, one configuration per process.
+60--100 frames after a discarded warm-up, one configuration per process.
 
 %% =====================================================================
 \section{Results}\label{sec:results}
@@ -825,11 +818,16 @@ that row's 0.45 threshold and linear model, not of adaptation.
 
 At $\tau_{\mathrm{obs}}=0.40$ C3 filters nothing on any segment, input size or
 detector, so Exp3 equals Exp2 frame by frame. The asymmetry that motivates C3
-belongs to the accident branch, which needs accident footage with event-level
-labels to test.
+belongs to the accident branch, which we tested at 448~px in a pre-registered
+case study. In 1.5~h of normal traffic from six cameras the pipeline raised no
+accident alert with or without C3 (95\% upper bound 3.65 per hour on cameras
+absent from the detector's training data), so C3's effect on false alerts
+cannot be measured. On a 16-s clip of a car hitting a motorcycle it alerted
+0.17~s after the onset without C3 and 0.23~s with it; with one positive event
+this is a case study, not a recall estimate.
 
 %% =====================================================================
-\section{Real-time feasibility}\label{sec:realtime}
+\section{Real-time operating point}\label{sec:realtime}
 %% =====================================================================
 
 \subsection{Complexity and memory}\label{subsec:complexity}
@@ -849,8 +847,8 @@ Each motorcycle track carries about 1~kB of filter state, so 100 tracks occupy
 %% 7efcb78) and mask_cut_split.json (det_cut_split.py).
 \begin{table}[t]
 \caption{Accuracy cost of the operating point under the region-of-interest
-protocol: C2's motorcycle IDF1 per segment and, with the ByteTrack tracker, the
-miss rate on dense by ground-truth box height.}
+protocol: C2's motorcycle IDF1 per segment and, with ByteTrack, the dense miss
+rate by ground-truth box height.}
 \label{tab:operating}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -940,7 +938,7 @@ of them reports reaches the reviewer. Where the seed is fixed, a blind audit of
 sampled disagreements estimates the share of real objects among the non-seed
 tracker's extras, and the bracket of Sect.~\ref{subsec:seedbias} turns it into
 a corrected gap. Identity errors behave differently because the reviewer sees
-them: an earlier identity review of dense cut 92 over-merged identities, which
+them: an identity review of dense cut 92 over-merged identities, which
 had rewarded gap bridging, and the audited switches were real.
 
 \subsection{Proxy metrics can be optimized into wrong merges}\label{subsec:proxy}
@@ -957,12 +955,14 @@ we kept the textbook gate.
 \emph{Internal.} Each ground truth was corrected from one tracker's pre-labels
 and favours that tracker (Sect.~\ref{subsec:annotation}); the blind audit
 sampled at most ten items per stratum, so residual errors remain, and every
-review was done by one author. C1's rows were set under our earlier protocol and
-never switched in the paper run; C2 was not tuned on any annotated segment.
+review was done by one author. C1's density threshold was fixed by a
+pre-registered rule on frames outside the annotated segments, and C2 was not
+tuned on any annotated segment.
 \emph{External.} All results are development results from the single camera on
 which the method was designed: three 24-second segments of one morning with
 only cars and motorcycles. No independent camera was annotated, and the
-detector's validation images are not an independent test. \emph{Construct.}
+detector's validation images are not an independent test; C3's accident test
+rests on one accident clip and on daytime footage. \emph{Construct.}
 MOTA, IDF1 and HOTA measure tracking fidelity, not downstream utility for a
 signal controller or alert precision. \emph{Real time.} Timings come from one
 earlier sweep on one laptop CPU, with COCO weights on the real-time
@@ -973,7 +973,7 @@ configurations were not timed.
 \section{Conclusion}\label{sec:conclusion}
 %% =====================================================================
 
-We evaluated a context-aware perception pipeline for
+We evaluated a perception pipeline for
 motorcycle-dominant mixed traffic on one camera. Its CTRV motion model reduces
 motorcycle identity switches in dense traffic against ByteTrack on identical
 detections, by 56\% at the 448-px real-time input, 38\% at 640~px and 27--29\%
@@ -993,14 +993,12 @@ constant-velocity model.
 
 \section*{Statements and Declarations}
 
-\paragraph{Funding.} This research received no specific grant from any funding
-agency in the public, commercial or not-for-profit sectors. \todo{Confirm
-funding and competing interests with all authors.}
+\paragraph{Funding.} The authors received no funding for this research.
 
 \paragraph{Competing interests.} The authors declare no competing interests.
 
 \paragraph{Ethics approval and consent.} Not applicable. The study analyses
-recordings of public road traffic from a fixed surveillance camera and extracts
+recordings of public road traffic from fixed surveillance cameras and extracts
 only vehicle bounding boxes; it involves no human participants and no personal
 data. The authors' institution did not require ethics approval for this study.
 

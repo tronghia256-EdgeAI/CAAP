@@ -5,16 +5,16 @@ Cover letter -- Journal of Real-Time Image Processing
 
 Dear Editors,
 
-We submit the manuscript "Context-Aware Adaptive Perception for
-Motorcycle-Dominant Mixed Traffic: Class-Conditioned Motion Modeling and
-Real-Time Feasibility on Commodity CPUs" for consideration as an original
+We submit the manuscript "Tracking Motorcycles in Dense Mixed Traffic: A
+Class-Conditioned CTRV Filter, Seed-Biased Ground Truth and the Cost of
+Real-Time Input Sizes" for consideration as an original
 research paper in the Journal of Real-Time Image Processing.
 
 Context and importance. In motorcycle-dominant cities such as Ho Chi Minh
 City, traffic cameras are increasingly used for incident alerting and adaptive
 signal control, and both depend on a detector-plus-tracker front end that must
 run in real time on the CPUs of municipal video servers. We evaluate a
-context-aware perception pipeline for this setting: a controller that sets the
+perception pipeline for this setting: a controller that sets the
 tracker's operating point from the traffic context, a class-conditioned
 constant-turn-rate motion model for motorcycles, and a track reliability score
 with separate thresholds for alerting and signal control. We report every
@@ -23,13 +23,15 @@ one development protocol with identical cached detections. At the real-time
 input size the motorcycle motion model cuts identity switches in dense traffic
 by 56% against ByteTrack, with a seed-corrected IDF1 gain of at most 0.02; OC-SORT
 with matched thresholds tracks better still, and the motion model does not
-improve OC-SORT. The reliability score filters nothing at its threshold, and
-the context controller, recalibrated, switches regimes as intended without
-improving tracking. Two evaluation findings reach beyond this pipeline: ground
-truth corrected from one tracker's pre-labels favours that tracker by about
-0.04 IDF1, which a blind audit quantifies and a bracket corrects; and the
-real-time input size and a region-of-interest mask cost accuracy through small
-objects.
+improve OC-SORT. The reliability score filters nothing at its observation
+threshold; in a one-clip accident case study its alerting branch keeps the
+real alert at a two-frame delay, and the pipeline raises no false accident
+alert in 1.5 h of normal traffic. The context controller, recalibrated,
+switches regimes as intended without improving tracking. Two evaluation
+findings reach beyond this pipeline: ground truth corrected from one tracker's
+pre-labels favours that tracker by about 0.04 IDF1, which a blind audit
+quantifies and a bracket corrects; and the real-time input size and a
+region-of-interest mask cost accuracy through small objects.
 
 Real-time issues addressed. Beyond reporting speed, the manuscript treats
 real-time operation as a design constraint:
@@ -68,4 +70,4 @@ Thien Bao Nguyen (corresponding author)
 on behalf of all authors
 Institute of Intelligent and Interactive Technologies, College of Technology
 and Design, University of Economics Ho Chi Minh City (UEH), Vietnam
-[e-mail]
+baont@ueh.edu.vn
