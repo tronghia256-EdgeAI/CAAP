@@ -882,7 +882,7 @@ same range, and the loss at small input sizes is in misses (12,263 at 448~px
 against 5,364 at 1,280~px) rather than false positives. Under the same protocol
 the reference detector at 1,280~px performs like the real-time detector at that
 size (dense IDF1 0.758, 74\% of the small motorcycles missed), so the choice of
-detector matters little for small objects here. At the real-time sizes input
+detector matters little for small objects here. At 448 and 640~px input
 size dominates: at 640~px the detector finds 3.5\% of the small dense
 motorcycles that the region-of-interest mask leaves whole. The mask adds a
 second loss that appears as resolution recovers recall. A ground-truth box

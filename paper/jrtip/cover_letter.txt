@@ -34,10 +34,10 @@ objects.
 Real-time issues addressed. Beyond reporting speed, the manuscript treats
 real-time operation as a design constraint:
 1. The accuracy cost of real-time front-end choices, stratified by object
-   size: the real-time detector misses 100% of the motorcycles under 20 px
-   tall at 448 px input and 81% at 1,280 px, 69-76% of the annotated
-   motorcycles are under 40 px, and a region-of-interest mask adds to the loss
-   by truncating small vehicles at its far boundary.
+   size: in dense traffic the real-time detector misses 100% of the
+   motorcycles under 20 px tall at 448 px input and 81% at 1,280 px, 69-76% of
+   the annotated motorcycles are under 40 px, and a region-of-interest mask
+   adds to the loss by truncating small motorcycles at its far boundary.
 2. End-to-end CPU latency with the detector included, against the 40 ms budget
    of the 25 fps source: a detection head of the real-time architecture takes
    26.6 ms per frame at 448 px (95th percentile 32.9 ms; about 36 ms at the
