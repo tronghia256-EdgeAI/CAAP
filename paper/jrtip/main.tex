@@ -87,10 +87,10 @@ with a constant-turn-rate-and-velocity extended Kalman filter inside ByteTrack,
 with covariance gating for lost tracks and confidence-scaled measurement noise;
 and (C3) a track reliability score with separate thresholds for incident
 alerting and signal-control observations. On three human-annotated segments of
-Ho Chi Minh City CCTV, at real-time detector input sizes and with identical
+Ho Chi Minh City CCTV, at the 448-pixel real-time input and with identical
 detections for every configuration, C2 cuts motorcycle identity switches in
-dense traffic by 38--56\% against ByteTrack, through its CTRV model alone,
-while its seed-corrected IDF1 gain stays below 0.02; OC-SORT with matched thresholds tracks
+dense traffic by 56\% against ByteTrack (38\% at 640 pixels), through its CTRV
+model alone, while its seed-corrected IDF1 gain is at most 0.02; OC-SORT with matched thresholds tracks
 better on both counts. C3 filters nothing at its threshold, and C1, recalibrated,
 switches regimes as intended without improving tracking. Two evaluation findings
 transfer beyond this pipeline. Ground
@@ -98,8 +98,8 @@ truth corrected from one tracker's pre-labels favours that tracker by about
 0.04 IDF1 through the boxes it contains rather than their geometry; a blind
 audit finds 80\% of the other tracker's unmatched runs to be real vehicles,
 and we bracket the bias. And the real-time operating point costs accuracy
-where motorcycles are small: at 640-pixel input the detector misses 99\% of
-those under 20 pixels tall, and a region-of-interest mask that truncates small
+where motorcycles are small: at the 448-pixel input the detector misses all of
+those under 20 pixels tall (99\% at 640 pixels), and a region-of-interest mask that truncates small
 vehicles at its far boundary adds to the loss.
 \keywords{Multi-object tracking \and Extended Kalman filter \and Mixed traffic
 \and Motorcycles \and Context-aware perception \and Real-time video analytics}
@@ -172,10 +172,10 @@ region-of-interest masking, measured by object size (Sect.~\ref{subsec:operating
 
 We evaluate every configuration under one development protocol: three
 600-frame segments of one camera, ground truth reconciled after a blind audit,
-a region of interest, and identical cached detections at real-time input
-sizes. C2 reduces identity switches in dense traffic by 38--56\% against
-ByteTrack, entirely through its CTRV model, while its IDF1 gain stays below
-0.02 after correcting for seed bias; OC-SORT~\cite{Cao2023_ocsort} with matched
+a region of interest, and identical cached detections at four input sizes. At
+the 448-px real-time input, C2 reduces identity switches in dense traffic by
+56\% against ByteTrack (38\% at 640~px), entirely through its CTRV model, while
+its IDF1 gain is at most 0.02 after correcting for seed bias; OC-SORT~\cite{Cao2023_ocsort} with matched
 thresholds is stronger on both counts, and C2's motion model does not improve
 it. C3 filters nothing at its threshold, and C1, recalibrated, switches regimes
 as intended without improving tracking.
@@ -979,9 +979,9 @@ configurations were not timed.
 We evaluated a context-aware perception pipeline for
 motorcycle-dominant mixed traffic on one camera. Its CTRV motion model reduces
 motorcycle identity switches in dense traffic against ByteTrack on identical
-detections, by 38--56\% at real-time input sizes and 27--29\% at
-960--1,280~px; the seed-corrected IDF1 gain stays below 0.02 at real-time sizes
-and reaches 0.043 at 1,280~px. Gating alone does not help, nor does C2's
+detections, by 56\% at the 448-px real-time input, 38\% at 640~px and 27--29\%
+at 960--1,280~px; the seed-corrected IDF1 gain is at most 0.02 at 448 and
+640~px and reaches 0.043 at 1,280~px. Gating alone does not help, nor does C2's
 motion model inside OC-SORT; OC-SORT with matched thresholds leads in
 seed-corrected IDF1 up to 960~px but not at 1,280~px. C3 filters nothing at its threshold, and C1, recalibrated, switches
 regimes as intended without improving tracking. Two lessons reach beyond this pipeline: ground truth
