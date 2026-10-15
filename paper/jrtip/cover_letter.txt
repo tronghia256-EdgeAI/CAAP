@@ -21,7 +21,7 @@ with separate thresholds for alerting and signal control. We report every
 component as measured on three human-annotated segments of one camera, under
 one development protocol with identical cached detections. At the real-time
 input size the motorcycle motion model cuts identity switches in dense traffic
-by 56% against ByteTrack, with a seed-corrected IDF1 gain below 0.02; OC-SORT
+by 56% against ByteTrack, with a seed-corrected IDF1 gain of at most 0.02; OC-SORT
 with matched thresholds tracks better still, and the motion model does not
 improve OC-SORT. The reliability score filters nothing at its threshold, and
 the context controller, recalibrated, switches regimes as intended without
