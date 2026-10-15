@@ -1,204 +1,256 @@
-# Context-Aware Adaptive Perception for Mixed Traffic
+# Motorcycle Tracking in Dense Mixed Traffic
 
-**Author:** Trọng Nghĩa
-**Target:** ICRA 2027 (primary) · IEEE IV 2027 (backup)
-**Status:** C2 validated on human ground truth (`experiments/gt_ablation/evidence.md`) — C1 and C3 need re-tuning against GT before they can be claimed
+Code, evaluation protocol and manuscript for
 
-A perception pipeline for motorcycle-dominant mixed traffic (~94% motorcycles
-on Vietnamese urban roads) that adapts its detection/tracking parameters to
-real-time traffic context and serves two downstream tasks — accident
-detection and MAPPO-based signal control — without task-specific retuning.
+> **Tracking Motorcycles in Dense Mixed Traffic: A Class-Conditioned CTRV Filter,
+> Seed-Biased Ground Truth and the Cost of Real-Time Input Sizes**
+> Trong Nghia Le, Viet Nam Nguyen, Minh Hieu Ho, Xuan Lanh Vo, Thien Bao Nguyen
+> University of Economics Ho Chi Minh City (UEH). *Manuscript in preparation.*
 
-## Contributions
+![Python 3.10](https://img.shields.io/badge/python-3.10-blue)
+![Tests](https://img.shields.io/badge/tests-311%20passing-brightgreen)
+![Platform](https://img.shields.io/badge/platform-Windows%2011%20%C2%B7%20CPU%20only-lightgrey)
 
-| | Contribution | Where |
+Traffic-surveillance pipelines pair a one-stage detector with a tracker that
+gives every object the same linear motion model and fixed thresholds.
+Motorcycle-dominant traffic strains both choices: motorcycles weave and occlude
+one another, so a constant-velocity filter loses them, and one tuned operating
+point does not fit every traffic regime. This repository implements a perception
+pipeline for fixed CCTV in Ho Chi Minh City with three components. It also holds
+the frozen protocol that evaluates them against ByteTrack, OC-SORT and BoT-SORT
+on human-annotated footage.
+
+## Contents
+
+- [Pipeline](#pipeline)
+- [Main results](#main-results)
+- [Repository layout](#repository-layout)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Reproducing the paper](#reproducing-the-paper)
+- [Annotation tools](#annotation-tools)
+- [Data, weights and licensing](#data-weights-and-licensing)
+- [Citation](#citation)
+
+## Pipeline
+
+```mermaid
+flowchart LR
+    F[CCTV frame] --> R[ROI mask] --> D[YOLO11 detector]
+    F --> C1[C1 context estimator<br/>+ adaptive controller]
+    C1 -. threshold, buffer,<br/>motion model .-> C2
+    D --> C2[C2 class-conditioned ByteTrack<br/>CTRV EKF for motorcycles,<br/>linear KF for other classes]
+    C2 --> C3[C3 track reliability score]
+    C3 -->|high threshold| A[Accident alerting]
+    C3 -->|low threshold| O[Signal-control observations]
+```
+
+| | Component | Implementation |
 |---|---|---|
-| **C1** | Context Estimator + Adaptive Parameter Controller — 4 traffic signals (density, hour, brightness, FP rate) drive per-frame tracker parameters, with EMA smoothing + 15-frame hysteresis | `code/models/context_estimator.py`, `code/models/adaptive_controller.py` |
-| **C2** | Class-conditioned motion model — motorcycles get a CTRV EKF (state `[x, y, v, θ, ω]`, Schubert et al. 2008) inside ByteTrack; cars/trucks keep the linear Kalman filter | `code/models/motorcycle_motion_model.py`, `code/tracker/adaptive_bytetrack.py` |
-| **C3** | Dual-task track reliability score — one scoring function, two thresholds: high τ_acc for accident-alert precision, lower τ_mappo for MAPPO observation recall | `code/models/track_reliability.py` |
+| **C1** | Context estimator and adaptive controller. Density, brightness, false-positive rate and time of day select the tracker's confirmation threshold, lost-track buffer and motorcycle motion model online, with EMA smoothing and hysteresis. | [`context_estimator.py`](code/models/context_estimator.py), [`adaptive_controller.py`](code/models/adaptive_controller.py) |
+| **C2** | Class-conditioned motion model. Motorcycles are predicted by a constant-turn-rate-and-velocity (CTRV) extended Kalman filter inside ByteTrack, with covariance gating for lost tracks and confidence-scaled measurement noise (NSA). Cars and trucks keep the linear Kalman filter. | [`motorcycle_motion_model.py`](code/models/motorcycle_motion_model.py), [`adaptive_bytetrack.py`](code/tracker/adaptive_bytetrack.py) |
+| **C3** | Track reliability score: one score per track, with a precision-first threshold for alerting and a recall-first threshold for signal-control observations. | [`track_reliability.py`](code/models/track_reliability.py) |
+
+ByteTrack's association logic is vendored unchanged ([patch log](code/tracker/vendor/PATCHES.md)),
+so the baseline is a true vanilla ByteTrack.
+
+## Main results
+
+The paper evaluates on three 600-frame segments of one camera (dense, mixed and
+freeflow) at the 448 px real-time input size. Every tracker consumes the
+same detections. This is a **development evaluation on one camera**, not an
+independent test.
+
+Motorcycle tracking at 448 px. These numbers are not corrected for seed bias
+(see the findings below). From Table 2 of the manuscript; full rows in
+[`experiments/paper_final/best85_roi_final/448/summary.md`](experiments/paper_final/best85_roi_final/448/summary.md).
+
+| Configuration | Dense IDF1 | Dense IDSW | Mixed IDF1 | Mixed IDSW | Freeflow IDF1 | Freeflow IDSW |
+|---|---|---|---|---|---|---|
+| ByteTrack (baseline) | 0.477 | 141 | 0.565 | 19 | 0.516 | 2 |
+| + CTRV only | 0.496 | 55 | 0.575 | 4 | 0.523 | 1 |
+| C2 (CTRV, gate, NSA) | 0.499 | 62 | 0.574 | 9 | 0.536 | 0 |
+| C1 + C2 (+ C3) | 0.496 | 100 | 0.577 | 10 | 0.558 | 2 |
+| OC-SORT, matched threshold 0.5 | **0.551** | 39 | **0.646** | 6 | **0.588** | 2 |
+| OC-SORT, matched threshold 0.6 | 0.489 | **17** | 0.549 | **3** | 0.515 | 2 |
+
+Findings:
+
+- **C2 cuts identity switches but barely moves IDF1.** On dense traffic it
+  reduces motorcycle ID switches against ByteTrack by 56, 38, 29 and 27% at 448,
+  640, 960 and 1,280 px. The CTRV model alone accounts for most of the
+  reduction. After seed-bias correction, its IDF1 gain on dense and mixed lies
+  between −0.001 and +0.026 at every input size.
+- **OC-SORT with matched thresholds is the stronger tracker** at the real-time
+  input size. Placing C2's motion model inside OC-SORT has no clear effect
+  ([evidence](experiments/ocsort_ctrv/evidence.md)).
+- **Ground truth seeded from one tracker's pre-labels favours that tracker** by
+  about 0.04 IDF1. The bias comes from which boxes the ground truth contains,
+  not from their geometry. A blind audit finds 8 of 10 of the other tracker's
+  unmatched runs to be real vehicles. The paper brackets and corrects the bias
+  ([`experiments/seed_bias/`](experiments/seed_bias/)).
+- **The real-time operating point costs accuracy on small motorcycles.** At 448 px
+  the detector misses virtually all motorcycles under 20 px tall (99% at 640 px).
+  A region-of-interest mask that truncates far vehicles adds to the loss. C2's
+  dense IDF1 rises from 0.499 at 448 px to 0.764 at 1,280 px
+  ([`experiments/operating_point/`](experiments/operating_point/)).
+- **C1 and C3 work as designed but do not improve tracking here.** C1, with
+  pre-registered thresholds, holds its dense-peak regime in 80–90% of dense frames
+  without improving tracking. C3 filters nothing at its observation threshold.
+  In a pre-registered one-clip accident case study, C3 keeps the alert and delays
+  it from 0.17 s to 0.23 s
+  ([`experiments/c3_accident/`](experiments/c3_accident/)).
+
+**Timing.** The final configurations were not timed. In an earlier CPU sweep
+(Intel Core i5-12500H, no GPU), a COCO-pretrained YOLO11n detection head at
+448 px ran end to end in 26.6 ms per frame (p95 32.9 ms), against the 40 ms
+budget of the 25 fps source. Adjusted for the deployed detector's track count,
+this comes to about 36 ms
+([`experiments/realtime/evidence.md`](experiments/realtime/evidence.md)).
+
+## Repository layout
+
+```
+code/
+├── pipeline.py                  end-to-end pipeline with per-component ablation flags
+├── models/                      C1 (context estimator, controller), C2 (CTRV EKF), C3 (reliability score)
+├── tracker/
+│   ├── adaptive_bytetrack.py    class-aware ByteTrack hosting C1/C2
+│   ├── ocsort_ctrv.py           OC-SORT with C2's motorcycle motion model (ablation)
+│   ├── vendor/                  ByteTrack, association unchanged
+│   └── external/                OC-SORT and BoT-SORT baselines (MIT)
+├── detection/                   YOLO11 wrapper; legacy severity classifier (outside the paper's scope)
+├── evaluation/metrics.py        MOTA, IDF1, fragmentation; cross-checked against py-motmetrics
+├── alert/                       rate-limited Telegram alert with a dry-run mode
+└── scripts/                     experiment runners, sweeps, GT tools, figures
+configs/                         per-experiment YAML (baseline, exp1_C2, exp2_C1C2, exp3_C1C2C3)
+tests/                           311 pytest tests
+experiments/                     committed results (JSON) and an evidence note per experiment
+├── paper_final/                 final runs behind every number in the manuscript, figure script
+└── ...                          seed_bias, operating_point, c3_accident, ocsort_ctrv, c1_recalibration, ...
+paper/jrtip/                     manuscript (Springer svjour3), bibliography, figures
+docs/                            protocols, scope decisions, annotation guides
+ket_qua_train/                   training report of the real-time detector (no weights)
+```
+
+`paper/main.tex` and `paper/sections/` hold an earlier conference-format draft.
+The current manuscript is [`paper/jrtip/main.tex`](paper/jrtip/main.tex).
+
+## Installation
+
+Developed and tested on Windows 11 with Python 3.10, CPU only.
+
+```powershell
+py -3.10 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Run every script as a module from the repository root
+(`python -m code.scripts.<name>`). The project package is named `code`, which
+shadows a standard-library module ([`code/__init__.py`](code/__init__.py)).
 
 ## Quick start
 
 ```powershell
-# Windows, Python 3.10
-py -3.10 -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt -r requirements-dev.txt
+# Unit and integration tests
+pytest -q
 
-# Run the test suite (134 tests) — from the repo root
-pytest tests/ -q
-
-# Run an ablation experiment on the synthetic benchmark (no weights/footage needed)
+# Synthetic benchmark: needs no footage or weights
 python -m code.scripts.run_experiment --config configs/exp1_C2.yaml --synthetic --save-metrics
 
-# Run on real footage (COCO yolo11n fallback engages if VN weights are absent)
-python -m code.scripts.run_experiment --config configs/baseline.yaml --video data/raw/videos/<clip>.mp4 --save-metrics
+# Real footage. Falls back to a COCO YOLO11n if the project weights are absent.
+python -m code.scripts.run_experiment --config configs/baseline.yaml --video <clip>.mp4 --save-metrics
 ```
 
-> Run scripts as modules (`python -m code.scripts.run_experiment`) from the
-> repo root — the project package is named `code`, which shadows a stdlib
-> module (see `code/__init__.py`).
-
-## GT review
-
-For the **Accident / Vehicle detection dataset**, open
-`review_accident_dataset.cmd` to review related images, edit boxes, and publish
-source-preserving grouped splits. The prepared version remains a draft until
-review and provenance confirmation. See [dataset review instructions](docs/ACCIDENT_DATASET_REVIEW_WORKFLOW.md).
-
-For development training on **Kaggle**, use
-[CAAP_YOLO11_Kaggle.ipynb](notebooks/CAAP_YOLO11_Kaggle.ipynb) and the private
-upload ZIP prepared by `python -m code.scripts.package_kaggle_detection`.
-See [Kaggle setup and output instructions](docs/KAGGLE_DETECTOR_TRAINING.md).
-Development validation metrics are not independent paper test results.
-
-Double-click `review_gt.cmd`, or run
-`python -m code.scripts.gt_review_app`. The local reviewer saves human CUT/KEEP
-decisions, resumes pending candidates, and generates a new GT plus ablation
-scores after completion. See [the review workflow](docs/GT_REVIEW_WORKFLOW.md).
-
-For **mixed**, open `review_gt_mixed.cmd`: review merge/split/duplicate/short-track
-questions, edit boxes/classes in the local video viewer, and audit all 600 frames.
-It preserves the baseline seed and saves decisions plus an edit journal before
-generating a reviewed GT and ablation report.
-
-## Ablation configs
-
-| Config file | C1 | C2 | C3 | Maps to |
+| Config | C1 | C2 | C3 | Experiment |
 |---|---|---|---|---|
-| `configs/baseline.yaml` | ✗ | ✗ | ✗ | Exp 0 — vanilla YOLO11 + ByteTrack |
-| `configs/exp1_C2.yaml` | ✗ | ✓ | ✗ | Exp 1 — +CTRV motion model |
-| `configs/exp2_C1C2.yaml` | ✓ | ✓ | ✗ | Exp 2 — +context adaptation |
-| `configs/exp3_C1C2C3.yaml` / `default.yaml` | ✓ | ✓ | ✓ | Exp 3 — proposed method |
+| [`baseline.yaml`](configs/baseline.yaml) | | | | Exp0: YOLO11 + ByteTrack |
+| [`exp1_C2.yaml`](configs/exp1_C2.yaml) | | ✓ | | Exp1: + class-conditioned motion |
+| [`exp2_C1C2.yaml`](configs/exp2_C1C2.yaml) | ✓ | ✓ | | Exp2: + context adaptation |
+| [`exp3_C1C2C3.yaml`](configs/exp3_C1C2C3.yaml) | ✓ | ✓ | ✓ | Exp3: full pipeline |
 
-## Results on human GT
+## Reproducing the paper
 
-600 human-labelled frames of the densest window (~47 tracks/frame), identical
-detections for every row. Motorcycle class — the one C2 is about:
+All manuscript numbers come from one frozen runner,
+[`run_roi_paper.py`](code/scripts/run_roi_paper.py). It needs three inputs that
+are not in the repository: the source video, the reconciled ground-truth receipt
+and the detector checkpoint.
 
-| variant | MOTA | IDF1 | ID switches |
-|---|---|---|---|
-| baseline (linear KF) | 0.843 | 0.844 | 189 |
-| + CTRV | 0.857 | 0.850 | 158 |
-| + CTRV + NSA | 0.869 | 0.869 | 123 |
-| + CTRV + gating | 0.854 | 0.868 | 182 |
-| **+ CTRV + gating + NSA (C2)** | **0.893** | **0.933** | **29** |
-| + C1 (Exp 2, GT-tuned) | 0.878 | 0.909 | 99 |
-
-**C2 vs baseline: IDF1 0.844 → 0.933, ID switches −85%** — but see the
-caveat below before quoting these.
-
-> ⚠️ **Identity numbers are provisional.** The GT contains ~74 over-merged
-> identities (22% of tracks, two verified by eye): several motorcycles
-> chained into one. This inflates C2 specifically, because an over-merged
-> GT rewards any tracker that bridges occlusion gaps — which is what C2's
-> uncertainty gate does. Splitting the flagged joins moves the margin from
-> +0.089 to as little as +0.014 IDF1, with baseline *improving* and C2
-> *degrading*. C2 still leads on every variant, but the magnitude is
-> unsettled pending a GT re-review. Detection metrics, latency and the
-> C1/C3 findings are unaffected. See `experiments/gt_qa/WRONG_MERGES.md`.
-
-Three things this measurement changed, all written up with mechanisms in
-`experiments/gt_ablation/evidence.md`:
-
-- **Gating and NSA are super-additive.** Gating *alone* makes identity worse
-  (182 vs 158 switches): without NSA the EKF over-smooths, so the innovation
-  ellipse is mis-centred and rescues land on the wrong detection. C2 has to be
-  reported as one mechanism, not two.
-- **C1's shipped tuning was harmful, and C1 itself is still untested.** The
-  shipped `DENSE_PEAK` guess pinned confidence at 0.35 for all 600 frames and
-  cost 6255 FPs (MOTA 0.731). A GT sweep put the optimum at 0.50 / buffer 30,
-  now applied — but that optimum *is* the fixed default, and it still loses to
-  C1 off (0.905 vs 0.917). And `dense` never drops below C1's switching
-  threshold (0/600 frames), so it cannot test adaptation at all; only `mixed`
-  (switches 264/336) can. See `experiments/c1_sweep/evidence.md`.
-- **C3's MAPPO branch cannot be made to help.** τ_mappo = 0.40 sits below the
-  observed score floor of 0.435, so it filters nothing — and a full sweep shows
-  every higher threshold is worse. The reliability score separates true from
-  false tracks only weakly (ROC AUC 0.609) while false positives are just 5.5%
-  of tracks, so the best cut-off still discards four true tracks per false one.
-  The number to improve is the score, not the threshold. C3's precision claim
-  lives on the accident branch, which this accident-free clip cannot test.
-  See `experiments/c3_sweep/evidence.md`.
-
-Cost of C2: **+22% tracker latency** (3.93 → 4.78 ms/frame, detector excluded;
-dense-window p95 14.09 ms). Small against a YOLO11 inference budget of tens of
-ms. Measure with one variant per process — see `experiments/latency/evidence.md`
-for why a multi-variant run gets this wrong by 3×.
-
-The GT was seeded from `ctrv_gate_nsa`'s own pre-labels, which biases that row
-upward. Measured rather than assumed: correcting *every* still-flagged merge
-candidate moves C2's margin over baseline only from +0.089 to +0.085 IDF1
-(`experiments/gt_qa/sensitivity.md`). The bias is real, one-directional, and
-bounded at ~0.004.
-
-Synthetic evidence (superseded for headline numbers, still the unit-level
-argument — details in `experiments/`):
-
-- CTRV vs linear KF one-step prediction RMSE: **−48%** on constant turns,
-  **−13%** on weaving, no regression on straight lines
-- CTRV keeps the track ID through a 12-frame occlusion mid-turn where the
-  linear baseline re-identifies (IDSW 0 vs 1)
-- Documented boundary: an occlusion landing right after a turn-rate sign
-  flip favors a straight coast — analysis material, see
-  `experiments/exp1_C2/synthetic_evidence.md`
-
-## Repository structure
-
-```
-CAAP/
-├── code/
-│   ├── pipeline.py                 ← end-to-end pipeline, ablation flags
-│   ├── models/
-│   │   ├── context_estimator.py    ← C1a: 4 traffic signals
-│   │   ├── adaptive_controller.py  ← C1b: state → params (hysteresis)
-│   │   ├── motorcycle_motion_model.py  ← C2: CTRV EKF
-│   │   └── track_reliability.py    ← C3: dual-task score
-│   ├── tracker/
-│   │   ├── adaptive_bytetrack.py   ← ClassAwareSTrack + AdaptiveBYTETracker
-│   │   └── vendor/                 ← ByteTrack files, compat-patched
-│   │                                  (PATCHES.md — association unchanged)
-│   ├── detection/                  ← YOLO11 wrapper (COCO fallback),
-│   │                                  EfficientNet-B0 severity classifier
-│   ├── alert/                      ← Telegram bot (rate-limited, dry_run)
-│   ├── evaluation/metrics.py       ← self-implemented MOTA/IDF1/frag,
-│   │                                  cross-validated vs py-motmetrics
-│   ├── utils/synthetic.py          ← trajectory generators (tests + harness)
-│   └── scripts/run_experiment.py   ← CLI: --synthetic | --video
-├── configs/                        ← default + per-experiment YAML
-├── tests/                          ← 134 tests (pytest)
-├── experiments/                    ← results JSON + evidence notes per run
-├── data/                           ← gitignored (IP protection)
-├── weights/                        ← gitignored
-└── lib/ByteTrack/                  ← gitignored reference clone (optional)
+```powershell
+python -X utf8 -u -m code.scripts.run_roi_paper --phase all --sizes 448 640 960 1280
 ```
 
-## Blockers & fallbacks
+Or double-click `run_paper_experiments.cmd`.
 
-| Missing | Effect | Fallback in place |
-|---|---|---|
-| GT for `mixed` / `freeflow` | C1 threshold calibration; a segment not seeded from the proposed method | `dense` GT done — C2 numbers are real, C1/C3 still uncalibrated |
-| Accident footage + binary event-alert implementation | event-level alert P/R/F1, false alerts/hour, delay and C3's `tau_acc` | untested; image detector training does not establish event-alert performance |
+- **Frozen inputs.** The runner hashes the video, checkpoint, ground truth, ROI,
+  code and configs into `protocol.json`. A run records its commit in
+  `launcher.json`.
+- **Resumable.** Detections are cached in hashed 200-frame chunks, so an
+  interrupted run resumes, and every tracker reads the same cache.
+- **Phases.** `cache → replay → score`, plus `benchmark` for latency, which
+  runs one configuration per process after a discarded warm-up.
+- **Statistics.** Confidence intervals come from a paired moving-block
+  bootstrap (30-frame blocks, 10,000 replicates).
 
-Paper scope (Nghĩa, 12 Oct 2026): accident severity is excluded. Keep the
-five-class detector and evaluate binary accident alerting only when video GT
-and a verified implementation are available. Legacy severity code remains in
-the repository and currently gates runtime alerts; it is not a paper requirement.
-See [persistent paper scope](docs/PAPER_SCOPE.md).
+The full protocol is in [`docs/PAPER_EXPERIMENT_WORKFLOW.md`](docs/PAPER_EXPERIMENT_WORKFLOW.md).
 
-`weights/yolo11_vn.pt` is **present** and does carry an `Accident` class
-(id 0; `Detector` remaps by name, so its ordering does not matter). It is a
-`task='segment'` checkpoint while the pipeline only reads `.boxes` — whether
-that costs FPS for nothing is measured in the real-time benchmark.
+Each run's scored summary is committed under
+`experiments/paper_final/<run>/<size>/`. The figures are drawn only from those
+files, and the manuscript compiles with any LaTeX distribution
+(`svjour3.cls` is included):
 
-Not a blocker but the current gate on every headline number: the `dense` GT is
-over-merged (74/335 identities) and the re-review pass has not been run. See
-the warning above.
+```powershell
+python experiments/paper_final/figures.py   # writes paper/jrtip/figures/*.pdf
+cd paper/jrtip; latexmk -pdf main.tex
+```
 
-## Data policy (IP protection)
+## Annotation tools
 
-- `data/` is **gitignored** — never commit footage or labels.
-- `weights/` is **gitignored** — never commit trained model weights.
-- Telegram credentials live in gitignored `configs/tele_api.yaml`
-  (copy from `configs/tele_api.example.yaml`).
-- Only pseudocode is published in the paper.
+The ground truth was built with local review apps, each started by a launcher
+in the repository root:
+
+| Launcher | Purpose |
+|---|---|
+| `review_gt_roi.cmd` | Draw and freeze the per-camera region of interest |
+| `review_gt_mixed.cmd`, `review_gt_roi_dense.cmd`, `review_gt_roi_freeflow.cmd` | Review merges, splits and duplicates; edit boxes and classes in a video viewer |
+| `review_gt.cmd` | Resolve over-merged identities (cut / keep) |
+| `review_gt_audit.cmd`, `review_gt_reconcile.cmd` | Blind audit of tracker–GT disagreements, then reconciliation |
+| `review_accident_dataset.cmd` | Clean the detection dataset with source-grouped splits |
+| `train_detector_trial.cmd` | Detector training smoke test ([Kaggle notebook](notebooks/CAAP_YOLO11_Kaggle.ipynb) for full runs) |
+
+Guides: [annotation](docs/GT_ANNOTATION_GUIDE.md), [review workflow](docs/GT_REVIEW_WORKFLOW.md),
+[audit reconciliation](docs/GT_AUDIT_RECONCILIATION.md).
+
+## Data, weights and licensing
+
+- **Footage.** The source videos are third-party recordings from public online
+  sources. They are not redistributed.
+- **Annotations and weights.** Annotations, derived data and model weights are
+  not in the repository (`data/` and `weights/` are gitignored). Annotations and
+  derived data are available from the corresponding author on reasonable request.
+- **Credentials.** Telegram credentials belong in the gitignored
+  `configs/tele_api.yaml` (template: [`tele_api.example.yaml`](configs/tele_api.example.yaml)).
+- **License.** No open-source license is granted for the project code; all
+  rights are reserved by the authors. The vendored ByteTrack, OC-SORT and BoT-SORT
+  code keeps its original MIT license.
+
+## Citation
+
+```bibtex
+@unpublished{Le2026_motorcycle_tracking,
+  author = {Le, Trong Nghia and Nguyen, Viet Nam and Ho, Minh Hieu and
+            Vo, Xuan Lanh and Nguyen, Thien Bao},
+  title  = {Tracking Motorcycles in Dense Mixed Traffic: A Class-Conditioned
+            {CTRV} Filter, Seed-Biased Ground Truth and the Cost of Real-Time
+            Input Sizes},
+  note   = {Manuscript in preparation},
+  year   = {2026}
+}
+```
+
+## Contact
+
+Institute of Intelligent and Interactive Technologies, College of Technology and
+Design, University of Economics Ho Chi Minh City (UEH).
+Corresponding author: Thien Bao Nguyen, baont@ueh.edu.vn.
