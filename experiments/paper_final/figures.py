@@ -56,7 +56,7 @@ def size_axis(ax):
 
 def fig_sizes():
     """Dense ID switches, and the seed-corrected IDF1 gaps C2-ByteTrack and OC-SORT-C2."""
-    fig, axes = plt.subplots(1, 3, figsize=(174 * MM, 52 * MM))
+    fig, axes = plt.subplots(1, 3, figsize=(174 * MM, 42 * MM))
     ax = axes[0]
     for arm, (label, colour, marker, style) in ARM_STYLE.items():
         idsw = [load(f'experiments/paper_final/best85_roi_final/{s}/metrics.json')['segments']['dense']['metrics'][arm]
@@ -89,7 +89,7 @@ def fig_seed_bias(size=448):
     corrected IDF1 gaps at the Table 2 size: how far the seed moves each comparison."""
     b = bracket(size)
     groups = (('ocsort_matched - ctrv_gate_nsa', 'OC-SORT (0.5) $-$ C2'), ('ctrv_gate_nsa - baseline', 'C2 $-$ ByteTrack'))
-    fig, ax = plt.subplots(figsize=(84 * MM, 62 * MM))
+    fig, ax = plt.subplots(figsize=(84 * MM, 47 * MM))
     ticks, labels, y = [], [], 0
     for pair, name in groups:
         for seg in reversed(SEGMENTS):
@@ -118,25 +118,48 @@ def fig_seed_bias(size=448):
     fig.savefig(OUT / 'fig_seed_bias.pdf')
 
 
-def fig_small_objects():
-    """Dense motorcycle miss rate by ground-truth box height and input size (ByteTrack)."""
+def fig_operating():
+    """Accuracy cost of the operating point (replaces the old Table 4): (a) C2's motorcycle
+    IDF1 per segment and (b) ByteTrack's dense miss rate by ground-truth box height, over
+    the real-time detector's input sizes; hollow markers at 1,280 px: reference detector."""
     ops = load('experiments/operating_point/operating_points.json')['operating_points']
-    bins = (('0-20', '$<$20 px', 'o', '#000000'), ('20-40', '20$-$40 px', 's', '#0072B2'),
-            ('40-10000', '$\\geq$40 px', '^', '#D55E00'))
-    fig, ax = plt.subplots(figsize=(84 * MM, 50 * MM))
-    for key, label, marker, colour in bins:
-        rate = [ops[f'best_{s}']['dense']['baseline']['motorcycle']['miss_by_height'][key]['rate'] for s in SIZES]
-        ax.plot(SIZES, rate, marker=marker, color=colour, label=f'Height {label}')
+    ref = ops['yolo11_vn_1280_roi']
+    fig, axes = plt.subplots(1, 2, figsize=(84 * MM, 44 * MM))
+    ax = axes[0]
+    for seg in SEGMENTS:
+        colour, marker = SEG_STYLE[seg]
+        ax.plot(SIZES, [ops[f'best_{s}'][seg]['ctrv_gate_nsa']['motorcycle']['idf1'] for s in SIZES],
+                color=colour, marker=marker, label=SEG_LABEL[seg])
+        ax.plot(1280 * 1.06, ref[seg]['ctrv_gate_nsa']['motorcycle']['idf1'], marker=marker, linestyle='none',
+                markerfacecolor='white', markeredgecolor=colour)
     size_axis(ax)
-    ax.set_ylim(0, 1.02)
-    ax.set_ylabel('Miss rate')
-    ax.legend(frameon=False, loc='center right')
-    fig.savefig(OUT / 'fig_small_objects.pdf')
+    ax.set_ylabel('C2 motorcycle IDF1')
+    ax.set_ylim(0.45, 1.0)
+    ax.set_title('(a)', loc='left')
+    ax.legend(frameon=False, loc='upper left', handlelength=1.2)
+    ax = axes[1]
+    bins = (('0-20', 'height $<$20 px', 'o', '#000000', (800, 0.83)),
+            ('20-40', '20$-$40 px', 's', '#0072B2', (760, 0.31)),
+            ('40-10000', '$\geq$40 px', '^', '#D55E00', (760, 0.03)))
+    for key, label, marker, colour, (tx, ty) in bins:
+        ax.plot(SIZES, [ops[f'best_{s}']['dense']['baseline']['motorcycle']['miss_by_height'][key]['rate']
+                        for s in SIZES], marker=marker, color=colour)
+        ax.plot(1280 * 1.06, ref['dense']['baseline']['motorcycle']['miss_by_height'][key]['rate'], marker=marker,
+                linestyle='none', markerfacecolor='white', markeredgecolor=colour)
+        ax.text(tx, ty, label, color=colour, fontsize=6.5, ha='center')
+    size_axis(ax)
+    ax.set_ylim(0, 1.03)
+    ax.set_ylabel('Dense miss rate')
+    ax.set_title('(b)', loc='left')
+    for a in axes:
+        a.set_xlabel('Input size (px)', fontsize=7)
+    fig.tight_layout(w_pad=0.8)
+    fig.savefig(OUT / 'fig_operating.pdf')
 
 
 if __name__ == '__main__':
     OUT.mkdir(parents=True, exist_ok=True)
     fig_sizes()
     fig_seed_bias()
-    fig_small_objects()
+    fig_operating()
     print('written:', sorted(p.name for p in OUT.glob('fig_*.pdf')))
