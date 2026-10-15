@@ -106,3 +106,27 @@ has run on these clips, for these reasons:
   best.pt.
 
 Everything else in the test is unchanged.
+
+## Result at 448 px (2026-10-15, read as pre-registered)
+
+Records are in `results_448/`: `summary.json` from `--analyze`, the blind
+verdicts and the episode index. The review sheets are derived from footage, so
+they stay in the gitignored `data/processed/c3_accident/448/review/`.
+
+- **Clips:** 8 normal clips (the list above names 8 files, although its heading
+  says 9) and the accident clip.
+- **Normal clips:** 0 raw false-alert episodes and 0 with C3.
+  - Unseen cameras pooled: 1.01 h, 0/h, exact Poisson 95% interval [0, 3.65]/h.
+  - Seen camera `7_20_2017`: 0.5 h, 0/h, [0, 7.37]/h.
+- **Verdict on false alerts:** inconclusive, by the small-count rule. The raw
+  pipeline gives C3 no false alert to suppress.
+- **Accident clip:**
+  - Raw: two episodes, frames 60–86 and 360–480. The blind review judged both
+    to show the accident. The first alert is at frame 60, 0.17 s after onset,
+    and the episode lasts 0.9 s.
+  - With C3: episodes at 62–77 and 362–480. The first alert is at frame 62,
+    0.23 s after onset, so C3 costs 2 frames (0.07 s) of delay and shortens
+    the first episode to 0.53 s.
+- **Reading:** C3 keeps the real accident alert, at a two-frame delay.
+  Whether it lowers false alerts cannot be measured here, because the raw
+  pipeline raises none in about 1.5 h of normal traffic.
