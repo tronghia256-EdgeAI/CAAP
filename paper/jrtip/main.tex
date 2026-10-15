@@ -100,7 +100,7 @@ audit finds 80\% of the other tracker's unmatched runs to be real vehicles,
 and we bracket the bias. And the real-time operating point costs accuracy
 where motorcycles are small: at 640-pixel input the detector misses 99\% of
 those under 20 pixels tall, and a region-of-interest mask that truncates small
-vehicles at its far boundary adds to the loss. \todo{Latency at the four input sizes.}
+vehicles at its far boundary adds to the loss.
 \keywords{Multi-object tracking \and Extended Kalman filter \and Mixed traffic
 \and Motorcycles \and Context-aware perception \and Real-time video analytics}
 \end{abstract}
@@ -988,7 +988,7 @@ regimes as intended without improving tracking. Two lessons reach beyond this pi
 pre-labelled from one tracker favours it through the boxes it contains, which
 union pre-labels or a blind audit of disagreements correct; and on a commodity
 CPU the real-time input size and the region-of-interest mask bound accuracy
-through small objects. \todo{Latency and the accuracy--latency curve.} Future work covers an
+through small objects. Future work covers an
 independent camera annotated from union pre-labels, accident footage for C3's
 precision branch, and an
 interacting-multiple-model filter~\cite{Blom1988_imm} combining CTRV with a
