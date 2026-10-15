@@ -108,8 +108,6 @@ vehicles at its far boundary adds to the loss.
 \section{Introduction}\label{sec:intro}
 %% =====================================================================
 
-\todo{Verify the v5-derived numbers in the abstract, introduction and
-conclusion against the final run.}
 Road traffic crashes killed an estimated 1.19 million people in 2021; 92\% of
 these deaths occur in low- and middle-income countries, and riders of powered
 two- and three-wheelers account for 30\% of them~\cite{WHO2023_roadsafety}. In
@@ -982,7 +980,7 @@ detections, by 56\% at the 448-px real-time input, 38\% at 640~px and 27--29\%
 at 960--1,280~px; the seed-corrected IDF1 gain is at most 0.02 at 448 and
 640~px and reaches 0.043 at 1,280~px. Gating alone does not help, nor does C2's
 motion model inside OC-SORT; OC-SORT with matched thresholds leads in
-seed-corrected IDF1 up to 960~px but not at 1,280~px. C3 filters nothing at its threshold, and C1, recalibrated, switches
+seed-corrected IDF1 up to 960~px, and on mixed at every size. C3 filters nothing at its threshold, and C1, recalibrated, switches
 regimes as intended without improving tracking. Two lessons reach beyond this pipeline: ground truth
 pre-labelled from one tracker favours it through the boxes it contains, which
 union pre-labels or a blind audit of disagreements correct; and on a commodity
