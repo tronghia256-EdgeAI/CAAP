@@ -89,3 +89,20 @@ Small false-alert counts need explicit handling.
    - The verdicts (accident / false / unclear) are written before C3's
      episodes are computed: `--review`, then the verdict file, then
      `--analyze`, which refuses to run until every raw episode has a verdict.
+
+## Amendment 2 (2026-10-15, before any C3-test pipeline output)
+
+Nghia decided on 15/10 that the paper will not measure latency, so the ce8f3d5
+rule cannot select Table 2's size. **S = 448**, fixed now, before any pipeline
+has run on these clips, for these reasons:
+
+- The rule picks the largest best.pt size whose arms all have a median p95 of
+  at most 40 ms. If no size meets that, it falls back to 448.
+- The only clean sweep is `experiments/realtime/evidence.md`, Sect. 4, from
+  27/8 on an unthrottled CPU. It measured the detect head at a p95 of
+  32.9 ms at 448 and 69.6 ms at 640.
+- So 448 is the outcome unless 640 met the budget, which that sweep rules
+  out. One caveat is inferred, not verified: the sweep timed yolo11n, not
+  best.pt.
+
+Everything else in the test is unchanged.
