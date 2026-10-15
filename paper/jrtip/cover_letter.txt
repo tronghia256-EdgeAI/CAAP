@@ -19,25 +19,30 @@ tracker's operating point from the traffic context, a class-conditioned
 constant-turn-rate motion model for motorcycles, and a track reliability score
 with separate thresholds for alerting and signal control. We report every
 component as measured on three human-annotated segments of one camera, under
-one development protocol with identical cached detections. The motorcycle
-motion model cuts identity switches in dense traffic by 38-56% against
-ByteTrack, with a seed-corrected IDF1 gain below 0.02, and OC-SORT with matched
-thresholds tracks better still; the reliability score filters nothing at its
-threshold, and [the context controller's effect after recalibration]. Two
-evaluation findings reach beyond this pipeline: ground truth corrected from one
-tracker's pre-labels favours that tracker by about 0.04 IDF1, which a blind
-audit quantifies and a bracket corrects; and the real-time operating point
-costs accuracy through small objects.
+one development protocol with identical cached detections. At the real-time
+input size the motorcycle motion model cuts identity switches in dense traffic
+by 56% against ByteTrack, with a seed-corrected IDF1 gain below 0.02; OC-SORT
+with matched thresholds tracks better still, and the motion model does not
+improve OC-SORT. The reliability score filters nothing at its threshold, and
+the context controller, recalibrated, switches regimes as intended without
+improving tracking. Two evaluation findings reach beyond this pipeline: ground
+truth corrected from one tracker's pre-labels favours that tracker by about
+0.04 IDF1, which a blind audit quantifies and a bracket corrects; and the
+real-time input size and a region-of-interest mask cost accuracy through small
+objects.
 
 Real-time issues addressed. Beyond reporting speed, the manuscript treats
 real-time operation as a design constraint:
-1. The accuracy cost of real-time detector operating points, stratified by
-   object size: at 640 px input the detector misses 99% of the motorcycles
-   under 20 px tall, against 10% at 1,280 px, and 69-76% of the annotated
-   motorcycles are under 40 px.
-2. End-to-end CPU latency with the detector included, at four input sizes
-   (448 to 1,280 px), broken down by stage, against the 40 ms budget of the
-   25 fps source. [Insert the measured values after the latency run.]
+1. The accuracy cost of real-time front-end choices, stratified by object
+   size: the real-time detector misses 100% of the motorcycles under 20 px
+   tall at 448 px input and 81% at 1,280 px, 69-76% of the annotated
+   motorcycles are under 40 px, and a region-of-interest mask adds to the loss
+   by truncating small vehicles at its far boundary.
+2. End-to-end CPU latency with the detector included, against the 40 ms budget
+   of the 25 fps source: a detection head of the real-time architecture takes
+   26.6 ms per frame at 448 px (95th percentile 32.9 ms; about 36 ms at the
+   deployed tracking load) and 62.9 ms at 640 px, which makes 448 px the
+   real-time operating point.
 3. Complexity and memory of every proposed module (a constant-size 5-state
    filter, about 1 kB of state per motorcycle track).
 4. Design choices measured on the same CPU: a detection head instead of a

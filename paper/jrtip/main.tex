@@ -611,8 +611,7 @@ accuracy experiments, detections were computed once per detector and input size
 reference) on frames masked outside the region of interest, with a confidence
 floor of 0.1, and cached;
 every tracker consumes the same cache, so differences between configurations
-are attributable to tracking, and latency is measured at the same operating
-points (Sect.~\ref{sec:realtime}).
+are attributable to tracking.
 
 \subsection{Configurations, parameters and metrics}\label{subsec:configs}
 
@@ -647,19 +646,18 @@ motorcycles and over all classes; our implementation is cross-validated against
 py-motmetrics~\cite{Heindl_pymotmetrics} and the official HOTA code. C3's discriminative power is
 the ROC AUC for separating true from false track-frames.
 
-\subsection{Latency protocol}\label{subsec:protocol}
+\subsection{Timing}\label{subsec:protocol}
 
-%% Source: docs/PAPER_EXPERIMENT_WORKFLOW.md (v5 run, benchmark phase).
-All timings use a laptop with an Intel Core i5-12500H CPU, 16~GB RAM and no GPU,
-Windows~11, Python 3.10, PyTorch~\cite{Paszke2019_pytorch} 2.11 (CPU build,
-eight threads) and Ultralytics 8.4.39. End-to-end latency covers decoding,
-context estimation and masking, detection, tracking and scoring on real frames:
-200 frames of the dense segment after 20 discarded warm-up frames, with the
-tracker state pre-rolled from frame 0 on cached detections. Each configuration
-and each of its three repetitions runs in its own process
-(Sect.~\ref{subsec:protocol-lessons}), and the processor's performance state is
-recorded, because the laptop's power management can throttle it.
-\todo{Confirm that the v5 benchmark ran unthrottled; otherwise re-measure.}
+%% Source: experiments/realtime/evidence.md, sections 1 and 4 (sweep of
+%% 27 Aug 2026, commit f7b504e; pt-det-n@*.json, baseline.json).
+The final configurations were not timed, because every later benchmark met the
+laptop's processor throttled (Sect.~\ref{subsec:protocol-lessons}). Timings come
+from an earlier sweep on the same laptop (Intel Core i5-12500H, 16~GB RAM, no
+GPU, Windows~11, Python 3.10, PyTorch~\cite{Paszke2019_pytorch} 2.11 on eight
+CPU threads, Ultralytics 8.4.39), made before the region-of-interest protocol
+with a COCO-pretrained YOLO11n of the real-time detector's architecture. End to
+end it covers decoding, context estimation, detection, tracking and scoring over
+60 to 100 frames after discarded warm-up frames, one configuration per process.
 
 %% =====================================================================
 \section{Results}\label{sec:results}
@@ -680,20 +678,19 @@ differences of position.
 
 \subsection{Tracking on the annotated segments}\label{subsec:ablation}
 
-\todo{Table~\ref{tab:ablation} is shown at 640~px until the pre-registered
-latency rule (ce8f3d5: the largest input size whose slowest arm meets 40~ms at
-the 95th percentile) fixes its size; regenerate it then.}
-
-%% Source: experiments/paper_final/best85_roi_final/640/metrics.json (final
+%% Source: experiments/paper_final/best85_roi_final/448/metrics.json (final
 %% masked run, commit 35d85b1); rows generated from the file; C3 checked inert.
+%% 448 px is the real-time operating point by the timings of Sect. 6.3
+%% (the ce8f3d5 rule's fallback; experiments/c3_accident amendment feb6bf6).
 \begin{table*}[t]
-\caption{Motorcycle tracking on the three segments at 640~px input (best.pt,
-region of interest, reconciled ground truth with 19,213, 7,268 and 2,294
-motorcycle boxes). All rows consume identical detections, and Exp3 equals Exp2
-because C3 filters nothing. Matched: ByteTrack's detection-score thresholds,
-with OC-SORT's single threshold at 0.5 or 0.6. $\mathrm{H}_{0.5}$: HOTA at
-$\alpha=0.5$. Not corrected for seed bias (Table~\ref{tab:seedbias}).
-\textbf{Bold}: best per column.}
+\caption{Motorcycle tracking on the three segments at 448~px input, the
+real-time operating point (Sect.~\ref{subsec:latency}; best.pt, region of
+interest, reconciled ground truth with 19,213, 7,268 and 2,294 motorcycle
+boxes). All rows consume identical detections, and Exp3 equals Exp2 because C3
+filters nothing. Matched: ByteTrack's detection-score thresholds, with OC-SORT's
+single threshold at 0.5 or 0.6. $\mathrm{H}_{0.5}$: HOTA at $\alpha=0.5$. Not
+corrected for seed bias (Table~\ref{tab:seedbias}). \textbf{Bold}: best per
+column.}
 \label{tab:ablation}
 \footnotesize
 \setlength{\tabcolsep}{3.5pt}
@@ -703,18 +700,18 @@ $\alpha=0.5$. Not corrected for seed bias (Table~\ref{tab:seedbias}).
 \cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(l){10-13}
 Configuration & MOTA & IDF1 & $\mathrm{H}_{0.5}$ & IDSW & MOTA & IDF1 & $\mathrm{H}_{0.5}$ & IDSW & MOTA & IDF1 & $\mathrm{H}_{0.5}$ & IDSW \\
 \midrule
-Exp0: ByteTrack (baseline)   & 0.406 & 0.590 & 0.504 & 154 & 0.566 & 0.726 & 0.626 & 9 & 0.527 & 0.693 & 0.568 & 2 \\
-\quad + CTRV                 & 0.419 & 0.597 & 0.510 & 97 & 0.566 & 0.723 & 0.623 & 7 & 0.530 & 0.697 & 0.572 & \textbf{1} \\
-\quad + CTRV, NSA            & 0.422 & 0.600 & 0.511 & 96 & 0.573 & 0.726 & 0.626 & 9 & 0.533 & 0.698 & 0.574 & \textbf{1} \\
-\quad + CTRV, gate           & 0.418 & 0.600 & 0.509 & 115 & 0.566 & 0.725 & 0.623 & 8 & 0.530 & 0.697 & 0.572 & \textbf{1} \\
-Exp1: C2 (CTRV, gate, NSA)   & 0.422 & 0.602 & 0.512 & 95 & 0.573 & 0.729 & 0.628 & 8 & 0.533 & 0.698 & 0.574 & \textbf{1} \\
-Exp2/3: C1, C2 (+ C3)        & 0.420 & 0.599 & 0.511 & 139 & 0.587 & 0.736 & 0.639 & 9 & 0.563 & 0.723 & 0.603 & 2 \\
+Exp0: ByteTrack (baseline)   & 0.294 & 0.477 & 0.397 & 141 & 0.382 & 0.565 & 0.467 & 19 & 0.350 & 0.516 & 0.402 & 2 \\
+\quad + CTRV                 & 0.308 & 0.496 & 0.409 & 55 & 0.390 & 0.575 & 0.473 & 4 & 0.353 & 0.523 & 0.409 & 1 \\
+\quad + CTRV, NSA            & 0.312 & 0.498 & 0.411 & 55 & 0.393 & 0.575 & 0.475 & 6 & 0.364 & 0.536 & 0.421 & \textbf{0} \\
+\quad + CTRV, gate           & 0.308 & 0.496 & 0.409 & 70 & 0.390 & 0.575 & 0.473 & 6 & 0.354 & 0.519 & 0.407 & 3 \\
+Exp1: C2 (CTRV, gate, NSA)   & 0.313 & 0.499 & 0.412 & 62 & 0.392 & 0.574 & 0.474 & 9 & 0.364 & 0.536 & 0.421 & \textbf{0} \\
+Exp2/3: C1, C2 (+ C3)        & 0.313 & 0.496 & 0.412 & 100 & 0.394 & 0.577 & 0.480 & 10 & 0.391 & 0.558 & 0.438 & 2 \\
 \midrule
-OC-SORT, published           & 0.318 & 0.491 & 0.409 & \textbf{34} & 0.453 & 0.619 & 0.515 & 6 & 0.457 & 0.624 & 0.497 & 2 \\
-OC-SORT, matched 0.5         & \textbf{0.426} & \textbf{0.626} & \textbf{0.537} & 79 & \textbf{0.609} & \textbf{0.757} & \textbf{0.657} & 11 & \textbf{0.568} & \textbf{0.726} & \textbf{0.606} & 2 \\
-OC-SORT, matched 0.6         & 0.409 & 0.603 & 0.503 & 51 & 0.554 & 0.719 & 0.607 & \textbf{4} & 0.511 & 0.678 & 0.553 & \textbf{1} \\
-BoT-SORT, published          & 0.324 & 0.516 & 0.437 & 161 & 0.458 & 0.642 & 0.544 & 29 & 0.432 & 0.598 & 0.479 & 15 \\
-BoT-SORT, matched            & 0.409 & 0.597 & 0.516 & 266 & 0.555 & 0.721 & 0.630 & 32 & 0.531 & 0.697 & 0.578 & 15 \\
+OC-SORT, published           & 0.213 & 0.370 & 0.299 & \textbf{17} & 0.307 & 0.480 & 0.383 & \textbf{2} & 0.252 & 0.407 & 0.313 & 1 \\
+OC-SORT, matched 0.5         & \textbf{0.352} & \textbf{0.551} & \textbf{0.453} & 39 & \textbf{0.468} & \textbf{0.646} & \textbf{0.535} & 6 & \textbf{0.415} & \textbf{0.588} & \textbf{0.465} & 2 \\
+OC-SORT, matched 0.6         & 0.295 & 0.489 & 0.396 & \textbf{17} & 0.368 & 0.549 & 0.450 & 3 & 0.345 & 0.515 & 0.402 & 2 \\
+BoT-SORT, published          & 0.213 & 0.377 & 0.310 & 174 & 0.298 & 0.480 & 0.389 & 37 & 0.238 & 0.388 & 0.315 & 12 \\
+BoT-SORT, matched            & 0.301 & 0.491 & 0.412 & 269 & 0.368 & 0.559 & 0.470 & 54 & 0.361 & 0.535 & 0.420 & 17 \\
 \bottomrule
 \end{tabular*}
 \end{table*}
@@ -726,27 +723,26 @@ CTRV motion model accounts for most of this: CTRV alone gives 55, 97, 76 and
 111 switches, the gate on its own adds 12 to 18 at every size, and NSA offsets
 that cost, so the super-additivity of gate and NSA that we observed under our
 earlier protocol does not reproduce. C2's IDF1 gain over ByteTrack is small; at
-640~px the paired moving-block bootstrap intervals~\cite{Kunsch1989_bootstrap}
-over 30-frame blocks (10,000 replicates) are $[0.007, 0.020]$,
-$[-0.002, 0.007]$ and $[0.001, 0.012]$ on dense, mixed and freeflow,
+448~px the paired moving-block bootstrap intervals~\cite{Kunsch1989_bootstrap}
+over 30-frame blocks (10,000 replicates) are $[0.012, 0.033]$,
+$[0.001, 0.014]$ and $[0.007, 0.032]$ on dense, mixed and freeflow,
 conditional on the ground truth (seed-corrected values in
 Sect.~\ref{subsec:seedbias}).
 
-At real-time input sizes, OC-SORT with matched thresholds is the stronger
-tracker. With its threshold at 0.5 it has the highest IDF1 on every segment at
-448 and 640~px (0.626, 0.757 and 0.726 at 640~px, against C2's 0.602, 0.729
-and 0.698); at 0.6 it makes fewer dense switches than C2 (17 and 51 against 62
-and 95) at an IDF1 within 0.01 of C2's. At 960 and 1,280~px the raw dense
-ranking turns in C2's favour; Sect.~\ref{subsec:seedbias} traces this mostly to
-seed bias. BoT-SORT with matched thresholds comes close to C2's IDF1 but
-switches identities 2.7 to 4.3 times as often on dense. With their published
-MOT17 thresholds both trail ByteTrack at the real-time input sizes. Placing
-C2's motion model inside OC-SORT (CTRV with NSA for motorcycles, association
-unchanged, design fixed before the run) has no clear effect: on mixed the
-pre-registered criterion, a seed-corrected bracket and a block-bootstrap
-interval of one sign, is met at no input size, and on dense the combination
-switches identities more often than OC-SORT at every size (104 against 79 at
-640~px).
+At the real-time input size, OC-SORT with matched thresholds is the stronger
+tracker. With its threshold at 0.5 it has the highest IDF1 on every segment
+(0.551, 0.646 and 0.588 against C2's 0.499, 0.574 and 0.536), as it also has at
+640~px; at 0.6 it makes fewer dense switches than C2 (17 against 62) at an IDF1
+within 0.01 of C2's. At 960 and 1,280~px the raw dense ranking turns in C2's
+favour; Sect.~\ref{subsec:seedbias} traces this mostly to seed bias. BoT-SORT
+with matched thresholds comes close to C2's IDF1 but switches identities 2.7 to
+4.3 times as often on dense. With their published MOT17 thresholds both trail
+ByteTrack at 448 and 640~px. Placing C2's motion model inside OC-SORT (CTRV
+with NSA for motorcycles, association unchanged, design fixed before the run)
+has no clear effect: on mixed the pre-registered criterion, a seed-corrected
+bracket and a block-bootstrap interval of one sign, is met at no input size, and
+on dense the combination switches identities more often than OC-SORT at every
+size (88 against 39 at 448~px).
 
 \subsection{Seed bias in pre-labelled ground truth}\label{subsec:seedbias}
 
@@ -909,24 +905,27 @@ scores interior motorcycles slightly lower (median shift about $-0.015$), and
 rise above it, so dense misses grow although boundary objects are recovered;
 the cause of the shift is not determined.
 
-\subsection{Measured latency}\label{subsec:latency}
+\subsection{Latency}\label{subsec:latency}
 
-\todo{End-to-end latency (decoding, masking, detection, tracking, scoring) of
-ByteTrack, C2 and the C1 arm at 448, 640, 960 and 1,280~px under a verified
-performance state, and the accuracy--latency curve.}
-A detection head cost 58.2~ms against 130.7~ms for a segmentation head of the
-same scale at 640~px ($2.25\times$; COCO-pretrained YOLO11n), which is why the
-paper run uses one; exporting either network to OpenVINO (FP32, FP16) or ONNX
-Runtime with default settings was 25--75\% slower than PyTorch on this CPU.
+In that sweep the detection head took 26.6~ms per frame end to end at 448~px
+(95th percentile 32.9~ms) and 62.9~ms at 640~px (69.6~ms), against the 40~ms
+budget of the 25~fps source. A segmentation head of the same scale cost
+$2.25\times$ as much at 640~px, which is why the paper run uses a detection
+head, and exporting either network to OpenVINO (FP32, FP16) or ONNX Runtime with
+default settings was 25--75\% slower than PyTorch. The COCO weights found few
+vehicles, so the 448~px run tracked 1.5 objects per frame; substituting the
+10~ms that tracking took with the deployed detector (about 38 tracks per frame)
+gives about 36~ms; masking leaves the input size unchanged. By these timings
+448~px is the real-time operating point, which Table~\ref{tab:ablation} reports.
 
 \subsection{Measurement protocol}\label{subsec:protocol-lessons}
 
-Three protocol rules matter because violating any of them produces differences
-larger than those under study. Timed in one process, the same baseline measured
+Three protocol rules matter more than the effects under study. Timed in one
+process, the same baseline measured
 13.19~ms per frame when it ran first and 4.07~ms when it ran last, a $3.2\times$
 spread that flatters whichever configuration runs last. Warm-up frames must be
 discarded (219~ms against 143~ms in steady state). And the processor's
-performance state must be checked: the benchmark phase of the paper run met the
+performance state must be checked: every benchmark of the final runs met the
 laptop throttled to 32--64\% of nominal performance and was discarded.
 
 %% =====================================================================
@@ -968,9 +967,10 @@ which the method was designed: three 24-second segments of one morning with
 only cars and motorcycles. No independent camera was annotated, and the
 detector's validation images are not an independent test. \emph{Construct.}
 MOTA, IDF1 and HOTA measure tracking fidelity, not downstream utility for a
-signal controller or alert precision. \emph{Real time.} Latency comes from one
-laptop CPU whose power management can throttle it; we report runs with its
-performance state verified.
+signal controller or alert precision. \emph{Real time.} Timings come from one
+earlier sweep on one laptop CPU, with COCO weights on the real-time
+architecture and before the region-of-interest protocol; the final
+configurations were not timed.
 
 %% =====================================================================
 \section{Conclusion}\label{sec:conclusion}
