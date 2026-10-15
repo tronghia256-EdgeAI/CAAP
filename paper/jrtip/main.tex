@@ -84,12 +84,13 @@ alerting and signal-control observations. On three human-annotated segments of
 Ho Chi Minh City CCTV, at the 448-pixel real-time input and on identical
 detections, C2 cuts motorcycle identity switches in dense traffic by 56\%
 against ByteTrack, through its CTRV model alone, while its seed-corrected IDF1 gain is at most 0.02; OC-SORT with matched thresholds tracks
-better on both counts. C3 filters nothing at its threshold, and C1, recalibrated,
-switches regimes as intended without improving tracking. Two evaluation findings
+better on both counts. C3 filters nothing here but keeps a real accident alert in
+a one-clip case study, and C1, recalibrated, switches regimes as intended
+without improving tracking. Two evaluation findings
 transfer beyond this pipeline. Ground
 truth corrected from one tracker's pre-labels favours that tracker by about
 0.04 IDF1 through the boxes it contains rather than their geometry; a blind
-audit finds 80\% of the other tracker's unmatched runs to be real vehicles,
+audit finds 80\% of the other tracker's unmatched runs real,
 and we bracket the bias. And the real-time operating point costs accuracy
 where motorcycles are small: at the 448-pixel input the detector misses virtually all of
 those under 20 pixels tall (99\% at 640 pixels), and a region-of-interest mask that truncates small
@@ -980,7 +981,10 @@ detections, by 56\% at the 448-px real-time input, 38\% at 640~px and 27--29\%
 at 960--1,280~px; the seed-corrected IDF1 gain is at most 0.02 at 448 and
 640~px and reaches 0.043 at 1,280~px. Gating alone does not help, nor does C2's
 motion model inside OC-SORT; OC-SORT with matched thresholds leads in
-seed-corrected IDF1 up to 960~px, and on mixed at every size. C3 filters nothing at its threshold, and C1, recalibrated, switches
+seed-corrected IDF1 up to 960~px, and on mixed at every size. C3 filters
+nothing at its threshold on these segments; in a one-clip accident case study
+its alerting branch keeps the real alert at a two-frame delay, and its effect on
+false alerts cannot be measured because none occur. C1, recalibrated, switches
 regimes as intended without improving tracking. Two lessons reach beyond this pipeline: ground truth
 pre-labelled from one tracker favours it through the boxes it contains, which
 union pre-labels or a blind audit of disagreements correct; and on a commodity
