@@ -87,10 +87,9 @@ with a constant-turn-rate-and-velocity extended Kalman filter inside ByteTrack,
 with covariance gating for lost tracks and confidence-scaled measurement noise;
 and (C3) a track reliability score with separate thresholds for incident
 alerting and signal-control observations. On three human-annotated segments of
-Ho Chi Minh City CCTV, at the 448-pixel real-time input and with identical
-detections for every configuration, C2 cuts motorcycle identity switches in
-dense traffic by 56\% against ByteTrack (38\% at 640 pixels), through its CTRV
-model alone, while its seed-corrected IDF1 gain is at most 0.02; OC-SORT with matched thresholds tracks
+Ho Chi Minh City CCTV, at the 448-pixel real-time input and on identical
+detections, C2 cuts motorcycle identity switches in dense traffic by 56\%
+against ByteTrack, through its CTRV model alone, while its seed-corrected IDF1 gain is at most 0.02; OC-SORT with matched thresholds tracks
 better on both counts. C3 filters nothing at its threshold, and C1, recalibrated,
 switches regimes as intended without improving tracking. Two evaluation findings
 transfer beyond this pipeline. Ground
