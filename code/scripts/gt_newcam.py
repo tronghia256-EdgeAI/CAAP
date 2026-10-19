@@ -30,7 +30,7 @@ Per camera:
 Per camera, in this order (the ROI is fixed before any metric is seen):
   review_gt_roi.cmd --bundle experiments/gt_qa/<camera>_review      draw, save the ROI
   python -m code.scripts.gt_newcam scope --cameras <camera>
-  review_gt_mixed.cmd --bundle <printed path> --tracks-dir <printed dumps dir>
+  python -m code.scripts.gt_newcam_review --camera <camera>
   python -m code.scripts.gt_newcam finalize --cameras <camera> --reviewer <name> [--detector D]
 """
 
@@ -279,32 +279,48 @@ def scope(camera: str) -> None:
         raise SystemExit(f"{camera}: draw and save the ROI first "
                          f"(review_gt_roi.cmd --bundle {parent_bundle(camera)})")
     prepare_scope(parent_bundle(camera), output=out, activate=False)
-    print(f"{camera}: review with\n  review_gt_mixed.cmd --bundle {out} "
-          f"--tracks-dir {dumps_dir(camera, next(iter(DETECTORS)))}")
+    print(f"{camera}: review with\n  python -m code.scripts.gt_newcam_review --camera {camera}")
 
 
-def finalize(camera: str, reviewer: str, det: str = next(iter(DETECTORS))) -> None:
-    """finalize_mixed into this camera's folder, scoring det's dumps, then replace
-    its hard-coded 'development' role (the mixed segment's) and record window and seeding."""
+def finalize(camera: str, reviewer: str, det: str = next(iter(DETECTORS)), *,
+             evaluate=True, out_dir=None, expected_bundle=None) -> Path:
+    """Export into this camera's folder and record window/seeding provenance.
+
+    Python callers keep the legacy evaluation default; the desktop app and CLI
+    pass False unless scoring was explicitly requested separately.
+    """
     from code.detection.detector import DETECTOR_CONF
     from code.scripts.gt_mixed_review import MixedStore, finalize_mixed, json_bytes
     child = roi_child(camera)
     bundle = child if child and child.exists() else parent_bundle(camera)
+    if expected_bundle is not None and Path(expected_bundle).resolve() != bundle.resolve():
+        raise ValueError('The parent ROI changed since this review opened; reopen the camera launcher. Saved decisions are preserved.')
     out = finalize_mixed(MixedStore(bundle), reviewer or "",
-                         tracks_dir=dumps_dir(camera, det), out_dir=ROOT / camera / "reviewed")
+                         tracks_dir=dumps_dir(camera, det),
+                         out_dir=out_dir if out_dir is not None else ROOT / camera / "reviewed",
+                         evaluate=evaluate)
     report = json.loads((out / "review.json").read_text(encoding="utf-8"))
     window = json.loads((ROOT / camera / "window.json").read_text(encoding="utf-8"))
-    old, report["evaluation_role"] = report["evaluation_role"], HELD_OUT_ROLE
+    role = HELD_OUT_ROLE if evaluate else (
+        'camera-disjoint annotation candidate: human review exported; not scored; '
+        'locked-test protocol and independence checks remain separate')
+    old, report["evaluation_role"] = report["evaluation_role"], role
+    report['camera'] = camera
+    report['protocol_status'] = 'SCORED_BY_EXPLICIT_REQUEST' if evaluate else 'ANNOTATION_ONLY_NOT_SCORED'
     report["window"] = {k: v for k, v in window.items() if k != "profile"}
     seed = ROOT / camera / "seed.json"      # absent: the original baseline-only pre-labels
     report["prelabel_seed"] = dict(**(json.loads(seed.read_text(encoding="utf-8")) if seed.exists()
                                       else {"trackers": ["yolo11_vn_1280/baseline"]}),
                                    conf_floor=DETECTOR_CONF)
-    report["scored_detector"] = dict(name=det, weights=DETECTORS[det][0], imgsz=DETECTORS[det][1])
+    detector_info = dict(name=det, weights=DETECTORS[det][0], imgsz=DETECTORS[det][1])
+    report['scored_detector'] = detector_info if evaluate else None
+    if not evaluate:
+        report['proposed_detector'] = detector_info
     (out / "review.json").write_bytes(json_bytes(report))
     summary = out / "summary.md"
-    summary.write_text(summary.read_text(encoding="utf-8").replace(old, HELD_OUT_ROLE), encoding="utf-8")
+    summary.write_text(summary.read_text(encoding="utf-8").replace(old, role), encoding="utf-8")
     print(f"{camera}: reviewed GT -> {out}")
+    return out
 
 
 def main() -> None:
@@ -314,10 +330,12 @@ def main() -> None:
     ap.add_argument("--reviewer", help="finalize: name recorded in review.json")
     ap.add_argument("--detector", choices=list(DETECTORS), default=next(iter(DETECTORS)),
                     help="finalize: whose dumps to score")
+    ap.add_argument('--evaluate', action='store_true',
+                    help='finalize: explicitly score trackers; default exports annotation only')
     args = ap.parse_args()
     for camera in args.cameras:
         if args.step == "finalize":
-            finalize(camera, args.reviewer, args.detector)
+            finalize(camera, args.reviewer, args.detector, evaluate=args.evaluate)
         elif args.step == "replay":
             for d in DETECTORS:
                 run_variants(camera, d)

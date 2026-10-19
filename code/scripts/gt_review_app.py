@@ -86,6 +86,8 @@ class JoinPlayer:
 class ReviewApp:
     help_text = "CUT: khác xe, tách ID.   KEEP: cùng xe, giữ ID.   Chưa rõ: để trống, xem lại."
     window_title = "CAAP — Review ground truth"
+    finish_status = "Đang tạo GT mới và chấm lại các ablation…"
+    busy_close_message = "Đợi tạo GT và chấm điểm xong trước khi đóng."
 
     def load_store(self):
         return DecisionStore(self.args.decisions)
@@ -322,7 +324,7 @@ class ReviewApp:
         self.note.configure(state="disabled")
         self.reviewer.configure(state="disabled")
         self.refresh()
-        self.status.set("Đang tạo GT mới và chấm lại các ablation…")
+        self.status.set(self.finish_status)
 
         def worker():
             try:
@@ -359,7 +361,7 @@ class ReviewApp:
 
     def close(self):
         if self.busy:
-            messagebox.showinfo("Đang xử lý", "Đợi tạo GT và chấm điểm xong trước khi đóng.", parent=self.root)
+            messagebox.showinfo("Đang xử lý", self.busy_close_message, parent=self.root)
             return
         if self.save_note():
             self.root.destroy()

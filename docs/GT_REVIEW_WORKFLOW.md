@@ -1,5 +1,28 @@
 # Review GT trên máy
 
+## Bắt đầu camera Dương Bá Trạc — 19/10/2026
+
+Mở **`review_gt_duongbatrac.cmd`**. Lần đầu công cụ mở đúng video camera mới:
+
+1. Click quanh vùng đường nhìn rõ xe để vẽ ROI. Bấm **Lưu ROI**, rồi **Đóng**.
+2. Đợi công cụ tạo hàng chờ trong vùng đó; cửa sổ review sẽ tự mở.
+3. Dùng **V** xem video/sửa box; **A/K** theo câu hỏi; **E** ở cửa sổ chính
+   để xác nhận sửa thủ công đã được lưu. Xe thiếu có thể thêm trong editor V.
+
+Mỗi lựa chọn và sửa box được tự lưu. Đóng lúc nghỉ; mở lại cùng file để tiếp tục.
+Chưa chắc thì dùng **U** và quay lại sau, không đoán ID. Nhớ xem cả video với box
+tắt để tìm xe mà prelabel bỏ sót; nhiều nguồn gợi ý không thay thế bước này.
+
+**Hoàn tất → lưu GT camera mới** chỉ xuất bản GT có phiên bản, chưa chấm test.
+Muốn đổi ROI: đóng review và chạy `review_gt_duongbatrac.cmd --edit-roi`;
+phiên trước vẫn được giữ. Mixed/Freeflow/Dense NKKN không bị thay đổi.
+
+Nhật ký `review_activity.jsonl` trong phiên lưu thời gian từ lúc hiện case đến
+lúc đổi verdict, có tính cả thời gian nghỉ; dùng để tham khảo pilot, không tự
+coi là giờ làm việc thực. Source/ảnh/GT và tiến độ ROI nằm local theo `.gitignore`.
+
+Các hướng dẫn NKKN bên dưới vẫn được giữ cho các phiên cũ.
+
 **Cập nhật 13/10/2026:** 32 nhóm sửa sau audit đã hoàn tất, ba bản GT mới đã
 xuất/chấm/kiểm tra. Dùng [receipt GT sau sửa](GT_RECONCILED_20261013.md) cho
 thí nghiệm tiếp theo; các mốc dưới đây giữ làm lịch sử.

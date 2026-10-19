@@ -14,7 +14,7 @@ class FrameEditor:
         self.app, self.store, self.case = app, app.store, case
         self.low, self.high = case["window"]
         self.window = tk.Toplevel(app.root)
-        segment=self.store.manifest.get('segment_name','Mixed')
+        segment=getattr(app, 'segment_label', self.store.manifest.get('segment_name','Mixed'))
         self.window.title(f"{segment} · {case['kind']} #{case['rank']} · video và chỉnh box")
         self.window.geometry("1120x870")
         self.window.minsize(850, 690)

@@ -1,5 +1,22 @@
 # Phạm vi paper — quyết định được lưu
 
+## Mở lại GT camera mới (19/10/2026)
+
+Nghĩa đã đồng ý triển khai review một đoạn camera **Dương Bá Trạc** để kiểm tra
+kết quả ngoài camera NKKN. Mở `review_gt_duongbatrac.cmd`: chọn ROI riêng rồi
+duyệt/sửa GT trong phiên ROI, giữ lại toàn bộ nguồn và tiến độ cũ. Việc này mở
+lại phần GT từng được tạm dừng ngày13/10; hai camera còn lại chưa được mở lại.
+
+Lượt này chỉ chuẩn bị annotation: hoàn tất sẽ xuất GT có phiên bản vào đúng
+camera, **không tự chấm tracker hoặc xác nhận test độc lập**. Protocol và kiểm tra
+independence phải khóa riêng trước khi chấm. Chưa thay đổi pixel-mask runtime,
+detector, manuscript, license hoặc quyết định bỏ severity. Nhiều nguồn prelabel
+không tự chứng minh GT đầy đủ; cần kiểm tra cả xe bị thiếu và quan hệ ID khó nhìn.
+
+Hướng dẫn: [GT_REVIEW_WORKFLOW.md](GT_REVIEW_WORKFLOW.md).
+Theo giới hạn công bố của đợt nghiên cứu, phần triển khai này commit local,
+không push ra ngoài khi chưa có chỉ dẫn mới của Nghĩa.
+
 ## Quyết định của Nghĩa ngày 12/10/2026
 
 **Bỏ phân loại mức độ tai nạn `minor/severe` khỏi paper hiện tại.**
