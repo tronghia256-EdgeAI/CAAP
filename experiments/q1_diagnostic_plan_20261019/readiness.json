@@ -1,0 +1,211 @@
+{
+  "date_local": "2026-10-19",
+  "timezone": "Asia/Saigon",
+  "status": "ASSESSMENT_AND_DRAFT_EXECUTION_PLAN_ONLY",
+  "experiments_launched_this_task": false,
+  "protocol_frozen": false,
+  "decisions_1_to_4": "PROPOSED_NOT_APPLIED",
+  "manuscript_modified": false,
+  "GT_modified": false,
+  "runtime_scripts_restored": false,
+  "external_push_authorized": false,
+  "starting_main_commit": "79309f0da5342200a37f4f810d50103f67d19942",
+  "plan_branch": "plan/q1-diagnostic-20261019",
+  "prior_research_commit": "5948218069caed88343cd02819e58c8620591d9b",
+  "prior_branch_present": false,
+  "prior_commit_readable": true,
+  "prior_report_git_blob_sha256": "2b06ae883adb52ab94400caba6869584bd52bea5ede15e2c956890f3f0561c61",
+  "old_oracle_protocol": "motorcycle-only,fresh600,30warmup,570scored,640masked; distinct from manuscript H0",
+  "old_OC_macro_detector": {
+    "HOTA": 0.5079115189581853,
+    "AssA": 0.554168744437924,
+    "DetA": 0.467378228755652,
+    "IDF1": 0.7045040121982421,
+    "MOTA": 0.5371639532150009,
+    "IDSW": 93,
+    "Frag": 223,
+    "GT": 27165,
+    "predictions": 17811
+  },
+  "old_OC_macro_oracle": {
+    "HOTA": 0.9195702809803029,
+    "AssA": 0.903100359259216,
+    "DetA": 0.9364184624425255,
+    "IDF1": 0.9383067332977286,
+    "MOTA": 0.9335875284015103,
+    "IDSW": 91,
+    "Frag": 148,
+    "GT": 27165,
+    "predictions": 25270
+  },
+  "old_OC_dense_detector": {
+    "HOTA": 0.4514679039246322,
+    "AssA": 0.5131444689523486,
+    "DetA": 0.39883898615275387,
+    "IDF1": 0.6307482462977396,
+    "MOTA": 0.43098365049584564,
+    "IDSW": 81,
+    "Frag": 189,
+    "GT": 18655,
+    "predictions": 12137
+  },
+  "old_OC_dense_oracle": {
+    "HOTA": 0.8976808732788978,
+    "AssA": 0.8745539294467357,
+    "DetA": 0.9214193923827626,
+    "IDF1": 0.9180382748423813,
+    "MOTA": 0.9172339855266685,
+    "IDSW": 80,
+    "Frag": 127,
+    "GT": 18655,
+    "predictions": 17191
+  },
+  "current_paper_dense448_raw_motorcycle": {
+    "baseline": {
+      "IDF1": 0.47692193529237165,
+      "IDSW": 141
+    },
+    "ctrv_gate_nsa": {
+      "IDF1": 0.49937144124824373,
+      "IDSW": 62
+    },
+    "c1_ctrv_gate": {
+      "IDF1": 0.4960925980536715,
+      "IDSW": 100
+    },
+    "c1c2c3": {
+      "IDF1": 0.4960925980536715,
+      "IDSW": 100
+    },
+    "ocsort_matched": {
+      "IDF1": 0.5512106874478152,
+      "IDSW": 39
+    },
+    "ocsort_byte": {
+      "IDF1": 0.4891005133546611,
+      "IDSW": 17
+    }
+  },
+  "NKKN_source_segments_zero_based_end_exclusive": {
+    "dense": [
+      10700,
+      11300
+    ],
+    "freeflow": [
+      6400,
+      7000
+    ],
+    "mixed": [
+      2500,
+      3100
+    ]
+  },
+  "NKKN_frames": 1800,
+  "source_fps": 25,
+  "NKKN_total_seconds": 72,
+  "DuongBaTrac": {
+    "window": [
+      10925,
+      11525
+    ],
+    "window_selection_rule": "densest 600-frame window starting >= 1000 on a 25-frame grid; density = detections with score >= 0.5 (no accident class), every 5th frame, ket_qua_train/best.pt @448",
+    "review_rows": 825,
+    "review_decisions_filled": 0,
+    "seed_source_count": 12,
+    "seed_sources": [
+      "yolo11_vn_1280/baseline",
+      "yolo11_vn_1280/ctrv_gate_nsa",
+      "yolo11_vn_1280/c1_ctrv_gate",
+      "yolo11_vn_1280/c1c2c3",
+      "best_640/baseline",
+      "best_640/ctrv_gate_nsa",
+      "best_640/c1_ctrv_gate",
+      "best_640/c1c2c3",
+      "best_448/baseline",
+      "best_448/ctrv_gate_nsa",
+      "best_448/c1_ctrv_gate",
+      "best_448/c1c2c3"
+    ],
+    "caches": {
+      "detections_best_448.npz": {
+        "metadata": {
+          "video": "data/raw/videos/DuongBaTrac-TaQuangBuu1 2017-07-18_08_00_00_000.asf",
+          "start_frame": 9925,
+          "num_frames": 1600,
+          "weights": "ket_qua_train/best.pt",
+          "imgsz": 448,
+          "conf_floor": 0.1
+        },
+        "frame_keys": 1600,
+        "file_bytes": 2097101,
+        "sha256": "e522a7245f633b53d3d9925014bc14edc13417f0d98d88b1b48a9f5149de2e98"
+      },
+      "detections_best_640.npz": {
+        "metadata": {
+          "video": "data/raw/videos/DuongBaTrac-TaQuangBuu1 2017-07-18_08_00_00_000.asf",
+          "start_frame": 9925,
+          "num_frames": 1600,
+          "weights": "ket_qua_train/best.pt",
+          "imgsz": 640,
+          "conf_floor": 0.1
+        },
+        "frame_keys": 1600,
+        "file_bytes": 2705687,
+        "sha256": "42799af836248e812e23c47c8c60bfab73930264f0a53b8057ede149a8f35ea4"
+      },
+      "detections_yolo11_vn_1280.npz": {
+        "metadata": {
+          "video": "data/raw/videos/DuongBaTrac-TaQuangBuu1 2017-07-18_08_00_00_000.asf",
+          "start_frame": 9925,
+          "num_frames": 1600,
+          "weights": "weights/yolo11_vn.pt",
+          "imgsz": 1280,
+          "conf_floor": 0.1
+        },
+        "frame_keys": 1600,
+        "file_bytes": 3286027,
+        "sha256": "54af6b40fb03e51582c7da059f1e1a855a1462c066c1c0bfb104237adbbd621d"
+      }
+    }
+  },
+  "planning_checks": {
+    "development_cell_cap": 216,
+    "heldout_primary_arm_cap": 7,
+    "threshold_grid_development_only": [
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "GT_ready_requires_complete_review_and_audit": true,
+    "acceptance_probability_estimated": false,
+    "journal_quartiles_verified": false,
+    "heldout_secondary_oracle_cell_cap": 4,
+    "heldout_total_cell_cap": 11
+  },
+  "evidence_sha256": {
+    "AGENTS.md": "2a2754dcb0f1e138b3b7818a7f583b0932a8677dac36768885654e6d82bfa1de",
+    "docs/PAPER_SCOPE.md": "11e46d28a185eebdbaf091e4876ee95ca23a6ed40cd67903e33169c23160ff89",
+    "docs/PAPER_EXPERIMENT_WORKFLOW.md": "5b46500f28141ab2207b5c919df452fce0b725666ca342651c0154cf7b31b0d9",
+    "experiments/gt_newcam/README.md": "36ab83989dae366bc845d79415bda35c15beb78ce284b8e0d1d54dde82ca1bbb",
+    "experiments/gt_newcam/duongbatrac_0800/window.json": "d62b2cea1bb8f3afb1ef9e045b8219a07e513476485e13981ac4e4963e33d2bb",
+    "experiments/gt_newcam/duongbatrac_0800/seed.json": "b8e60f87364483be640d2535abf2b89cd8036608e14595fa203c2082660d4318",
+    "experiments/gt_qa/duongbatrac_0800_review/decisions.csv": "4b4eb03be119e2da2de48942cdf324c491d6f82c651d4f65f8e0725291a55b9e",
+    "experiments/paper_final/best85_roi_final/448/metrics.json": "b39f499474ccf751d25a0b4f453548f9cb3a4319f8363b65bb26224ba48465c9",
+    "experiments/seed_bias/evidence.md": "031c97a253079eb415ac70eccb84dd6ab3e3b98021001f743d09c933219292ad",
+    "experiments/operating_point/evidence.md": "b4ccaf961495609747ac61e1794e830af0007da55550495829b63505c4900276",
+    "experiments/detector_leakage/evidence.md": "ee83d0c5da321c94dfff635b7afc920014ca1a8ad8101b7bad4a0a267dab0bdb"
+  },
+  "primary_external_references": [
+    {
+      "url": "https://arxiv.org/abs/2009.07736",
+      "purpose": "HOTA metric definition; not causal attribution proof"
+    },
+    {
+      "url": "https://www.ultralytics.com/license",
+      "purpose": "publisher licensing terms reference; no repo license selected"
+    }
+  ],
+  "verification": "Read-only Git/file/CSV/cache metadata/hash inspection; no detector/tracker/GT scoring was run."
+}
