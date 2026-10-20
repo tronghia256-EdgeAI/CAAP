@@ -353,3 +353,28 @@ H3. Các điểm dưới đây thay thế phần tương ứng của A4 và A5.
    - độ lệch chuẩn giữa 10 random seed trong mỗi ô.
 9. **BCa** so sánh ties với dung sai làm tròn (1e-12) và lấy phân vị bằng nội suy tuyến tính, như
    `np.percentile`.
+
+### A7 — 20/10/2026, trước khi có bất kỳ kết quả nào
+
+**Lý do.** Lượt kiểm chứng các bản sửa A6 (commit 6063de3) xác nhận phần thống kê và cách nối dây trong
+`main()` khớp brute-force, và các bản sửa null model đều đúng. Nhưng lượt này tìm ra một lỗi làm crash
+(`_run_seed` chết ở đơn vị mà seed không bỏ sót box nào, kể cả đơn vị không có GT) và hai cơ chế khiến P2
+vẫn thiên vị.
+
+1. **P2 consensus, định nghĩa lại lần nữa** (thay A6 mục 4, phần phủ box và nối track):
+   - Box được gom cụm qua các hệ thống, từng frame (IoU ≥ 0.5). Một cụm được **đa số** hệ thống ủng hộ
+     (3/4, hoặc 2/3) là box đồng thuận, hình học là trung bình. Không còn đòi đủ mọi hệ thống: consensus
+     kiểu giao (intersection) sẽ kế thừa toàn bộ box bỏ sót của hệ thống phủ ít nhất.
+   - Mỗi hệ thống có mặt trên một box đồng thuận bỏ một phiếu cho box đồng thuận gần nhất phía sau (≤ 30
+     frame) mà nó giữ cùng id. Box nhận nhiều phiếu nhất được nối nếu có **ít nhất 2 phiếu** và đa số
+     tương đối chặt. Hệ thống làm đứt id không bỏ phiếu chống, nên hai tracker cùng đứt track không làm vỡ
+     consensus khi hai tracker còn lại vẫn nối.
+   - Ứng viên là các cụm không đủ đa số, mỗi cụm một box, id lấy theo hệ thống gốc. Một ứng viên chỉ được
+     coi là FP khi không chồng (IoU ≥ 0.5) lên **bất kỳ** box GT_true nào trong frame, không chỉ dựa vào
+     một phép ghép một-một.
+2. **Null model, phạm vi lời khẳng định.** Null khớp **số box** lỗi FN, ID và FP của mỗi lần rút GT_S.
+   Một đoạn FP được giữ trong GT_S có thể mang nhãn của một track thật (một kiểu merge qua đuôi FP); null
+   không tái tạo được kiểu lỗi này. Tỉ lệ box FP như vậy được báo cáo cho từng ô của S_r. Paper không
+   được viết rằng null khớp "mọi lỗi".
+3. **Sửa crash.** Histogram độ dài đoạn bỏ sót dùng mảng kiểu số nguyên. Test end-to-end nay có một đơn vị
+   không có GT và một đơn vị có seed trùng GT.

@@ -198,6 +198,7 @@ def _run_seed(args):
         null_req=np.zeros((n_j, N_SEEDS, 3, n_u), dtype=np.int64),       # requested error boxes fn/id/fp
         null_skip=np.zeros((n_j, N_SEEDS, 3, n_u), dtype=np.int64),      # skipped error boxes fn/id/fp
         drawn=np.zeros((n_j, N_SEEDS, n_u), dtype=np.int64),             # boxes the reviewer draws (P0)
+        fp_on_track=np.zeros((n_j, N_SEEDS, 2, n_u), dtype=np.int64),   # kept FP boxes: [all, sharing a GT track's label]
         episodes=np.zeros((2, n_u), dtype=np.int64),                     # episodes, error pairs
         fix_by_size=np.zeros((2, 8, n_u), dtype=np.int64),               # θ_ref: [episodes, fixed] by size 1..7, 8+
         missed_len=np.zeros((101, n_u), dtype=np.int64),                 # missed-run length histogram (100 = 100+)
@@ -212,7 +213,8 @@ def _run_seed(args):
             continue
         prep = prepare(unit.tracks[a_name], unit.gt)
         arrays['episodes'][:, u] = prep.n_episodes, prep.stats['error_pairs']
-        arrays['missed_len'][:, u] = np.bincount(np.minimum([len(r) for r in prep.fn_runs], 100), minlength=101)
+        arrays['missed_len'][:, u] = np.bincount(np.minimum(np.array([len(r) for r in prep.fn_runs], dtype=int), 100),
+                                                 minlength=101)
         ep_size = np.bincount(prep.err_pairs[:, 0], minlength=prep.n_episodes) if len(prep.err_pairs) else np.zeros(0, int)
         fast = FastIdentity(unit, prep.gt, prep.seed)
         fast_gt = FastIdentity(unit, prep.gt, None)
@@ -228,6 +230,11 @@ def _run_seed(args):
                 if c in SLICE:
                     j = SLICE.index(c)
                     arrays['drawn'][j, k, u] = st['fn_added_boxes']
+                    seed_geo = origin[:, 0] == 0
+                    fp_rows = np.zeros(len(out), dtype=bool)
+                    fp_rows[seed_geo] = prep.m[origin[seed_geo, 1]] < 0
+                    tp_labels = set(out[~fp_rows, 1].tolist())
+                    arrays['fp_on_track'][j, k, :, u] = fp_rows.sum(), sum(l in tp_labels for l in out[fp_rows, 1].tolist())
                     scores, n_null, req, skip = _null_scores(prep, unit, fast_gt, st, systems, _rng(k, a, u, 1))
                     arrays['null_idtp'][j, k, :, u] = scores
                     arrays['null_ngt'][j, k, u] = n_null
@@ -261,6 +268,16 @@ def _run_ref_only(args):
     return dict(idtp=idtp, ngt=ngt)
 
 
+def _overlaps_gt(rows, gt, thr=0.5):
+    """Rows with IoU >= thr to any GT box of the same frame (not a one-to-one match)."""
+    out = np.zeros(len(rows), dtype=bool)
+    if not len(gt):
+        return out
+    pairs = iou_pairs(rows, gt, thr)[0]
+    out[pairs] = True
+    return out
+
+
 def protocol_list(seed_systems) -> list:
     """H3 protocols run by simulation (A6 item 4): P2 consensus over all seed systems, and P2 over
     every leave-one-out subset (the held-out system tests generalisation to a non-member)."""
@@ -283,8 +300,8 @@ def _run_protocol(args):
     for u, unit in enumerate(units):
         seed, candidates = consensus_seed([unit.tracks[m] for m in proto['members']])
         verify[u] = len(seed) + len(candidates)               # boxes shown to the reviewer
-        if len(candidates):                                    # candidate FPs enter as FP runs (A6 item 4)
-            fp = candidates[match(candidates, unit.gt) < 0] if len(unit.gt) else candidates
+        if len(candidates):                                    # candidate FPs enter as FP runs (A6 item 4, A7)
+            fp = candidates[~_overlaps_gt(candidates, unit.gt)]
             fp = fp.copy()
             fp[:, 1] += (seed[:, 1].max() + 1) if len(seed) else 0
             seed = np.concatenate([seed, fp])
@@ -447,6 +464,9 @@ def main(argv=None):
             realised_fix_rate_by_episode_size=dict(zip(['1', '2', '3', '4', '5', '6', '7', '8+'],
                                                        (fix[1] / np.maximum(fix[0], 1)).tolist())),
             episodes_by_size=fix[0].tolist(),
+            kept_fp_sharing_a_track_label_share={str(CELLS[c]): float(
+                res['fp_on_track'][:, j, :, 1].sum() / max(res['fp_on_track'][:, j, :, 0].sum(), 1))
+                for j, c in enumerate(SLICE)},
             missed_run_length_histogram={s: res['missed_len'][i].sum(-1).tolist() for i, s in enumerate(seed_systems)}),
         class_confusion=class_confusion(units, seed_systems),
         sort_all_sensitivity=sort_alt,

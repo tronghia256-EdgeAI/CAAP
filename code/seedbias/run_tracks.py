@@ -69,6 +69,7 @@ def main(argv=None):
 
     datasets = [d for d in args.datasets if (args.dets / d).is_dir()]
     code_key = source_hash(*SOURCES)
+    started = git_state()                       # the code that produces the tracks, not the code at the end
     manifest_path = args.out / 'manifest.json'
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     inputs = {p.relative_to(args.dets).as_posix(): sha256(p)
@@ -121,7 +122,7 @@ def main(argv=None):
 
     (args.out / 'baseline.json').write_text(json.dumps(baseline, indent=2))
     (args.out / 'provenance.json').write_text(json.dumps({
-        **git_state(), 'source_hash': code_key, 'trackers': version('trackers'), 'trackeval_commit': '12c8791b303e0a0b50f753af204249e622d0281a',
+        **started, 'source_hash': code_key, 'trackers': version('trackers'), 'trackeval_commit': '12c8791b303e0a0b50f753af204249e622d0281a',
         'numpy': np.__version__, 'inputs_sha256': inputs}, indent=2))
 
 

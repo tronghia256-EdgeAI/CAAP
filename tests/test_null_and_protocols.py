@@ -108,3 +108,28 @@ def test_consensus_is_not_broken_by_one_fragmenting_member_or_a_gap():
     fragmenting = np.array([[t, 100 + t // 5, t, 0, t + 10, 10] for t in frames], float)   # new id every 5 frames
     seed, _ = consensus_seed([steady(1), steady(2), steady(3), fragmenting])
     assert len(np.unique(seed[:, 1])) == 1                   # 3 of 4 agree across the gap and the id changes
+
+
+def test_consensus_covers_boxes_a_low_coverage_member_lacks():
+    frames = range(1, 41)
+    full = lambda i: np.array([[t, i, t, 0, t + 10, 10] for t in frames], float)
+    sparse = np.array([[t, 9, t, 0, t + 10, 10] for t in frames if t % 2], float)   # half the boxes
+    seed, cand = consensus_seed([full(1), full(2), full(3), sparse])
+    assert len(seed) == 40 and len(cand) == 0              # majority (3 of 4) covers every frame
+    assert len(np.unique(seed[:, 1])) == 1
+
+
+def test_consensus_survives_two_members_breaking_at_once():
+    frames = range(1, 41)
+    steady = lambda i: np.array([[t, i, t, 0, t + 10, 10] for t in frames], float)
+    breaker = lambda i: np.array([[t, i if t < 20 else i + 50, t, 0, t + 10, 10] for t in frames], float)
+    seed, _ = consensus_seed([steady(1), steady(2), breaker(3), breaker(4)])
+    assert len(np.unique(seed[:, 1])) == 1                  # the two steady members carry the link
+
+
+def test_consensus_does_not_link_on_a_single_vote():
+    a = np.array([[1, 1, 0, 0, 10, 10], [2, 1, 1, 0, 11, 10]], float)
+    b = np.array([[1, 5, 0, 0, 10, 10], [2, 6, 1, 0, 11, 10]], float)
+    c = np.array([[1, 7, 0, 0, 10, 10], [2, 8, 1, 0, 11, 10]], float)
+    seed, _ = consensus_seed([a, b, c])
+    assert len(np.unique(seed[:, 1])) == 2                  # only a keeps its id: no link

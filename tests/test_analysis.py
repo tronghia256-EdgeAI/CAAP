@@ -53,9 +53,14 @@ def test_distortion_is_zero_for_unbiased_and_positive_for_planted():
 
 
 def write_dataset(root, rng, n_seq=3):
-    """A tiny tracks/ tree: tracks/<dataset>/gt/<seq>/{person.txt, seqinfo.json} and per-system tracks."""
-    for s in range(n_seq):
+    """A tiny tracks/ tree: tracks/<dataset>/gt/<seq>/{person.txt, seqinfo.json} and per-system tracks.
+    Sequence n_seq has no GT (FP-only unit); sequence n_seq + 1 has trackers equal to its GT."""
+    for s in range(n_seq + 2):
         unit = make_unit(rng)
+        if s == n_seq:
+            unit.gt = np.empty((0, 6))
+        elif s == n_seq + 1:
+            unit.tracks = {name: unit.gt.copy() for name in unit.tracks}
         gdir = root / 'mot17' / 'gt' / f'SEQ-{s}'
         gdir.mkdir(parents=True)
         write_mot(gdir / 'person.txt', unit.gt)
@@ -94,14 +99,16 @@ def test_experiment_end_to_end_on_a_tiny_grid(tmp_path, monkeypatch):
     assert set(summary['reviewer_diagnostics']['missed_run_length_histogram']) == set(summary['seed_systems'])
     assert set(summary['secondary']) == set(summary['seed_systems'])
     diag = summary['h1_diagnostics']
-    assert len(diag['per_sequence']) == 3 and len(diag['per_class']) == 1
+    assert len(diag['per_sequence']) == 5 and len(diag['per_class']) == 1
+    assert summary['h2_units'] == 4                               # the GT-less unit leaves H2
+    assert len(summary['reviewer_diagnostics']['kept_fp_sharing_a_track_label_share']) == len(E.SLICE)
     assert {'a1', 'a0'} == diag['geometry_other_detector'].keys()
     assert 'person' in summary['class_confusion']
     sens = summary['sort_all_sensitivity']
     assert f'{E.SHARED}/sort_all' in sens['systems'] and np.isfinite(sens['h1']['sa_same_detector']['point'])
     prov = json.loads((tmp_path / 'out' / 'mot17' / 'provenance.json').read_text())
     parts = list((tmp_path / 'out' / 'mot17' / 'parts').rglob('*.npz'))
-    assert prov['run_key'].startswith(parts[0].parent.name) and len(parts) == 4 * 3   # 4 seeds x 3 units
+    assert prov['run_key'].startswith(parts[0].parent.name) and len(parts) == 4 * 5   # 4 seeds x 5 units
     first = (tmp_path / 'out' / 'mot17' / 'summary.json').read_text()
     E.main(['--tracks', str(tmp_path / 'tracks'), '--dataset', 'mot17', '--out', str(tmp_path / 'out'),
             '--workers', '0'])                                    # rerun: every unit comes from its checkpoint
