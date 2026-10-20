@@ -41,5 +41,6 @@ model cũ tạo pre-label không tự chứng minh GT sai hoặc đúng.
 Các metrics trong `training/detector/` mô tả lượt train/development cũ của detector,
 không phải bằng chứng cho paper mới. Đợt reset chưa train, inference hay score mới.
 
-Giới hạn công bố của đợt nghiên cứu trước vẫn giữ: commit local, chưa push hoặc
-phát hành dữ liệu khi chưa có chỉ dẫn mới. Việc chuyển backup không rewrite Git history.
+Từ 20/10/2026, code và docs của hướng mới được push lên branch `paper/seed-bias` (Nghĩa
+duyệt). Không phát hành dữ liệu, video, nhãn hay weights khi chưa có chỉ dẫn mới. Việc chuyển
+backup không rewrite Git history.
