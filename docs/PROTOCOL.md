@@ -294,3 +294,62 @@ review chỉ ra một số điểm phương pháp phải chốt trước khi xem
    ở θ_ref.
 10. **Độ nhạy của SORT.** Tại θ_ref, chạy thêm SORT nhận mọi detection (conf ≥ 0.05) như một hệ thống
     phụ, để đo ảnh hưởng của ngưỡng 0.25 ở A2. Không thay đổi endpoint.
+
+### A6 — 20/10/2026, trước khi có bất kỳ kết quả nào
+
+**Lý do.** Review phản biện thứ ba (null model, các protocol H3, thống kê, phạm vi kết luận; trên commit
+8540728) xác nhận phần thống kê khớp với cài đặt brute-force, nhưng tìm ra các vấn đề thiết kế ở H2 và
+H3. Các điểm dưới đây thay thế phần tương ứng của A4 và A5.
+
+1. **H2 so lỗi cấu trúc với lỗi cấu trúc.** Endpoint H2 và đường cong S_r dùng các ô **a = 0**, vì GT_S
+   khi đó mang hình học GT giống null model. Null không phụ thuộc a: nhờ common random numbers, cùng một
+   lần rút cho ra cùng các lỗi cấu trúc ở a = 0 và a = 1. Hiệu ở a = 1 được báo cáo kèm, với nhãn
+   "cấu trúc + hình học".
+2. **Null model khớp đủ số lỗi.**
+   - Đơn vị không có box GT_true bị loại khỏi H2 ở cả hai phía, vì null không đặt được FP của chúng.
+   - Lỗi được đặt theo thứ tự đoạn dài trước.
+   - Một bản sao FP phải không trùng (IoU ≥ 0.5) với box GT_true nào ở frame mới; nếu trùng thì rút đoạn
+     hoặc độ dịch khác, tối đa 100 lần, rồi mới bỏ qua.
+   - Nhánh merge chỉ dùng nhãn còn trống ở mọi frame của đoạn, nên (frame, nhãn) luôn duy nhất (có kiểm
+     tra).
+   - Đoạn bỏ sót mà GT_S gán nhãn mới cũng được chuyển sang null như một fragment.
+   - Số box lỗi bị bỏ qua được báo cáo theo loại (FN, ID, FP), dưới dạng tỉ lệ trên số đã yêu cầu. Nếu
+     một loại vượt 1%, paper ghi rõ và coi endpoint H2 của dataset đó là xấp xỉ.
+3. **P1 (union seeding) không được chạy như một protocol.** Với detector chung, mọi tracker trả nguyên box
+   detection, nên hợp các output trùng đúng với output của thành viên đầu tiên (review đã kiểm chứng).
+   P1 vì thế trùng với P0 của thành viên đó. Paper báo cáo điều này như một phát hiện: union seeding vô
+   tác dụng khi các tracker dùng chung detector.
+4. **P2 consensus, định nghĩa lại.**
+   - Box đồng thuận như A4.
+   - Một box đồng thuận được nối với box đồng thuận gần nhất phía sau, trong vòng **30 frame**, mà **đa
+     số** hệ thống (3/4, hoặc 2/3) giữ cùng id. Nhờ vậy một tracker đứt track hay một khoảng trống
+     detection không làm vỡ track.
+   - Box ngoài đồng thuận được khử trùng lặp giữa các hệ thống (Hungarian, IoU ≥ 0.5) và hiển thị như
+     ứng viên ẩn danh.
+   - Các ứng viên không khớp GT_true được đưa vào như đoạn FP (theo id của hệ thống gốc, liên tục theo
+     frame), giữ với xác suất p_fp. Ứng viên đúng là object thật được reviewer bổ sung với xác suất r,
+     như đoạn bỏ sót.
+   - Chạy P2 trên cả 4 hệ thống YOLO11x, và trên từng tập 3 hệ thống (leave-one-out). Hệ thống bị loại
+     ra là phép thử khái quát hoá: SA của các thành viên so với nó được báo cáo.
+5. **Chỉ tiêu H3.**
+   - D tính trên 4 hệ thống YOLO11x (chính) và trên cả 8 hệ thống.
+   - Báo cáo SA của thành viên so với 4 hệ thống YOLO11n.
+   - **Tiêu chí "giảm bias":** cận trên BCa của hiệu ghép cặp D_P − D_P0 (cùng các cột bootstrap) < 0
+     tại θ_ref, với D_P0 là trung bình trên 4 seed đơn.
+   - P3 bracket: báo cáo độ phủ cho từng hệ thống, kèm CI bootstrap sequence.
+6. **Chi phí gồm hai phần, không gộp:** (i) box phải kiểm tra = box seed (P2: thêm ứng viên đã khử trùng
+   lặp); (ii) box phải vẽ mới = số box của các đoạn bỏ sót được reviewer thêm (phụ thuộc r). Cả hai chia
+   cho số box của GT_true. Gán nhãn lại toàn bộ tương ứng (0, 1). Chỉ được viết "rẻ hơn gán nhãn lại
+   toàn bộ" khi nêu đủ cả hai phần.
+7. **Phạm vi kết luận.**
+   - Kết luận xác nhận (confirmatory) chỉ ở θ_ref và tách riêng từng dataset.
+   - Muốn phát biểu H1 chung thì cả ba dataset đều phải đạt (intersection-union, không cần hiệu chỉnh).
+   - Bản đồ 192 ô θ chỉ mang tính mô tả, với CI theo từng điểm.
+   - Không gộp ba dataset làm một.
+8. **Chẩn đoán đã cam kết ở A1 mục 10 nay có code chạy:**
+   - tỉ lệ sửa thực tế theo kích thước episode tại θ_ref;
+   - độ nhạy theo ngưỡng match 0.4 / 0.6 tại θ_ref (IoU khi chấm vẫn 0.5);
+   - phân bố độ dài đoạn bỏ sót của từng seed;
+   - độ lệch chuẩn giữa 10 random seed trong mỗi ô.
+9. **BCa** so sánh ties với dung sai làm tròn (1e-12) và lấy phân vị bằng nội suy tuyến tính, như
+   `np.percentile`.

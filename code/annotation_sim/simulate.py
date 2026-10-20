@@ -269,7 +269,7 @@ def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator, with_
                  fp_kept=0, fp_kept_boxes=0, fp_replaced_boxes=0, fp_fresh=0,
                  missed_lengths=[len(run) for run, u in zip(prep.fn_runs, u_fn) if u >= reviewer.r],
                  unfixed_pairs=prep.err_pairs[~fixed[prep.err_pairs[:, 0]], 1:].tolist() if len(prep.err_pairs) else [],
-                 kept_fp_lengths=[])
+                 kept_fp_lengths=[], fn_fresh_lengths=[], fixed_mask=fixed)
 
     replaced = set()
     for run, u in zip(prep.fn_runs, u_fn):
@@ -279,6 +279,7 @@ def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator, with_
         if any((f, label) in taken for f in gt[run, 0].tolist()):
             label, fresh = fresh, fresh + 1
             stats['fn_fresh'] += 1
+            stats['fn_fresh_lengths'].append(len(run))
         taken.update((f, label) for f in gt[run, 0].tolist())
         replaced.update(int(s) for s in prep.loc_partner[run] if s >= 0)
         parts.append(np.column_stack([gt[run, 0], np.full(len(run), label), gt[run, 2:6]]))

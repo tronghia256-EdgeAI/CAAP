@@ -85,9 +85,13 @@ def test_experiment_end_to_end_on_a_tiny_grid(tmp_path, monkeypatch):
     assert len(summary['systems']) == 8 and len(summary['seed_systems']) == 4
     assert np.isfinite(summary['h1'][E.CELLS.index(E.THETA_REF)]['sa_same_detector']['point'])
     assert len(summary['h2']) == 2 and summary['h2'][1]['is_ref']
+    assert {'a0', 'a1', 'null_skip_share'} <= summary['h2'][1].keys()
     ref_rows = summary['h3'][str(E.THETA_REF)]
     assert {'P0 single seed', 'P2 consensus', 'P3 bracket'} <= ref_rows.keys()
-    assert sum(name.startswith('P1 union') for name in ref_rows) == 6 + 4
+    assert sum(name.startswith('P2 consensus without') for name in ref_rows) == 4
+    assert 'member_sa_vs_held_out' in ref_rows['P2 consensus without sort']
+    assert len(summary['threshold_sensitivity']) == 2
+    assert set(summary['reviewer_diagnostics']['missed_run_length_histogram']) == set(summary['seed_systems'])
     assert set(summary['secondary']) == set(summary['seed_systems'])
     diag = summary['h1_diagnostics']
     assert len(diag['per_sequence']) == 3 and len(diag['per_class']) == 1

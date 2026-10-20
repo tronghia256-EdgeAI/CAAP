@@ -90,7 +90,8 @@ def _bca(point, boot, jack):
     b = boot.shape[-1]
     if np.all(boot == point[..., None]):
         return point, point
-    prop = (boot < point[..., None]).mean(-1) + 0.5 * (boot == point[..., None]).mean(-1)
+    tol = 1e-12 * np.maximum(1.0, np.abs(point))[..., None]       # same value up to summation round-off
+    prop = (boot < point[..., None] - tol).mean(-1) + 0.5 * (np.abs(boot - point[..., None]) <= tol).mean(-1)
     z0 = norm.ppf(np.clip(prop, 1 / (b + 1), b / (b + 1)))
     dev = jack.mean(-1, keepdims=True) - jack
     den = 6 * ((dev ** 2).sum(-1)) ** 1.5
@@ -99,17 +100,22 @@ def _bca(point, boot, jack):
     bounds = []
     for z in norm.ppf([0.025, 0.975]):
         alpha = norm.cdf(z0 + (z0 + z) / (1 - a * (z0 + z)))
-        idx = np.clip(np.round(alpha * (b - 1)).astype(int), 0, b - 1)
-        bounds.append(np.take_along_axis(srt, np.asarray(idx)[..., None], -1)[..., 0])
+        pos = np.clip(alpha * (b - 1), 0, b - 1)                      # linear interpolation, as np.percentile
+        lo_i = np.floor(pos).astype(int)
+        hi_i = np.minimum(lo_i + 1, b - 1)
+        lo_v = np.take_along_axis(srt, np.asarray(lo_i)[..., None], -1)[..., 0]
+        hi_v = np.take_along_axis(srt, np.asarray(hi_i)[..., None], -1)[..., 0]
+        bounds.append(lo_v + (pos - lo_i) * (hi_v - lo_v))
     return bounds[0], bounds[1]
 
 
-def sa_matrix(res, pooled: Pooled, c, seed_sys):
-    """SA[A, T, W] for grid cell c, averaged over rng seeds; T runs over all evaluated systems."""
+def sa_matrix(res, pooled: Pooled, c, seed_sys, per_seed=False):
+    """SA[A, T, W] for grid cell c, averaged over rng seeds (or SA[A, k, T, W] with per_seed);
+    T runs over all evaluated systems."""
     sim = pooled.sim(res['idtp'][:, c], res['ngt'][:, c])                              # [A, k, T, W]
     own = sim[np.arange(len(seed_sys)), :, seed_sys]                                    # [A, k, W]
     sa = (own[:, :, None] - sim) - (pooled.true[seed_sys][:, None, None] - pooled.true[None, None])
-    return sa.mean(1)
+    return sa if per_seed else sa.mean(1)
 
 
 def _pair_masks(seed_sys, x_sys, n_sys, n_t, exclude=()):
@@ -124,11 +130,13 @@ def h1(res, pooled: Pooled, seed_sys, x_sys, n_sys, cells) -> list:
     with the A5 region flags (BCa lower bound > 0 and > δ)."""
     out = []
     for c in range(len(cells)):
-        sa = sa_matrix(res, pooled, c, seed_sys)
+        sa_k = sa_matrix(res, pooled, c, seed_sys, per_seed=True)                       # [A, k, T, W]
+        sa = sa_k.mean(1)
         same, other = _pair_masks(seed_sys, x_sys, n_sys, sa.shape[1])
         s = pooled.ci(sa[same].mean(0))
         out.append(dict(cell=cells[c], sa_same_detector=s, above_zero=s['ci95'][0] > 0,
                         above_delta=s['ci95'][0] > DELTA,
+                        sa_sd_over_seeds=float(sa_k[..., 0].transpose(0, 2, 1)[same].mean(0).std()),
                         sa_other_detector=pooled.ci(sa[other].mean(0)) if other.any() else None,
                         sa_pairs=sa[..., 0].tolist()))
     return out
@@ -168,21 +176,32 @@ def ranking(res, pooled: Pooled, cells) -> list:
     return out
 
 
-def h2(res, pooled: Pooled, slice_cells, ref_pos) -> list:
-    """Per slice cell: τ and δ-margin flips for seed-correlated vs null errors, paired by (A, k), with CIs."""
+def h2(res, pooled: Pooled, cells_a0, cells_a1, slice_thetas, ref_pos, seed_names) -> list:
+    """H2 per slice position j (A4 item 3, A6 item 1): τ and δ-margin flips for seed-correlated vs null
+    errors, paired by (A, k). The endpoint uses the a = 0 cells (structure vs structure); the a = 1
+    difference is reported as structure plus geometry. Skipped null error boxes are reported as shares."""
+    true = pooled.true.T[None, None]                                                    # [1, 1, W, T]
     out = []
-    for j, cell in enumerate(slice_cells):
-        c = cell['index']
-        sim = pooled.sim(res['idtp'][:, c], res['ngt'][:, c])                           # [A, k, T, W]
+    for j, theta in enumerate(slice_thetas):
         null = pooled.sim(res['null_idtp'][:, j], res['null_ngt'][:, j])
-        true = pooled.true.T[None, None]                                                # [1, 1, W, T]
-        t_seed, f_seed = tau_and_flips(true, np.moveaxis(sim, -1, -2), DELTA)            # [A, k, W]
-        t_null, f_null = tau_and_flips(true, np.moveaxis(null, -1, -2), DELTA)
-        out.append(dict(cell=cell['theta'], is_ref=j == ref_pos,
-                        tau_null_minus_seed=pooled.ci(np.nanmean(t_null - t_seed, axis=(0, 1))),
-                        flips_seed_minus_null=pooled.ci((f_seed - f_null).mean(axis=(0, 1))),
-                        tau_seed=float(np.nanmean(t_seed[..., 0])), tau_null=float(np.nanmean(t_null[..., 0])),
-                        null_skipped=int(res['null_skipped'][:, j].sum())))
+        t_null, f_null = tau_and_flips(true, np.moveaxis(null, -1, -2), DELTA)           # [A, k, W]
+        row = dict(cell=theta, is_ref=j == ref_pos, tau_null=float(np.nanmean(t_null[..., 0])))
+        for tag, c in (('a0', cells_a0[j]), ('a1', cells_a1[j])):
+            sim = pooled.sim(res['idtp'][:, c], res['ngt'][:, c])                       # [A, k, T, W]
+            t_seed, f_seed = tau_and_flips(true, np.moveaxis(sim, -1, -2), DELTA)
+            row[tag] = dict(tau_null_minus_seed=pooled.ci(np.nanmean(t_null - t_seed, axis=(0, 1))),
+                            flips_seed_minus_null=pooled.ci((f_seed - f_null).mean(axis=(0, 1))),
+                            tau_seed=float(np.nanmean(t_seed[..., 0])),
+                            per_seed={seed_names[a]: dict(tau_seed=float(np.nanmean(t_seed[a, :, 0])),
+                                                          tau_null=float(np.nanmean(t_null[a, :, 0])),
+                                                          flips_seed=float(f_seed[a, :, 0].mean()),
+                                                          flips_null=float(f_null[a, :, 0].mean()))
+                                      for a in range(len(seed_names))})
+        req = res['null_req'][:, j].sum(axis=(0, 1, 3))
+        skip = res['null_skip'][:, j].sum(axis=(0, 1, 3))
+        row['null_skip_share'] = dict(zip(('fn', 'id', 'fp'), (skip / np.maximum(req, 1)).tolist()))
+        row['null_skip_over_1pct'] = bool((skip / np.maximum(req, 1) > 0.01).any())
+        out.append(row)
     return out
 
 
@@ -193,29 +212,50 @@ def distortion(sim_x, true_x):
     return np.abs(d[..., off, :]).mean(-2)
 
 
-def h3(res, pooled: Pooled, seed_sys, seed_names, protocols, slice_cells, ref_pos, ngt_total) -> dict:
-    """Distortion D (A4 item 4) and review cost for P0 (single seeds), P1/P2 (protocol runs), P3 (bracket)."""
-    true_x = pooled.true[seed_sys]
+def _member_sa(sim, true, members, others):
+    """Mean over members A and non-members B of [M(A) − M(B)]_P − [..]_true; sim[k, T, W] → [W]."""
+    vals = [((sim[:, a] - sim[:, b]) - (true[a] - true[b])).mean(0) for a in members for b in others]
+    return np.mean(vals, axis=0)
+
+
+def h3(res, pooled: Pooled, seed_sys, n_sys, systems, protocols, slice_thetas, ref_pos, ngt_total) -> dict:
+    """H3 (A4 item 4 as amended by A6): distortion D on the seed systems and on all systems, the paired
+    difference D_P − D_P0 (same bootstrap columns), member SA against systems outside the protocol,
+    the bracket per system, and a two-part cost (boxes verified, boxes drawn) relative to GT_true."""
+    all_sys = list(range(len(systems)))
     curves = {}
-    for j, cell in enumerate(slice_cells):
-        c = cell['index']
-        sim_p0 = pooled.sim(res['idtp'][:, c], res['ngt'][:, c])[:, :, seed_sys]      # [A, k, T, W]
-        rows = {'P0 single seed': dict(D=pooled.ci(distortion(sim_p0, true_x).mean((0, 1))),
-                                       cost=float(res['ntr'][seed_sys].sum() / len(seed_sys) / ngt_total))}
+    for j, theta in enumerate(slice_thetas):
+        c = theta['index']
+        sim_p0 = pooled.sim(res['idtp'][:, c], res['ngt'][:, c])                        # [A, k, T, W]
+        d0_x = distortion(sim_p0[:, :, seed_sys], pooled.true[seed_sys]).mean((0, 1))
+        d0_all = distortion(sim_p0, pooled.true).mean((0, 1))
+        rows = {'P0 single seed': dict(
+            D_seed_systems=pooled.ci(d0_x), D_all_systems=pooled.ci(d0_all),
+            cost_verify=float(res['ntr'][seed_sys].sum() / len(seed_sys) / ngt_total),
+            cost_drawn=float(res['drawn'][:, j].sum(-1).mean() / ngt_total))}
         for p, proto in enumerate(protocols):
-            sim = pooled.sim(res['proto_idtp'][p, j], res['proto_ngt'][p, j])[:, seed_sys]  # [k, T, W]
-            entry = dict(D=pooled.ci(distortion(sim, true_x).mean(0)),
-                         cost=float(res['proto_cost'][p].sum() / ngt_total))
-            members = [seed_names.index(m) for m in proto['members']] if proto['kind'] == 'union' else []
-            outside = [t for t in range(len(seed_sys)) if t not in members]
-            if members and outside:
-                adv = [((sim[:, a] - sim[:, b]) - (true_x[a] - true_x[b])).mean(0) for a in members for b in outside]
-                entry['member_sa'] = pooled.ci(np.mean(adv, axis=0))
+            sim = pooled.sim(res['proto_idtp'][p, j], res['proto_ngt'][p, j])           # [k, T, W]
+            dx = distortion(sim[:, seed_sys], pooled.true[seed_sys]).mean(0)
+            dall = distortion(sim, pooled.true).mean(0)
+            members = [systems.index(m) for m in proto['members']]
+            entry = dict(D_seed_systems=pooled.ci(dx), D_all_systems=pooled.ci(dall),
+                         D_minus_P0_seed_systems=pooled.ci(dx - d0_x), D_minus_P0_all_systems=pooled.ci(dall - d0_all),
+                         member_sa_vs_other_detector=pooled.ci(_member_sa(sim, pooled.true, members, n_sys)),
+                         cost_verify=float(res['proto_verify'][p].sum() / ngt_total),
+                         cost_drawn=float(res['proto_drawn'][p, j].sum(-1).mean() / ngt_total))
+            if proto['held_out']:
+                entry['member_sa_vs_held_out'] = pooled.ci(
+                    _member_sa(sim, pooled.true, members, [systems.index(proto['held_out'])]))
             rows[proto['name']] = entry
         if j == ref_pos:
-            lo, hi = sim_p0.min(0), sim_p0.max(0)                                        # [k, T, W] over seeds A
-            covered = (lo[..., 0] <= true_x[None, :, 0]) & (true_x[None, :, 0] <= hi[..., 0])
-            rows['P3 bracket'] = dict(width=pooled.ci((hi - lo).mean((0, 1))), coverage=float(covered.mean()),
-                                      cost=float(res['ntr'][seed_sys].sum() / ngt_total))
-        curves[str(cell['theta'])] = rows
+            p0x = sim_p0[:, :, seed_sys]
+            lo, hi = p0x.min(0), p0x.max(0)                                              # [k, T, W]
+            true_x = pooled.true[seed_sys][None]                                         # [1, T, W]
+            covered = ((lo <= true_x) & (true_x <= hi)).mean(0)                          # [T, W]
+            rows['P3 bracket'] = dict(
+                width=pooled.ci((hi - lo).mean((0, 1))),
+                coverage_per_system={systems[t]: pooled.ci(covered[i]) for i, t in enumerate(seed_sys)},
+                cost_verify=float(res['ntr'][seed_sys].sum() / ngt_total),
+                cost_drawn=float(res['drawn'][:, j].sum() / res['drawn'].shape[2] / ngt_total))
+        curves[str(theta['theta'])] = rows
     return curves

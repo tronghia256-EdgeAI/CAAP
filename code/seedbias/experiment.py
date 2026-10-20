@@ -35,7 +35,7 @@ from code.seedbias import analysis as AN
 from code.seedbias import data as D
 from code.seedbias.evaluate import _BaseDataset, evaluate_sequence, summarize
 from code.seedbias.null_model import null_gt
-from code.seedbias.protocols import consensus_seed, union_seed
+from code.seedbias.protocols import consensus_seed
 from code.utils.files import git_state, sha256, source_hash
 
 SOURCES = ('code/annotation_sim/simulate.py', 'code/seedbias/experiment.py', 'code/seedbias/analysis.py',
@@ -165,8 +165,22 @@ class FastIdentity:
         return out
 
 
+def _null_scores(prep, unit, fast_gt, st, systems, rng):
+    """Score the H2 null GT matched to one GT_S draw (A4 item 3, A6 item 2)."""
+    pairs = list(st['unfixed_pairs']) + [[n, 0] for n in st['fn_fresh_lengths']]   # fresh labels = fragments
+    labels, extra, counts = null_gt(prep.gt, unit.n_frames, st['missed_lengths'], pairs,
+                                    st['kept_fp_lengths'], rng)
+    keep = labels >= 0
+    origin = np.column_stack([np.ones(keep.sum(), dtype=int), np.flatnonzero(keep)])
+    res = fast_gt.idtp(labels[keep], origin, extra)
+    req = [counts[t]['requested'] for t in ('fn', 'id', 'fp')]
+    skip = [counts[t]['skipped'] for t in ('fn', 'id', 'fp')]
+    return [res[s] for s in systems], keep.sum() + len(extra), req, skip
+
+
 def _run_seed(args):
-    """Grid (all cells × rng seeds) and the null model on S_r, for one seed system.
+    """Grid (all cells × rng seeds), the null model and P0 drawing cost on S_r, and the A1 item 10
+    diagnostics, for one seed system.
 
     Each unit's result is checkpointed in parts_dir and reused on rerun (the directory name is
     keyed on code, inputs and grid, so stale parts are never mixed in).
@@ -175,59 +189,69 @@ def _run_seed(args):
     parts_dir = Path(parts_dir)
     parts_dir.mkdir(parents=True, exist_ok=True)
     units = load_units(Path(tracks_root), dataset, systems)
-    shape = (N_SEEDS, len(systems), len(units))
-    idtp = np.zeros((len(CELLS),) + shape, dtype=np.int64)
-    ngt = np.zeros((len(CELLS), N_SEEDS, len(units)), dtype=np.int64)
-    null_idtp = np.zeros((len(SLICE),) + shape, dtype=np.int64)
-    null_ngt = np.zeros((len(SLICE), N_SEEDS, len(units)), dtype=np.int64)
-    null_skipped = np.zeros(len(SLICE), dtype=np.int64)
-    episodes = np.zeros((len(units), 2), dtype=np.int64)
+    n_u, n_s, n_j = len(units), len(systems), len(SLICE)
+    arrays = dict(
+        idtp=np.zeros((len(CELLS), N_SEEDS, n_s, n_u), dtype=np.int64),
+        ngt=np.zeros((len(CELLS), N_SEEDS, n_u), dtype=np.int64),
+        null_idtp=np.zeros((n_j, N_SEEDS, n_s, n_u), dtype=np.int64),
+        null_ngt=np.zeros((n_j, N_SEEDS, n_u), dtype=np.int64),
+        null_req=np.zeros((n_j, N_SEEDS, 3, n_u), dtype=np.int64),       # requested error boxes fn/id/fp
+        null_skip=np.zeros((n_j, N_SEEDS, 3, n_u), dtype=np.int64),      # skipped error boxes fn/id/fp
+        drawn=np.zeros((n_j, N_SEEDS, n_u), dtype=np.int64),             # boxes the reviewer draws (P0)
+        episodes=np.zeros((2, n_u), dtype=np.int64),                     # episodes, error pairs
+        fix_by_size=np.zeros((2, 8, n_u), dtype=np.int64),               # θ_ref: [episodes, fixed] by size 1..7, 8+
+        missed_len=np.zeros((101, n_u), dtype=np.int64),                 # missed-run length histogram (100 = 100+)
+    )
+    ref_size = lambda sizes: np.minimum(sizes, 8) - 1
     for u, unit in enumerate(units):
         part = parts_dir / f"{a_name.replace('/', '_')}_u{u:04d}.npz"
         if part.exists():
             z = np.load(part)
-            idtp[..., u], ngt[..., u], null_idtp[..., u], null_ngt[..., u] = z['idtp'], z['ngt'], z['null_idtp'], z['null_ngt']
-            null_skipped += z['null_skipped']
-            episodes[u] = z['episodes']
+            for key in arrays:
+                arrays[key][..., u] = z[key]
             continue
-        skipped_before = null_skipped.copy()
         prep = prepare(unit.tracks[a_name], unit.gt)
-        episodes[u] = prep.n_episodes, prep.stats['error_pairs']
+        arrays['episodes'][:, u] = prep.n_episodes, prep.stats['error_pairs']
+        arrays['missed_len'][:, u] = np.bincount(np.minimum([len(r) for r in prep.fn_runs], 100), minlength=101)
+        ep_size = np.bincount(prep.err_pairs[:, 0], minlength=prep.n_episodes) if len(prep.err_pairs) else np.zeros(0, int)
         fast = FastIdentity(unit, prep.gt, prep.seed)
         fast_gt = FastIdentity(unit, prep.gt, None)
         for k in range(N_SEEDS):
             for c, cell in enumerate(CELLS):
                 out, st, origin = simulate(prep, Reviewer(**cell), _rng(k, a, u), with_origin=True)
-                ngt[c, k, u] = len(out)
+                arrays['ngt'][c, k, u] = len(out)
                 res = fast.idtp(out[:, 1].astype(int), origin)
-                idtp[c, k, :, u] = [res[s] for s in systems]
+                arrays['idtp'][c, k, :, u] = [res[s] for s in systems]
+                if c == REF and len(ep_size):
+                    np.add.at(arrays['fix_by_size'][0, :, u], ref_size(ep_size), 1)
+                    np.add.at(arrays['fix_by_size'][1, :, u], ref_size(ep_size[st['fixed_mask']]), 1)
                 if c in SLICE:
                     j = SLICE.index(c)
-                    labels, extra, skipped = null_gt(prep.gt, unit.n_frames, st['missed_lengths'],
-                                                     st['unfixed_pairs'], st['kept_fp_lengths'], _rng(k, a, u, 1))
-                    keep = labels >= 0
-                    origin_n = np.column_stack([np.ones(keep.sum(), dtype=int), np.flatnonzero(keep)])
-                    res_n = fast_gt.idtp(labels[keep], origin_n, extra)
-                    null_idtp[j, k, :, u] = [res_n[s] for s in systems]
-                    null_ngt[j, k, u] = keep.sum() + len(extra)
-                    null_skipped[j] += skipped
+                    arrays['drawn'][j, k, u] = st['fn_added_boxes']
+                    scores, n_null, req, skip = _null_scores(prep, unit, fast_gt, st, systems, _rng(k, a, u, 1))
+                    arrays['null_idtp'][j, k, :, u] = scores
+                    arrays['null_ngt'][j, k, u] = n_null
+                    arrays['null_req'][j, k, :, u] = req
+                    arrays['null_skip'][j, k, :, u] = skip
         tmp = part.with_name(part.stem + '.part.npz')
-        np.savez(tmp, idtp=idtp[..., u], ngt=ngt[..., u], null_idtp=null_idtp[..., u], null_ngt=null_ngt[..., u],
-                 null_skipped=null_skipped - skipped_before, episodes=episodes[u])
+        np.savez(tmp, **{key: v[..., u] for key, v in arrays.items()})
         tmp.replace(part)
-        print(f'  seed {a_name}: unit {u + 1}/{len(units)} ({unit.seq}/{unit.cls})', flush=True)
-    return dict(idtp=idtp, ngt=ngt, null_idtp=null_idtp, null_ngt=null_ngt, null_skipped=null_skipped,
-                episodes=episodes)
+        print(f'  seed {a_name}: unit {u + 1}/{n_u} ({unit.seq}/{unit.cls})', flush=True)
+    return arrays
 
 
 def _run_ref_only(args):
-    """θ_ref only, for one seed: idtp[1, k, system, unit], ngt[1, k, unit] (A5 item 10 sensitivity)."""
-    tracks_root, dataset, systems, a, a_name = args
+    """θ_ref only, for one seed: idtp[1, k, system, unit], ngt[1, k, unit].
+
+    Used for the SORT input sensitivity (A5 item 10) and the seed-to-GT matching threshold
+    sensitivity (A1 item 10: thr 0.4 / 0.6; evaluation IoU stays 0.5).
+    """
+    tracks_root, dataset, systems, a, a_name, thr = args
     units = load_units(Path(tracks_root), dataset, systems)
     idtp = np.zeros((1, N_SEEDS, len(systems), len(units)), dtype=np.int64)
     ngt = np.zeros((1, N_SEEDS, len(units)), dtype=np.int64)
     for u, unit in enumerate(units):
-        prep = prepare(unit.tracks[a_name], unit.gt)
+        prep = prepare(unit.tracks[a_name], unit.gt, thr=thr)
         fast = FastIdentity(unit, prep.gt, prep.seed)
         for k in range(N_SEEDS):
             out, _, origin = simulate(prep, Reviewer(**THETA_REF), _rng(k, a, u), with_origin=True)
@@ -238,36 +262,42 @@ def _run_ref_only(args):
 
 
 def protocol_list(seed_systems) -> list:
-    """H3 protocols (A4 item 4), members in alphabetical order of tracker name."""
-    protos = [dict(kind='union', name='P1 union ' + '+'.join(m.split('/')[1] for m in combo), members=list(combo))
-              for k in (2, 3) for combo in itertools.combinations(sorted(seed_systems), k)]
-    protos.append(dict(kind='consensus', name='P2 consensus', members=sorted(seed_systems)))
+    """H3 protocols run by simulation (A6 item 4): P2 consensus over all seed systems, and P2 over
+    every leave-one-out subset (the held-out system tests generalisation to a non-member)."""
+    members = sorted(seed_systems)
+    protos = [dict(kind='consensus', name='P2 consensus', members=members, held_out=None)]
+    for out in members:
+        protos.append(dict(kind='consensus', name=f"P2 consensus without {out.split('/')[1]}",
+                           members=[m for m in members if m != out], held_out=out))
     return protos
 
 
 def _run_protocol(args):
-    """One H3 protocol on S_r: idtp[j, k, system, unit], ngt[j, k, unit], cost[unit]."""
+    """One H3 protocol on S_r: idtp[j, k, system, unit], ngt[j, k, unit], verify[unit], drawn[j, k, unit]."""
     tracks_root, dataset, systems, p, proto = args
     units = load_units(Path(tracks_root), dataset, systems)
     idtp = np.zeros((len(SLICE), N_SEEDS, len(systems), len(units)), dtype=np.int64)
     ngt = np.zeros((len(SLICE), N_SEEDS, len(units)), dtype=np.int64)
-    cost = np.zeros(len(units), dtype=np.int64)
+    drawn = np.zeros((len(SLICE), N_SEEDS, len(units)), dtype=np.int64)
+    verify = np.zeros(len(units), dtype=np.int64)
     for u, unit in enumerate(units):
-        outputs = [unit.tracks[m] for m in proto['members']]
-        if proto['kind'] == 'union':
-            seed, n_cand = union_seed(outputs), 0
-        else:
-            seed, n_cand = consensus_seed(outputs)
-        cost[u] = len(seed) + n_cand
+        seed, candidates = consensus_seed([unit.tracks[m] for m in proto['members']])
+        verify[u] = len(seed) + len(candidates)               # boxes shown to the reviewer
+        if len(candidates):                                    # candidate FPs enter as FP runs (A6 item 4)
+            fp = candidates[match(candidates, unit.gt) < 0] if len(unit.gt) else candidates
+            fp = fp.copy()
+            fp[:, 1] += (seed[:, 1].max() + 1) if len(seed) else 0
+            seed = np.concatenate([seed, fp])
         prep = prepare(seed, unit.gt)
         fast = FastIdentity(unit, prep.gt, prep.seed)
         for k in range(N_SEEDS):
             for j, c in enumerate(SLICE):
-                out, _, origin = simulate(prep, Reviewer(**CELLS[c]), _rng(k, 100 + p, u), with_origin=True)
+                out, st, origin = simulate(prep, Reviewer(**CELLS[c]), _rng(k, 100 + p, u), with_origin=True)
                 ngt[j, k, u] = len(out)
+                drawn[j, k, u] = st['fn_added_boxes']
                 res = fast.idtp(out[:, 1].astype(int), origin)
                 idtp[j, k, :, u] = [res[s] for s in systems]
-    return dict(idtp=idtp, ngt=ngt, cost=cost)
+    return dict(idtp=idtp, ngt=ngt, verify=verify, drawn=drawn)
 
 
 def _run_secondary(args):
@@ -329,7 +359,8 @@ def main(argv=None):
     ap.add_argument('--dataset', required=True, choices=sorted(D.SPEC))
     ap.add_argument('--out', type=Path, default=Path('data/processed/seed_bias'))
     ap.add_argument('--workers', type=int, default=2)
-    ap.add_argument('--skip', nargs='*', default=[], choices=['protocols', 'secondary', 'sort_all'])
+    ap.add_argument('--skip', nargs='*', default=[],
+                    choices=['protocols', 'secondary', 'sort_all', 'thresholds'])
     args = ap.parse_args(argv)
 
     systems = [f'{d}/{t}' for d in (SHARED, OTHER) for t in TRACKERS]
@@ -361,50 +392,79 @@ def main(argv=None):
         _run_protocol, [(root, args.dataset, systems, p, pr) for p, pr in enumerate(protos)])))
     secondary = ([] if 'secondary' in args.skip else list(pmap(
         _run_secondary, [(root, args.dataset, systems, a, systems[a], seed_systems) for a in seed_sys])))
-    alt = [s.replace('/sort', '/sort_all') if s == f'{SHARED}/sort' else s for s in seed_systems]
-    sort_alt = None
+
+    def ref_only(seeds, thr):
+        """H1 at θ_ref for an alternative seed set or matching threshold."""
+        alt_units = load_units(args.tracks, args.dataset, seeds)
+        idtp_t, ngt_t, ntr_t = true_scores(alt_units, seeds)
+        runs = list(pmap(_run_ref_only, [(root, args.dataset, seeds, a, seeds[a], thr) for a in range(len(seeds))]))
+        alt = dict(idtp=np.stack([r['idtp'] for r in runs]), ngt=np.stack([r['ngt'] for r in runs]),
+                   idtp_true=idtp_t, ngt_true=ngt_t, ntr=ntr_t)
+        idx = list(range(len(seeds)))
+        return dict(systems=seeds, threshold=thr,
+                    h1=AN.h1(alt, AN.Pooled(alt, seq_of_unit), idx, idx, [], [THETA_REF])[0])
+
+    alt = [f'{SHARED}/sort_all' if s == f'{SHARED}/sort' else s for s in seed_systems]
     has_alt = all((args.tracks / args.dataset / SHARED / u.seq / u.cls / 'sort_all.txt').exists() for u in units)
-    if 'sort_all' not in args.skip and has_alt:
-        alt_units = load_units(args.tracks, args.dataset, alt)
-        alt_true = true_scores(alt_units, alt)
-        per_alt = list(pmap(_run_ref_only, [(root, args.dataset, alt, a, alt[a]) for a in range(len(alt))]))
-        alt_res = dict(idtp=np.stack([r['idtp'] for r in per_alt]), ngt=np.stack([r['ngt'] for r in per_alt]),
-                       idtp_true=alt_true[0], ngt_true=alt_true[1], ntr=alt_true[2])
-        alt_pooled = AN.Pooled(alt_res, seq_of_unit)
-        sort_alt = dict(systems=alt, h1=AN.h1(alt_res, alt_pooled, list(range(len(alt))), list(range(len(alt))),
-                                               [], [THETA_REF])[0])
+    if 'sort_all' in args.skip:
+        sort_alt = dict(skipped='--skip sort_all')
+    elif not has_alt:
+        sort_alt = dict(skipped='sort_all tracks missing; rerun run_tracks with the default tracker list')
+    else:
+        sort_alt = ref_only(alt, 0.5)
+    threshold_sensitivity = ([] if 'thresholds' in args.skip else [ref_only(seed_systems, t) for t in (0.4, 0.6)])
     if pool:
         pool.shutdown()
+
     res = {key: np.stack([r[key] for r in per_seed]) for key in per_seed[0]}
     res.update(idtp_true=idtp_true, ngt_true=ngt_true, ntr=ntr)
     if per_proto:
         res.update(proto_idtp=np.stack([r['idtp'] for r in per_proto]),
                    proto_ngt=np.stack([r['ngt'] for r in per_proto]),
-                   proto_cost=np.stack([r['cost'] for r in per_proto]))
-    np.savez_compressed(out / 'arrays.npz', seq_of_unit=seq_of_unit, **res)
+                   proto_verify=np.stack([r['verify'] for r in per_proto]),
+                   proto_drawn=np.stack([r['drawn'] for r in per_proto]))
+    np.savez_compressed(out / 'arrays.npz', seq_of_unit=seq_of_unit, class_of_unit=class_of_unit, **res)
 
     pooled = AN.Pooled(res, seq_of_unit)
-    slice_cells = [dict(index=c, theta=CELLS[c]) for c in SLICE]
+    slice_thetas = [dict(index=c, theta=CELLS[c]) for c in SLICE]
+    slice_a0 = [CELLS.index({**CELLS[c], 'a': 0}) for c in SLICE]
+    # H2 leaves out units without GT_true (A6 item 2): the null cannot place their FP runs.
+    with_gt = np.flatnonzero(ngt_true > 0)
+    h2_res = {key: (v[..., with_gt] if key not in ('episodes', 'fix_by_size', 'missed_len') else v)
+              for key, v in res.items() if key.startswith(('idtp', 'ngt', 'null_', 'ntr'))}
+    h2_seq = np.unique(seq_of_unit[with_gt], return_inverse=True)[1].reshape(-1)
+    fix = res['fix_by_size'].sum(axis=(0, 3))                                       # [2, sizes]
     summary = dict(
-        systems=systems, seed_systems=seed_systems, units=[[u.seq, u.cls] for u in units], theta_ref=THETA_REF,
+        systems=systems, seed_systems=seed_systems, sequences=seqs, classes=classes,
+        units=[[u.seq, u.cls] for u in units], theta_ref=THETA_REF,
         idf1_true=dict(zip(systems, pooled.true[:, 0].tolist())),
+        sa_pairs_axes=dict(rows=seed_systems, cols=systems),
         h1=AN.h1(res, pooled, seed_sys, seed_sys, other_sys, CELLS),
-        h1_diagnostics=dict(classes=classes, **AN.h1_diagnostics(
+        h1_diagnostics=AN.h1_diagnostics(
             res, seq_of_unit, class_of_unit, seed_sys, seed_sys, other_sys, REF, CELLS.index({**THETA_REF, 'a': 0}),
-            exclude=[systems.index(f'{SHARED}/sort')])),
+            exclude=[systems.index(f'{SHARED}/sort')]),
+        reviewer_diagnostics=dict(
+            realised_fix_rate_by_episode_size=dict(zip(['1', '2', '3', '4', '5', '6', '7', '8+'],
+                                                       (fix[1] / np.maximum(fix[0], 1)).tolist())),
+            episodes_by_size=fix[0].tolist(),
+            missed_run_length_histogram={s: res['missed_len'][i].sum(-1).tolist() for i, s in enumerate(seed_systems)}),
         class_confusion=class_confusion(units, seed_systems),
         sort_all_sensitivity=sort_alt,
+        threshold_sensitivity=threshold_sensitivity,
         ranking=AN.ranking(res, pooled, CELLS),
-        h2=AN.h2(res, pooled, slice_cells, SLICE.index(REF)),
-        h3=(AN.h3(res, pooled, seed_sys, seed_systems, protos, slice_cells, SLICE.index(REF), int(ngt_true.sum()))
-            if per_proto else None),
+        h2=AN.h2(h2_res, AN.Pooled(h2_res, h2_seq), slice_a0, SLICE, slice_thetas, SLICE.index(REF), seed_systems),
+        h2_units=int(len(with_gt)),
+        h3=(AN.h3(res, pooled, seed_sys, other_sys, systems, protos, slice_thetas, SLICE.index(REF),
+                  int(ngt_true.sum())) if per_proto else None),
         secondary=dict(zip(seed_systems, secondary)) if secondary else None,
         secondary_true=({s: summarize([evaluate_sequence(u.tracks[s], u.gt, u.n_frames) for u in units])
                          for s in seed_systems} if secondary else None),
         provenance=provenance)
+    summary['h1_diagnostics']['per_sequence'] = dict(zip(seqs, summary['h1_diagnostics']['per_sequence']))
+    summary['h1_diagnostics']['per_class'] = dict(zip(classes, summary['h1_diagnostics']['per_class']))
     (out / 'summary.json').write_text(json.dumps(summary, indent=1))
     ref = summary['h1'][REF]['sa_same_detector']
-    print(f"H1 at θ_ref {THETA_REF}: mean SA = {ref['point']:+.4f} IDF1, 95% CI {ref['ci95']}")
+    print(f"H1 at θ_ref {THETA_REF}: mean SA = {ref['point']:+.4f} IDF1, 95% BCa CI {ref['ci95']}")
 
 
 if __name__ == '__main__':
