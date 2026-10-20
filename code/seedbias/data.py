@@ -16,7 +16,10 @@ from pathlib import Path
 
 import numpy as np
 
-from code.annotation_sim.simulate import match
+import scipy.optimize
+
+from code.annotation_sim.simulate import _validated, match
+from code.seedbias.evaluate import _BaseDataset
 
 # evaluation class → (GT class ids, COCO class ids)  (PROTOCOL.md A1 item 9)
 SPEC = {
@@ -24,6 +27,8 @@ SPEC = {
         'classes': {'person': ([1], [0]), 'bus': ([2, 3], [5]), 'truck': ([4, 5], [7]),
                     'car': ([6], [2]), 'bicycle': ([7], [1]), 'motorbike': ([8], [3])},
         'ignore': list(range(9, 16)),      # ignore_region and classes outside the mapping
+        'labels': ['person', 'bus_small', 'bus_big', 'truck_small', 'truck_big', 'car', 'bike', 'motorbike',
+                   'ignore_region', 'tractor', 'trailor', 'wheelchair', 'heavy_equipment', 'pm', 'umbrella'],
     },
     'mot17': {'classes': {'person': ([1], [0])}, 'distractors': [2, 7, 8, 12]},
     'dancetrack': {'classes': {'person': ([1], [0])}},
@@ -50,6 +55,9 @@ def load(seq_dir, dataset: str, detector: str) -> Sequence:
     ini = configparser.ConfigParser()
     ini.read(seq_dir / 'seqinfo.ini')
     s = ini['Sequence']
+    labels = SPEC[dataset].get('labels')
+    if labels and (seq_dir / 'labels.txt').read_text(encoding='utf-8').split() != labels:
+        raise ValueError(f'{seq_dir}: labels.txt differs from the class mapping in PROTOCOL.md A1 item 9')
     return Sequence(dataset, seq_dir.name, float(s['frameRate']), int(s['seqLength']),
                     _load(seq_dir / 'gt.txt'), _load(seq_dir / f'det_{detector}.txt'))
 
@@ -77,34 +85,58 @@ def class_dets(seq: Sequence, cls: str) -> np.ndarray:
     return np.column_stack([d[:, 0], _xyxy(d), d[:, 6]])
 
 
-def preprocess(seq: Sequence, tracks: np.ndarray) -> np.ndarray:
+def preprocess(seq: Sequence, tracks: np.ndarray, cls: str) -> np.ndarray:
     """Remove tracker boxes the evaluation must not count (applied to seeds and evaluated trackers alike).
 
-    MOT17: TrackEval's rule — Hungarian-match tracker boxes to all GT rows of the frame
-    (IoU >= 0.5) and drop those matched to a distractor class.
-    FastTrack: drop boxes whose centre lies inside an ignore box of the same frame.
+    Tracks are first put in canonical (frame, id, box) order, the order write_mot uses, so that
+    preprocessing the written file would give the same result.
+    MOT17 (A2 item 2): TrackEval's recipe, frame by frame: IoU of every GT row (file order) with every
+    tracker box, scores below 0.5 - eps set to 0, Hungarian on the negated scores, keep matches > eps,
+    drop tracker boxes matched to a distractor class.
+    FastTrack (A5): drop a box whose centre lies inside an ignore box of the same frame, unless it is
+    matched (IoU >= 0.5) to a GT_true box of the evaluated class in that frame.
     """
-    tracks = np.asarray(tracks, dtype=float).reshape(-1, 6)
+    tracks = _validated(tracks, 'tracks')
     spec, raw = SPEC[seq.dataset], seq.gt_raw
+    eps = np.finfo('float').eps
     if seq.dataset == 'mot17' and len(tracks):
-        all_gt = np.column_stack([raw[:, 0], np.arange(len(raw)), _xyxy(raw)])
-        m = match(tracks, all_gt)
-        hit = m >= 0
         drop = np.zeros(len(tracks), dtype=bool)
-        drop[hit] = np.isin(raw[m[hit], 7], spec['distractors'])
+        gt_by_frame = _by_frame(raw[:, 0])
+        for f, ti in _by_frame(tracks[:, 0]).items():
+            gi = gt_by_frame.get(f)
+            if gi is None:
+                continue
+            score = _BaseDataset._calculate_box_ious(_xyxy(raw[gi]), tracks[ti, 2:6], box_format='x0y0x1y1').copy()
+            score[score < 0.5 - eps] = 0
+            r, c = scipy.optimize.linear_sum_assignment(-score)
+            ok = score[r, c] > 0 + eps
+            r, c = r[ok], c[ok]
+            drop[ti[c[np.isin(raw[gi[r], 7], spec['distractors'])]]] = True
         return tracks[~drop]
     if seq.dataset == 'fasttrack' and len(tracks):
-        ign = raw[np.isin(raw[:, 7], spec['ignore'])]
+        ign = raw[np.isin(raw[:, 7], spec['ignore']) & (raw[:, 0] <= seq.n_frames)]
         if not len(ign):
             return tracks
         ign_boxes = _xyxy(ign)
+        matched = match(tracks, gt_true(seq, cls)) >= 0
         cx = (tracks[:, 2] + tracks[:, 4]) / 2
         cy = (tracks[:, 3] + tracks[:, 5]) / 2
         drop = np.zeros(len(tracks), dtype=bool)
-        for f in np.intersect1d(tracks[:, 0], ign[:, 0]):
-            ti, b = np.flatnonzero(tracks[:, 0] == f), ign_boxes[ign[:, 0] == f]
+        ign_by_frame = _by_frame(ign[:, 0])
+        for f, ti in _by_frame(tracks[:, 0]).items():
+            ii = ign_by_frame.get(f)
+            if ii is None:
+                continue
+            b = ign_boxes[ii]
             inside = ((cx[ti, None] >= b[None, :, 0]) & (cx[ti, None] <= b[None, :, 2])
                       & (cy[ti, None] >= b[None, :, 1]) & (cy[ti, None] <= b[None, :, 3]))
-            drop[ti] = inside.any(axis=1)
+            drop[ti] = inside.any(axis=1) & ~matched[ti]
         return tracks[~drop]
     return tracks
+
+
+def _by_frame(frames) -> dict:
+    """frame → row indices in their original (file) order."""
+    order = np.argsort(frames, kind='stable')
+    uniq, starts = np.unique(frames[order], return_index=True)
+    return dict(zip(uniq.tolist(), np.split(order, starts[1:])))

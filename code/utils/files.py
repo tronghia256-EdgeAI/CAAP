@@ -32,3 +32,22 @@ def atomic_write(path: Path, payload: bytes, expected_hash: str) -> None:
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+def git_state() -> dict:
+    """Commit and dirty flag of this repository (not of the caller's working directory)."""
+    import subprocess
+    git = lambda *a: subprocess.run(['git', '-C', str(REPO), *a], capture_output=True, text=True).stdout.strip()
+    return {'commit': git('rev-parse', 'HEAD'), 'dirty': bool(git('status', '--porcelain', '--', 'code', 'tools'))}
+
+
+def source_hash(*relative_paths: str) -> str:
+    """sha256 over the named repository source files, in the given order."""
+    digest = hashlib.sha256()
+    for rel in relative_paths:
+        digest.update(rel.encode())
+        digest.update((REPO / rel).read_bytes().replace(b'\r\n', b'\n'))
+    return digest.hexdigest()

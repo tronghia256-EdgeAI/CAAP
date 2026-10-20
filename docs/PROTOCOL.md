@@ -251,3 +251,46 @@ Chốt null model của H2, tập hệ thống được chấm, và định ngh�
      (IDF1, 4 hệ thống YOLO11x). Với P1 báo cáo thêm SA của thành viên so với hệ thống ngoài tập.
      **Chi phí** = số box hiển thị cho reviewer (box seed + box ứng viên bất đồng ở P2), chia cho số box
      của GT_true. Kết quả là đường Pareto (chi phí, D) tại θ_ref, kèm CI bootstrap sequence cho D.
+
+### A5 — 20/10/2026, trước khi có bất kỳ kết quả nào
+
+**Lý do.** Review phản biện thứ hai (3 hướng, trên commit 139dea1) không tìm thấy lỗi tính toán làm sai
+SA: IDF1 nhanh, bootstrap và common random numbers đều được kiểm lại bằng cài đặt brute-force. Nhưng
+review chỉ ra một số điểm phương pháp phải chốt trước khi xem số:
+
+1. **H1 là mệnh đề về độ lớn.** Mô hình reviewer chỉ kéo GT về phía seed, nên SA ≥ 0 gần như theo định
+   nghĩa. Dấu của SA không phải bằng chứng. H1 được phát biểu lại: **SA ≥ δ, với δ = 0.01 IDF1**, tại
+   θ_ref, đánh giá bằng cận dưới của khoảng tin cậy (mục 2). Bản đồ vùng θ báo cáo cả hai: cận dưới > 0
+   và cận dưới > δ. Paper phải nói rõ SA ≥ 0 là hệ quả của mô hình; nội dung khoa học nằm ở độ lớn.
+2. **Khoảng tin cậy.** Với 7–25 sequence, khoảng percentile phủ thấp hơn 95% (mô phỏng của review:
+   84–91%). Khoảng chính là **BCa**: bootstrap sequence 10 000 lần, hệ số gia tốc lấy từ jackknife
+   leave-one-sequence-out. Báo cáo kèm khoảng percentile và khoảng leave-one-sequence-out. Khoảng của
+   MOT17 (7 sequence) được ghi là xấp xỉ.
+3. **Đảo thứ hạng có ngưỡng.** Chỉ tính một cặp là bị đảo khi khoảng cách IDF1 trên GT_true của cặp đó
+   lớn hơn δ, để các tracker gần như hoà nhau (ví dụ BoT-SORT không CMC và ByteTrack) không làm nhiễu.
+   τ-b giữ nguyên. Endpoint H2 (A4 mục 3) dùng số cặp đảo có ngưỡng. **Quy tắc dừng mục 7** được phát
+   biểu lại: cận trên BCa của SA < δ với mọi θ có r ≥ 0.5 trên cả ba dataset, và không có cặp đảo có
+   ngưỡng nào.
+4. **Chẩn đoán báo cáo kèm, tại θ_ref:** SA theo từng sequence và trung bình không trọng số; khoảng
+   leave-one-sequence-out; SA theo từng class; ma trận SA(A, B) đầy đủ và SA khi bỏ các cặp có SORT;
+   SA tại a = 1 so với a = 0, cho cặp cùng detector và cặp khác detector. Với detector chung, mọi tracker
+   trả nguyên box detection, nên hình học không gây khác biệt. Phép đo hình học có ý nghĩa nằm ở cặp
+   khác detector, và paper phải nói rõ điều này.
+5. **Nhầm class (FastTrack).** Với mỗi class, đo tỉ lệ box seed không khớp GT cùng class nhưng khớp
+   (IoU ≥ 0.5) GT của một class khác trong cùng frame; đếm số đơn vị không có GT và tỉ lệ box tracker
+   nằm trong chúng. Nếu tỉ lệ nhầm của một class > 10%, paper báo cáo SA khi bỏ class đó, và chạy thêm
+   phân tích độ nhạy với car + bus + truck gộp làm một class "vehicle".
+6. **Vùng ignore của FastTrack** (sửa A1 mục 8): box tracker có tâm nằm trong vùng ignore chỉ bị bỏ khi
+   nó **không** khớp (IoU ≥ 0.5) với một box GT_true của class đang chấm trong frame đó, gần với quy tắc
+   bỏ qua vùng của TrackEval. Mỗi sequence phải có `labels.txt` đúng với bảng ánh xạ ở A1 mục 9, nếu
+   không thì dừng.
+7. **MOT17** dùng đúng công thức của TrackEval, kể cả chiều của ma trận ghép (GT × tracker, GT theo thứ
+   tự trong file). Có test so với Evaluator chính thức khi bật `DO_PREPROC=True`, trên dữ liệu cố tình
+   tạo ties.
+8. **Cache và provenance.** Track được gắn khoá bằng hash input, hash mã nguồn và phiên bản thư viện, và
+   tự tạo lại khi khoá đổi. Kết quả thí nghiệm được checkpoint theo (seed, đơn vị), trong thư mục gắn khoá
+   theo code + input + lưới. `provenance.json` ghi commit của chính repo này và cờ thay đổi chưa commit.
+9. **Phạm vi metric.** Kết luận trên toàn lưới θ và kết luận về thứ hạng chỉ dùng IDF1. Kết luận HOTA chỉ
+   ở θ_ref.
+10. **Độ nhạy của SORT.** Tại θ_ref, chạy thêm SORT nhận mọi detection (conf ≥ 0.05) như một hệ thống
+    phụ, để đo ảnh hưởng của ngưỡng 0.25 ở A2. Không thay đổi endpoint.

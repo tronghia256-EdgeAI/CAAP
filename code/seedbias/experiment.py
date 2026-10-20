@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import hashlib
 import json
-import subprocess
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,12 +30,16 @@ import scipy.optimize
 import scipy.sparse
 import scipy.sparse.csgraph
 
-from code.annotation_sim.simulate import Reviewer, prepare, read_mot, simulate
+from code.annotation_sim.simulate import Reviewer, _validated, match, prepare, read_mot, simulate
 from code.seedbias import analysis as AN
 from code.seedbias import data as D
 from code.seedbias.evaluate import _BaseDataset, evaluate_sequence, summarize
 from code.seedbias.null_model import null_gt
 from code.seedbias.protocols import consensus_seed, union_seed
+from code.utils.files import git_state, sha256, source_hash
+
+SOURCES = ('code/annotation_sim/simulate.py', 'code/seedbias/experiment.py', 'code/seedbias/analysis.py',
+           'code/seedbias/null_model.py', 'code/seedbias/protocols.py', 'code/seedbias/evaluate.py')
 
 GRID = dict(r=(0, 0.25, 0.5, 0.75, 0.9, 1), p_fp=(0, 0.1, 0.25, 0.5), q=(0, 0.5, 0.9, 1), a=(1, 0))
 THETA_REF = dict(r=0.75, p_fp=0.1, q=0.5, a=1)
@@ -65,7 +69,8 @@ def load_units(tracks_root: Path, dataset: str, systems) -> list:
             tracks = {}
             for system in systems:
                 det, trk = system.split('/')
-                tracks[system] = read_mot(tracks_root / dataset / det / seq_dir.name / cls / f'{trk}.txt')
+                tracks[system] = _validated(read_mot(tracks_root / dataset / det / seq_dir.name / cls / f'{trk}.txt'),
+                                            system)                  # rejects duplicate (frame, id) rows
             units.append(Unit(seq_dir.name, cls, n_frames, read_mot(seq_dir / f'{cls}.txt'), tracks))
     return units
 
@@ -161,8 +166,14 @@ class FastIdentity:
 
 
 def _run_seed(args):
-    """Grid (all cells × rng seeds) and the null model on S_r, for one seed system."""
-    tracks_root, dataset, systems, a, a_name = args
+    """Grid (all cells × rng seeds) and the null model on S_r, for one seed system.
+
+    Each unit's result is checkpointed in parts_dir and reused on rerun (the directory name is
+    keyed on code, inputs and grid, so stale parts are never mixed in).
+    """
+    tracks_root, dataset, systems, a, a_name, parts_dir = args
+    parts_dir = Path(parts_dir)
+    parts_dir.mkdir(parents=True, exist_ok=True)
     units = load_units(Path(tracks_root), dataset, systems)
     shape = (N_SEEDS, len(systems), len(units))
     idtp = np.zeros((len(CELLS),) + shape, dtype=np.int64)
@@ -172,6 +183,14 @@ def _run_seed(args):
     null_skipped = np.zeros(len(SLICE), dtype=np.int64)
     episodes = np.zeros((len(units), 2), dtype=np.int64)
     for u, unit in enumerate(units):
+        part = parts_dir / f"{a_name.replace('/', '_')}_u{u:04d}.npz"
+        if part.exists():
+            z = np.load(part)
+            idtp[..., u], ngt[..., u], null_idtp[..., u], null_ngt[..., u] = z['idtp'], z['ngt'], z['null_idtp'], z['null_ngt']
+            null_skipped += z['null_skipped']
+            episodes[u] = z['episodes']
+            continue
+        skipped_before = null_skipped.copy()
         prep = prepare(unit.tracks[a_name], unit.gt)
         episodes[u] = prep.n_episodes, prep.stats['error_pairs']
         fast = FastIdentity(unit, prep.gt, prep.seed)
@@ -192,6 +211,11 @@ def _run_seed(args):
                     null_idtp[j, k, :, u] = [res_n[s] for s in systems]
                     null_ngt[j, k, u] = keep.sum() + len(extra)
                     null_skipped[j] += skipped
+        tmp = part.with_name(part.stem + '.part.npz')
+        np.savez(tmp, idtp=idtp[..., u], ngt=ngt[..., u], null_idtp=null_idtp[..., u], null_ngt=null_ngt[..., u],
+                 null_skipped=null_skipped - skipped_before, episodes=episodes[u])
+        tmp.replace(part)
+        print(f'  seed {a_name}: unit {u + 1}/{len(units)} ({unit.seq}/{unit.cls})', flush=True)
     return dict(idtp=idtp, ngt=ngt, null_idtp=null_idtp, null_ngt=null_ngt, null_skipped=null_skipped,
                 episodes=episodes)
 
@@ -257,6 +281,31 @@ def true_scores(units, trackers):
     return idtp, ngt, ntr
 
 
+def class_confusion(units, seed_systems) -> dict:
+    """A5 diagnostic: per class, share of seed boxes that miss their own class's GT but match
+    (IoU >= 0.5) a GT box of another evaluation class in the same frame; and zero-GT units."""
+    by_seq = {}
+    for unit in units:
+        by_seq.setdefault(unit.seq, []).append(unit)
+    out = {}
+    for unit in units:
+        others = [v.gt for v in by_seq[unit.seq] if v is not unit and len(v.gt)]
+        other_gt = np.concatenate(others) if others else np.empty((0, 6))
+        c = out.setdefault(unit.cls, dict(seed_boxes=0, other_class_matches=0, zero_gt_units=0, zero_gt_boxes=0))
+        for s in seed_systems:
+            tr = unit.tracks[s]
+            own = match(tr, unit.gt) >= 0 if len(unit.gt) else np.zeros(len(tr), dtype=bool)
+            c['seed_boxes'] += len(tr)
+            if len(other_gt) and (~own).any():
+                c['other_class_matches'] += int((match(tr[~own], other_gt) >= 0).sum())
+        if not len(unit.gt):
+            c['zero_gt_units'] += 1
+            c['zero_gt_boxes'] += sum(len(unit.tracks[s]) for s in seed_systems)
+    for c in out.values():
+        c['share'] = c['other_class_matches'] / max(c['seed_boxes'], 1)
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--tracks', type=Path, default=Path('data/processed/tracks'))
@@ -274,14 +323,23 @@ def main(argv=None):
     idtp_true, ngt_true, ntr = true_scores(units, systems)
     seqs = sorted({u.seq for u in units})
     seq_of_unit = np.array([seqs.index(u.seq) for u in units])
+    classes = sorted({u.cls for u in units})
+    class_of_unit = np.array([classes.index(u.cls) for u in units])
     out = args.out / args.dataset
     out.mkdir(parents=True, exist_ok=True)
     root = str(args.tracks)
     protos = protocol_list(seed_systems)
+    inputs = {p.relative_to(args.tracks).as_posix(): sha256(p)
+              for p in sorted((args.tracks / args.dataset).rglob('*.txt'))}
+    run_key = hashlib.sha256(json.dumps([source_hash(*SOURCES), inputs, GRID, N_SEEDS, systems]).encode()).hexdigest()
+    parts_dir = out / 'parts' / run_key[:16]
+    provenance = dict(**git_state(), source_hash=source_hash(*SOURCES), run_key=run_key, grid=GRID,
+                      theta_ref=THETA_REF, n_seeds=N_SEEDS, n_boot=AN.N_BOOT, systems=systems, inputs_sha256=inputs)
+    (out / 'provenance.json').write_text(json.dumps(provenance, indent=1))
 
     pool = ProcessPoolExecutor(max_workers=args.workers) if args.workers > 0 else None
     pmap = pool.map if pool else map                          # --workers 0: in-process (tests)
-    per_seed = list(pmap(_run_seed, [(root, args.dataset, systems, a, systems[a]) for a in seed_sys]))
+    per_seed = list(pmap(_run_seed, [(root, args.dataset, systems, a, systems[a], str(parts_dir)) for a in seed_sys]))
     per_proto = ([] if 'protocols' in args.skip else list(pmap(
         _run_protocol, [(root, args.dataset, systems, p, pr) for p, pr in enumerate(protos)])))
     secondary = ([] if 'secondary' in args.skip else list(pmap(
@@ -302,6 +360,10 @@ def main(argv=None):
         systems=systems, seed_systems=seed_systems, units=[[u.seq, u.cls] for u in units], theta_ref=THETA_REF,
         idf1_true=dict(zip(systems, pooled.true[:, 0].tolist())),
         h1=AN.h1(res, pooled, seed_sys, seed_sys, other_sys, CELLS),
+        h1_diagnostics=dict(classes=classes, **AN.h1_diagnostics(
+            res, seq_of_unit, class_of_unit, seed_sys, seed_sys, other_sys, REF, CELLS.index({**THETA_REF, 'a': 0}),
+            exclude=[systems.index(f'{SHARED}/sort')])),
+        class_confusion=class_confusion(units, seed_systems),
         ranking=AN.ranking(res, pooled, CELLS),
         h2=AN.h2(res, pooled, slice_cells, SLICE.index(REF)),
         h3=(AN.h3(res, pooled, seed_sys, seed_systems, protos, slice_cells, SLICE.index(REF), int(ngt_true.sum()))
@@ -309,7 +371,7 @@ def main(argv=None):
         secondary=dict(zip(seed_systems, secondary)) if secondary else None,
         secondary_true=({s: summarize([evaluate_sequence(u.tracks[s], u.gt, u.n_frames) for u in units])
                          for s in seed_systems} if secondary else None),
-        commit=subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip())
+        provenance=provenance)
     (out / 'summary.json').write_text(json.dumps(summary, indent=1))
     ref = summary['h1'][REF]['sa_same_detector']
     print(f"H1 at θ_ref {THETA_REF}: mean SA = {ref['point']:+.4f} IDF1, 95% CI {ref['ci95']}")

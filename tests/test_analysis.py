@@ -1,3 +1,4 @@
+import itertools
 import json
 
 import numpy as np
@@ -30,6 +31,7 @@ def test_h1_recovers_planted_advantage(boost, expected):
     assert out[0]['sa_same_detector']['point'] == pytest.approx(expected)
     assert out[0]['sa_other_detector']['point'] == pytest.approx(expected)
     assert out[0]['sa_same_detector']['ci95'][0] == pytest.approx(expected)
+    assert out[0]['above_delta'] == (expected > AN.DELTA)
 
 
 def test_tau_b_matches_scipy_with_ties():
@@ -67,12 +69,12 @@ def write_dataset(root, rng, n_seq=3):
 
 
 def test_experiment_end_to_end_on_a_tiny_grid(tmp_path, monkeypatch):
-    grid = dict(r=(0.5, 0.75), p_fp=(0.1,), q=(0.5,), a=(1,))
-    cells = [dict(zip(grid, v)) for v in [(0.5, 0.1, 0.5, 1), (0.75, 0.1, 0.5, 1)]]
+    grid = dict(r=(0.5, 0.75), p_fp=(0.1,), q=(0.5,), a=(1, 0))
+    cells = [dict(zip(grid, v)) for v in itertools.product(*grid.values())]
     monkeypatch.setattr(E, 'GRID', grid)
     monkeypatch.setattr(E, 'CELLS', cells)
-    monkeypatch.setattr(E, 'REF', 1)
-    monkeypatch.setattr(E, 'SLICE', [0, 1])
+    monkeypatch.setattr(E, 'REF', cells.index(E.THETA_REF))
+    monkeypatch.setattr(E, 'SLICE', [cells.index({**E.THETA_REF, 'r': r}) for r in grid['r']])
     monkeypatch.setattr(E, 'N_SEEDS', 2)
     monkeypatch.setattr(AN, 'N_BOOT', 50)
     write_dataset(tmp_path / 'tracks', np.random.default_rng(5))
@@ -80,9 +82,38 @@ def test_experiment_end_to_end_on_a_tiny_grid(tmp_path, monkeypatch):
             '--workers', '0'])
     summary = json.loads((tmp_path / 'out' / 'mot17' / 'summary.json').read_text())
     assert len(summary['systems']) == 8 and len(summary['seed_systems']) == 4
-    assert np.isfinite(summary['h1'][1]['sa_same_detector']['point'])
+    assert np.isfinite(summary['h1'][E.CELLS.index(E.THETA_REF)]['sa_same_detector']['point'])
     assert len(summary['h2']) == 2 and summary['h2'][1]['is_ref']
-    ref_rows = summary['h3'][str(cells[1])]
+    ref_rows = summary['h3'][str(E.THETA_REF)]
     assert {'P0 single seed', 'P2 consensus', 'P3 bracket'} <= ref_rows.keys()
     assert sum(name.startswith('P1 union') for name in ref_rows) == 6 + 4
     assert set(summary['secondary']) == set(summary['seed_systems'])
+    diag = summary['h1_diagnostics']
+    assert len(diag['per_sequence']) == 3 and len(diag['per_class']) == 1
+    assert {'a1', 'a0'} == diag['geometry_other_detector'].keys()
+    assert 'person' in summary['class_confusion']
+    prov = json.loads((tmp_path / 'out' / 'mot17' / 'provenance.json').read_text())
+    parts = list((tmp_path / 'out' / 'mot17' / 'parts').rglob('*.npz'))
+    assert prov['run_key'].startswith(parts[0].parent.name) and len(parts) == 4 * 3   # 4 seeds x 3 units
+    first = (tmp_path / 'out' / 'mot17' / 'summary.json').read_text()
+    E.main(['--tracks', str(tmp_path / 'tracks'), '--dataset', 'mot17', '--out', str(tmp_path / 'out'),
+            '--workers', '0'])                                    # rerun: every unit comes from its checkpoint
+    again = json.loads((tmp_path / 'out' / 'mot17' / 'summary.json').read_text())
+    assert again['h1'] == json.loads(first)['h1']
+
+
+def test_bca_is_close_to_percentile_for_a_symmetric_statistic():
+    rng = np.random.default_rng(9)
+    boot = rng.normal(0.05, 0.01, 4000)
+    jack = 0.05 + rng.normal(0, 0.001, 12)
+    lo, hi = AN._bca(np.array(0.05), boot[None], jack[None])
+    plo, phi = np.percentile(boot, [2.5, 97.5])
+    assert abs(lo[0] - plo) < 0.002 and abs(hi[0] - phi) < 0.002
+
+
+def test_margin_flips_ignore_near_ties():
+    true = np.array([0.700, 0.705, 0.80])      # first two within δ
+    sim = np.array([0.706, 0.700, 0.80])       # their order flips
+    _, raw = AN.tau_and_flips(true, sim)
+    _, margin = AN.tau_and_flips(true, sim, AN.DELTA)
+    assert raw == 1 and margin == 0
