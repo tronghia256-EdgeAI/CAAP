@@ -65,6 +65,9 @@ def main(argv=None):
     for dataset in datasets:
         for seq_dir in sequences(args.dets, dataset):
             gt_seq = D.load(seq_dir, dataset, args.detectors[0])
+            info = args.out / dataset / 'gt' / seq_dir.name / 'seqinfo.json'
+            info.parent.mkdir(parents=True, exist_ok=True)
+            info.write_text(json.dumps({'n_frames': gt_seq.n_frames, 'frame_rate': gt_seq.frame_rate}))
             for cls in D.SPEC[dataset]['classes']:
                 gt_file = args.out / dataset / 'gt' / seq_dir.name / f'{cls}.txt'
                 if not gt_file.exists():

@@ -184,3 +184,26 @@ Chốt chi tiết chạy tracker và chấm điểm (mục 3, mục 8), sau khi 
    mọi class của nó.
 5. **Lưu trữ.** Track đã tiền xử lý nằm ở `data/processed/tracks/`. `provenance.json` ghi commit,
    trạng thái thay đổi chưa commit, phiên bản thư viện và hash của mọi file detection/GT đầu vào.
+
+### A3 — 20/10/2026, trước khi có bất kỳ kết quả nào
+
+Chốt cách tính và phân tích H1 và phần thứ hạng của H2 (`code/seedbias/experiment.py`):
+
+1. **Seed và tracker được chấm** đều thuộc bốn tracker ở A2 (detector chung YOLO11x). Mỗi tracker lần
+   lượt làm seed A. SA được tính cho mọi cặp có thứ tự (A, B) với A ≠ B.
+2. **IDF1 trên GT_S** được tính đúng theo Identity của TrackEval: đếm các cặp cùng frame có IoU ≥ 0.5
+   (IoU tính bằng hàm của TrackEval), rồi tìm phép ghép id có tổng lớn nhất. Các cặp IoU được tính một
+   lần với box GT và box seed, vì mỗi box của GT_S mang hình học của một trong hai. Có test bắt buộc
+   IDTP phải trùng với cầu nối TrackEval trên GT mô phỏng.
+3. **Số ngẫu nhiên chung (common random numbers).** Random seed của simulator là (k, A, đơn vị) với
+   k = 0..9, **giống nhau ở mọi ô θ**, nên khác biệt giữa các ô không bị nhiễu bởi các lần rút khác nhau.
+4. **Endpoint H1** = trung bình SA (IDF1) trên mọi cặp có thứ tự và trên 10 random seed, tính ở cấp
+   dataset (cộng IDTP và số box trên mọi đơn vị). CI 95% là percentile của 10 000 lần bootstrap lấy mẫu
+   lại sequence (seed bootstrap cố định 0). Mỗi ô θ được tính cùng cách; "vùng CI loại trừ 0" là tập
+   các ô có cận dưới > 0.
+5. **H2, phần thứ hạng.** Với mỗi (A, θ, k): Kendall τ-b (scipy) giữa IDF1 các tracker trên GT_A và trên
+   GT_true, và số cặp tracker bị đảo thứ tự. Báo cáo τ trung bình, số cặp đảo trung bình, và tỉ lệ lần
+   rút có ít nhất một cặp đảo. Phần so sánh với lỗi ngẫu nhiên (null model) sẽ được chốt ở amendment
+   sau, trước khi chạy.
+6. **Metric phụ** (HOTA@0.5, DetA, AssA, MOTA, IDSW) tính bằng cầu nối TrackEval đầy đủ, chỉ tại θ_ref,
+   với cả 10 random seed.

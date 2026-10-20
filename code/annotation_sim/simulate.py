@@ -235,8 +235,13 @@ def prepare(seed, gt, thr: float = IOU_MATCH_THRESHOLD) -> Prepared:
                     fn_runs, fp_runs, loc_partner, n_s + n_g, stats)
 
 
-def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator):
-    """Return (GT_S, stats): simulated reviewed ground truth [frame, id, x1, y1, x2, y2] and counts."""
+def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator, with_origin: bool = False):
+    """Return (GT_S, stats): simulated reviewed ground truth [frame, id, x1, y1, x2, y2] and counts.
+
+    with_origin=True also returns origin, one row per GT_S row: (0, seed row) when the box has seed
+    geometry, (1, GT row) when it has GT geometry; rows index prep.seed / prep.gt.
+    The random draws do not depend on the reviewer, so one rng seed gives common random numbers across θ.
+    """
     seed, gt, tp = prep.seed, prep.gt, prep.tp
     u_ep = rng.random(prep.n_episodes)
     u_fn = rng.random(len(prep.fn_runs))
@@ -252,6 +257,7 @@ def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator):
     use_gt = u_geo >= reviewer.a
     boxes[use_gt] = gt[prep.m[tp[use_gt]], 2:6]
     parts = [np.column_stack([seed[tp, 0], labels, boxes])]
+    origins = [np.column_stack([use_gt.astype(int), np.where(use_gt, prep.m[tp], tp)])]
     taken = set(zip(seed[tp, 0].tolist(), labels.tolist()))
     fresh = prep.fresh_base
     stats = dict(episodes_fixed=int(fixed.sum()), fn_added=0, fn_added_boxes=0, fn_fresh=0,
@@ -268,6 +274,7 @@ def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator):
         taken.update((f, label) for f in gt[run, 0].tolist())
         replaced.update(int(s) for s in prep.loc_partner[run] if s >= 0)
         parts.append(np.column_stack([gt[run, 0], np.full(len(run), label), gt[run, 2:6]]))
+        origins.append(np.column_stack([np.ones(len(run), dtype=int), run]))
         stats['fn_added'] += 1
         stats['fn_added_boxes'] += len(run)
 
@@ -284,13 +291,16 @@ def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator):
             stats['fp_fresh'] += 1
         taken.update((f, label) for f in seed[kept, 0].tolist())
         parts.append(np.column_stack([seed[kept, 0], np.full(len(kept), label), seed[kept, 2:6]]))
+        origins.append(np.column_stack([np.zeros(len(kept), dtype=int), kept]))
         stats['fp_kept'] += 1
         stats['fp_kept_boxes'] += len(kept)
 
-    out = np.concatenate(parts) if parts else np.empty((0, 6))
+    out = np.concatenate(parts)
+    origin = np.concatenate(origins).astype(int)
     _, ids = np.unique(out[:, 1], return_inverse=True)
     out[:, 1] = ids.reshape(-1) + 1
-    out = out[np.lexsort((out[:, 1], out[:, 0]))]
+    order = np.lexsort((out[:, 1], out[:, 0]))
+    out, origin = out[order], origin[order]
     if len(np.unique(out[:, :2], axis=0)) != len(out):
         raise RuntimeError('simulated GT has duplicate (frame, id) rows')
-    return out, stats
+    return (out, stats, origin) if with_origin else (out, stats)
