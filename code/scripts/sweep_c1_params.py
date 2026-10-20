@@ -107,7 +107,7 @@ def main() -> None:
     ap.add_argument("--conf", nargs="*", type=float,
                     default=[0.35, 0.40, 0.45, 0.50, 0.55, 0.60])
     ap.add_argument("--buffer", nargs="*", type=int, default=[45, 30])
-    ap.add_argument("--out-dir", default="experiments/c1_sweep")
+    ap.add_argument("--out-dir", default="data/processed/sweeps/c1")
     args = ap.parse_args()
 
     a, b = args.segment

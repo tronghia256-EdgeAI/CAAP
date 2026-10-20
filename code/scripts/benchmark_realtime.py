@@ -7,7 +7,7 @@ Why this exists separately from run_experiment.py
 -------------------------------------------------
 Every latency number reported so far came from a replay harness that fed
 cached detections to the tracker, so it measured tracker-side cost only
-(experiments/latency/evidence.md). That is the right number for "what does
+(archive/experiments/latency/evidence.md). That is the right number for "what does
 C2 cost" and the wrong number for "does this run in real time" — the
 detector is the dominant term and was excluded from it. This script measures
 the whole path: decode -> context -> detect -> track -> C3 -> accident.
@@ -57,7 +57,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from code.pipeline import Pipeline
 
-OUT_DIR = REPO_ROOT / "experiments" / "realtime"
+OUT_DIR = REPO_ROOT / "data" / "processed" / "realtime"
 
 # Ablation configs, in the order the paper tables use them.
 SWEEP_CONFIGS = [
@@ -290,7 +290,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--sweep", action="store_true",
                    help="Run every ablation config, one subprocess each.")
     p.add_argument("--save", action="store_true",
-                   help="Write JSON under experiments/realtime/.")
+                   help="Write JSON under data/processed/realtime/.")
     p.add_argument("--json-only", action="store_true",
                    help="Print only the JSON result (used by --sweep).")
     return p.parse_args()

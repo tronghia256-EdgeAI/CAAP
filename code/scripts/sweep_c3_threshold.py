@@ -171,7 +171,7 @@ def main() -> None:
     ap.add_argument("--diagnose", action="store_true",
                     help="also measure whether the score separates TP "
                          "from FP at all (ROC AUC)")
-    ap.add_argument("--out-dir", default="experiments/c3_sweep")
+    ap.add_argument("--out-dir", default="data/processed/sweeps/c3")
     args = ap.parse_args()
 
     a, b = args.segment

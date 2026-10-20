@@ -67,7 +67,7 @@ HYSTERESIS_FRAMES  = 15    # consecutive frames before a condition switch
 
 
 # ── Parameter table (one row per condition) ──────────────────────────
-# DENSE_PEAK is tuned against human GT (experiments/c1_sweep/). The other
+# DENSE_PEAK is tuned against human GT (archive/experiments/c1_sweep/). The other
 # two rows are still initial guesses, and deliberately stay that way:
 #   DEFAULT holds only 21 of the 600 GT frames, so fitting it there would
 #           be fitting noise
@@ -81,7 +81,7 @@ PARAM_TABLE: dict[TrafficCondition, Params] = {
     # (FP 1388 -> 6254). 0.50 / 30 is the grid optimum and is strictly
     # better than the guess at every point tested. Note it coincides with
     # the tracker's fixed default, i.e. the best this row can currently do
-    # is decline to differentiate — see experiments/c1_sweep/evidence.md.
+    # is decline to differentiate — see archive/experiments/c1_sweep/evidence.md.
     TrafficCondition.DENSE_PEAK: Params(
         yolo_conf=0.50,
         buffer_len=30,

@@ -29,3 +29,9 @@ severity metrics or severity claims unless Nghĩa explicitly changes this decisi
 Keep the detector's `Accident` class. Any accident evaluation within scope is
 binary event detection/alerting, conditional on suitable video GT and a verified
 implementation; existing severity code does not establish binary alert results.
+
+## Current workspace map
+
+Read `docs/CURRENT_STATE.md` for the current evidence and open decisions.
+`archive/` contains historical drafts, plans and exploratory results, not
+current instructions or approval to resume their deadlines, claims or scope.

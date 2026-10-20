@@ -28,7 +28,7 @@ Per camera:
             with the mixed segment's 'development' label.
 
 Per camera, in this order (the ROI is fixed before any metric is seen):
-  review_gt_roi.cmd --bundle experiments/gt_qa/<camera>_review      draw, save the ROI
+  tools/launchers/review_gt_roi.cmd --bundle experiments/gt_qa/<camera>_review      draw, save the ROI
   python -m code.scripts.gt_newcam scope --cameras <camera>
   python -m code.scripts.gt_newcam_review --camera <camera>
   python -m code.scripts.gt_newcam finalize --cameras <camera> --reviewer <name> [--detector D]
@@ -277,7 +277,7 @@ def scope(camera: str) -> None:
     out = roi_child(camera)
     if out is None:
         raise SystemExit(f"{camera}: draw and save the ROI first "
-                         f"(review_gt_roi.cmd --bundle {parent_bundle(camera)})")
+                         f"(tools/launchers/review_gt_roi.cmd --bundle {parent_bundle(camera)})")
     prepare_scope(parent_bundle(camera), output=out, activate=False)
     print(f"{camera}: review with\n  python -m code.scripts.gt_newcam_review --camera {camera}")
 

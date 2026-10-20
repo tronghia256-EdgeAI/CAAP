@@ -66,7 +66,7 @@ Val dùng chọn checkpoint và phân tích lỗi; chưa dùng số mAP này là
 test độc lập cho paper. Hoàn tất [workflow clean](ACCIDENT_DATASET_REVIEW_WORKFLOW.md),
 kiểm tra overlap benchmark rồi chốt evaluation riêng trước khi báo kết quả.
 Bộ này không có timeline tai nạn; phân loại mức độ nằm ngoài
-[phạm vi paper](PAPER_SCOPE.md).
+[phạm vi paper](../PAPER_SCOPE.md).
 
 Không tự thay `weights/yolo11_vn.pt` bằng model mới. Khi đưa detector đã kiểm
 tra vào CAAP, dùng cùng checkpoint cho mọi biến thể C1/C2/C3; code ánh xạ tên

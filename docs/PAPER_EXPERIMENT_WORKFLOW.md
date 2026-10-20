@@ -1,7 +1,7 @@
 # Thí nghiệm sau khi hoàn tất GT ROI
 
 Runner: [run_roi_paper.py](../code/scripts/run_roi_paper.py).
-Chỉ dùng GT sau lượt sửa [32 nhóm audit](GT_RECONCILED_20261013.md).
+Chỉ dùng GT sau lượt sửa [32 nhóm audit](../archive/docs/GT_RECONCILED_20261013.md).
 Đây là **development trên cùng camera NKKN**, chưa phải test độc lập.
 Phạm vi theo [PAPER_SCOPE.md](PAPER_SCOPE.md); không chạy severity hoặc gửi alert.
 
@@ -80,7 +80,7 @@ Ultralytics. Không dùng latency replay làm latency end-to-end.
 
 ## Chạy và xem tiến độ
 
-Double-click **`run_paper_experiments.cmd`**, hoặc từ repo root:
+Double-click **`tools/launchers/run_paper_experiments.cmd`**, hoặc từ repo root:
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -u -m code.scripts.run_roi_paper --phase all

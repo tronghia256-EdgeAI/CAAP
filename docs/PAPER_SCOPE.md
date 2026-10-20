@@ -1,5 +1,16 @@
 # Phạm vi paper — quyết định được lưu
 
+## Dọn repo và xem xét lại hướng nghiên cứu (20/10/2026)
+
+Nghĩa yêu cầu giữ phần cần thiết và đưa tài liệu/thí nghiệm cũ khỏi luồng làm
+việc chính. Xem [CURRENT_STATE.md](CURRENT_STATE.md) cho trạng thái bằng chứng
+và [archive](../archive/README.md) cho lịch sử. Hai bản thảo cũ được lưu nguyên
+nội dung trong `archive/paper/`; chưa có bản nộp mới được duyệt.
+
+Việc dọn không chốt contribution C1/C2/C3, không tự duyệt hướng diagnostic hoặc
+thí nghiệm seed A/B, không thay detector/ROI/threshold và không mở score camera
+mới. Giới hạn công bố và quyết định bỏ severity bên dưới vẫn giữ nguyên.
+
 ## Mở lại GT camera mới (19/10/2026)
 
 Nghĩa đã đồng ý triển khai review một đoạn camera **Dương Bá Trạc** để kiểm tra
@@ -42,9 +53,9 @@ runtime, weights hoặc cảnh báo đang dùng. Không mô tả binary alert l�
 chỉ bằng cách đổi nhãn trong hình/bản thảo. Nếu làm nhánh này sau, cần thiết kế,
 triển khai, test và chấm event-level riêng; không gửi cảnh báo thật khi benchmark.
 
-Bản thảo JRTIP ở `paper/jrtip/main.tex`; skeleton cũ trong `paper/sections/`
+Bản thảo JRTIP ở `archive/paper/jrtip/main.tex`; skeleton cũ trong `archive/paper/sections/`
 được đồng bộ phạm vi để tránh khôi phục yêu cầu severity ở phiên sau.
-Spec dữ liệu hiện hành: [ACCIDENT_DATA_SPEC.md](ACCIDENT_DATA_SPEC.md).
+Spec dữ liệu hiện hành: [ACCIDENT_DATA_SPEC.md](detector/ACCIDENT_DATA_SPEC.md).
 
 ## ROI do Nghĩa chọn cho GT (12/10/2026)
 

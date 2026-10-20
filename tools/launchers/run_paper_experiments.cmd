@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 if not exist ".venv\Scripts\python.exe" (
   echo Missing .venv Python. See docs\PAPER_EXPERIMENT_WORKFLOW.md.
   pause

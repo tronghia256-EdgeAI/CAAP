@@ -6,7 +6,7 @@ nguồn/ảnh gốc thay người và không thay checkpoint của pipeline.
 
 ## Chạy trên máy hiện tại
 
-Double-click `train_detector_trial.cmd`: tạo snapshot mới rồi chạy YOLO11n
+Double-click `tools/launchers/train_detector_trial.cmd`: tạo snapshot mới rồi chạy YOLO11n
 detection, 1 epoch, ảnh 320, batch 2, CPU; mẫu 32 ảnh train / 8 ảnh val.
 Đây là kiểm tra luồng training, không phải lượt huấn luyện đầy đủ.
 Mỗi lần chạy tạo thư mục mới, không ghi đè lượt trước.

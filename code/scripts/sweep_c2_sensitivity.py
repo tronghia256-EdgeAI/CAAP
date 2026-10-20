@@ -115,7 +115,7 @@ def main() -> None:
     ap.add_argument("--segment", nargs=2, type=int, default=(10700, 11300))
     ap.add_argument("--warmup", type=int, default=1000)
     ap.add_argument("--roi-bundle", default=None)
-    ap.add_argument("--out", default="experiments/c2_sensitivity")
+    ap.add_argument("--out", default="data/processed/sweeps/c2")
     ap.add_argument("--score-only", action="store_true",
                     help="skip the replays and re-score the kept dumps")
     args = ap.parse_args()

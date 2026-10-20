@@ -1,6 +1,6 @@
 """Figures for the JRTIP manuscript, drawn only from committed result files.
 
-    python experiments/paper_final/figures.py  ->  paper/jrtip/figures/*.pdf
+    python experiments/paper_final/figures.py  ->  archive/paper/jrtip/figures/*.pdf
 
 Springer svjour3 sizes: one column 84 mm, two columns 174 mm. Times-like serif at
 8 pt to match the body, vector PDF with TrueType fonts embedded, Okabe-Ito colours
@@ -14,7 +14,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / 'paper/jrtip/figures'
+OUT = ROOT / 'archive/paper/jrtip/figures'
 SIZES = (448, 640, 960, 1280)
 SEGMENTS = ('dense', 'mixed', 'freeflow')
 SEG_LABEL = {'dense': 'Dense', 'mixed': 'Mixed', 'freeflow': 'Free-flow'}

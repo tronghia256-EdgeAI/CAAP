@@ -121,7 +121,7 @@ class CTRVMotionModel:
                     a looser one. Angular entries (θ, ω) are unaffected —
                     heading dynamics do not depend on apparent size.
                     NOTE: measured harmful on NKKN replay (see
-                    experiments/c2_variants/evidence.md); kept for ablation.
+                    archive/experiments/c2_variants/evidence.md); kept for ablation.
             nsa   : Noise-Scale-Adaptive measurement noise (StrongSORT):
                     R̃ = (1 − score)·R per update — a 0.9-confidence
                     detection is trusted ~10× more than a 0.1 one.

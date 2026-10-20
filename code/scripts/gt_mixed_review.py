@@ -202,7 +202,7 @@ def prepare(source: Path = SOURCE, bundle: Path = BUNDLE, segment=(2500, 3100), 
         counts = dict(Counter(c["kind"] for c in cases))
         lines = ["# Mixed review", "", "Every case is a question, not an automatic annotation.", "",
                  f"Frames: {n_frames}; absolute segment: {list(segment)}; cases: {counts}", "",
-                 "Open review_gt_mixed.cmd. A: accept proposal, K: keep, U: uncertain, V: video/editor, E: edited.", "",
+                 "Open tools/launchers/review_gt_mixed.cmd. A: accept proposal, K: keep, U: uncertain, V: video/editor, E: edited.", "",
                  "| Rank | Type | MOT before → after | Source IDs | Sheet |", "|---|---|---|---|---|"]
         for c in cases:
             lines.append(f"| {c['rank']} | {c['kind']} | {c['before'][1]} → {c['after'][1]} | {c['ids']} | [{c['sheet']}]({c['sheet']}) |")

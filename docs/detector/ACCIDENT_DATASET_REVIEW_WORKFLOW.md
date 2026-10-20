@@ -2,9 +2,9 @@
 
 ## Mở công cụ
 
-Double-click **`review_accident_dataset.cmd`** ở thư mục gốc repo.
+Double-click **`tools/launchers/review_accident_dataset.cmd`** ở thư mục gốc repo.
 Tên người duyệt mặc định: **Nghĩa**. Đóng rồi mở lại để tiếp tục; dữ liệu gốc
-được giữ nguyên. Xem [kế hoạch và audit](ACCIDENT_VEHICLE_CLEANING_PLAN.md).
+được giữ nguyên. Xem [kế hoạch và audit](../../archive/docs/ACCIDENT_VEHICLE_CLEANING_PLAN.md).
 
 Bản đã chuẩn bị ở `data/annotations/accident_vehicle_clean/v1/`:
 **4.980 ảnh, 55.394 annotation đã chuyển thành bounding box**, class ID giữ
@@ -142,7 +142,7 @@ và dữ liệu đã train checkpoint cũ; rà domain, camera chưa xác minh v�
 thiếu trong `report.json`. Tool không thể suy ra lịch sử training từ ảnh.
 Việc review một mẫu nhãn không chứng nhận toàn bộ 55.394 annotation. Bộ này
 cũng không cung cấp timeline sự kiện cho đánh giá alert video. Phân loại mức
-độ đã được loại khỏi [phạm vi paper](PAPER_SCOPE.md).
+độ đã được loại khỏi [phạm vi paper](../PAPER_SCOPE.md).
 
 ## CLI
 

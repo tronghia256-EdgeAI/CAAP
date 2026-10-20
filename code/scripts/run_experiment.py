@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-frames", type=int, default=None,
                         help="Stop after N frames (smoke tests).")
     parser.add_argument("--save-metrics", action="store_true",
-                        help="Save metrics JSON to experiments/<config-stem>/.")
+                        help="Save metrics JSON to data/processed/experiments/<config-stem>/.")
     return parser.parse_args()
 
 
@@ -189,7 +189,7 @@ def main() -> None:
 
     if args.save_metrics:
         exp_name = Path(args.config).stem
-        out_dir = REPO_ROOT / "experiments" / exp_name
+        out_dir = REPO_ROOT / "data" / "processed" / "experiments" / exp_name
         out_dir.mkdir(parents=True, exist_ok=True)
         out_file = out_dir / ("results_synthetic.json" if args.synthetic
                               else "results.json")

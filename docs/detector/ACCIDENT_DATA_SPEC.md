@@ -2,7 +2,7 @@
 
 Cập nhật theo quyết định của Nghĩa ngày **12/10/2026**:
 **bỏ phân loại mức độ minor/severe khỏi paper**.
-Xem [phạm vi được lưu](PAPER_SCOPE.md).
+Xem [phạm vi được lưu](../PAPER_SCOPE.md).
 
 ## Mục đích
 
@@ -36,7 +36,7 @@ Chốt convention kết thúc sự kiện và matching predicted/GT event trư�
 chấm; kiểm tra độ lệch frame và fps.
 
 Nếu đánh giá localization/track vùng tai nạn, thêm box theo frame và track ID
-theo MOT như [hướng dẫn GT](GT_ANNOTATION_GUIDE.md). Detector có class Accident
+theo MOT như [hướng dẫn GT](../GT_ANNOTATION_GUIDE.md). Detector có class Accident
 không đồng nghĩa mọi nhãn video đã đúng hoặc đầy đủ.
 
 ## Clip không tai nạn

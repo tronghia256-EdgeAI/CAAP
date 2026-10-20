@@ -258,7 +258,7 @@ def prepare(source=SOURCE, audit=AUDIT, bundle=BUNDLE, progress=log):
             "status": "DRAFT: missing reviewed provenance and frozen evaluation splits"}, sort_keys=False), encoding="utf-8")
         (stage / "README.md").write_text("# Prepared detection dataset — NOT a finalized evaluation dataset\n\n"
             "Original sources preserved. All images retained; polygons converted to boxes.\n"
-            "Open review_accident_dataset.cmd to review candidates, edit boxes and record provenance.\n"
+            "Open tools/launchers/review_accident_dataset.cmd to review candidates, edit boxes and record provenance.\n"
             "preview_data.yaml is an inventory preview, not a train/val/test configuration.\n"
             "Final releases are published under releases/ only after explicit human review.\n", encoding="utf-8")
         # Detect changes during copying before exposing a completed version.

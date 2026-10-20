@@ -224,7 +224,7 @@ def run_replay(det_npz: str, out_dir: Path, variants: list[str]) -> list[str]:
         print("  NOTE: latency from a multi-variant run is position-biased "
               "and must not be quoted.\n"
               "        For real numbers run one variant per process — see "
-              "experiments/latency/evidence.md", flush=True)
+              "archive/experiments/latency/evidence.md", flush=True)
     for name in variants:
         config, overrides = VARIANTS[name]
         pipe = Pipeline.from_config(config, dry_run_alerts=True,
@@ -445,7 +445,7 @@ def main() -> None:
                         f"(available: {', '.join(VARIANTS)}).")
     p.add_argument("--start-frame", type=int, default=0)
     p.add_argument("--max-frames", type=int, default=None)
-    p.add_argument("--out-dir", type=str, default="experiments/c2_real")
+    p.add_argument("--out-dir", type=str, default="data/processed/tracker_comparison")
     p.add_argument("--weights", type=str, default=None,
                    help="Detector weights override (e.g. weights/yolo11s.pt; "
                         "80-class COCO models are remapped automatically).")

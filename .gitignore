@@ -81,3 +81,28 @@ SCOPE.md
 
 # Detector training run: keep the records and metric plots; the batch mosaics are dataset images
 ket_qua_train/*.jpg
+
+# Archived experiments keep the same privacy rules as their original folders.
+archive/local-notes/
+archive/**/*.mp4
+archive/**/*.avi
+archive/**/*.mkv
+archive/**/*.asf
+archive/**/*.npz
+archive/**/*.jpg
+archive/**/*.png
+archive/**/tracks_*.json
+archive/**/results.json
+archive/**/logs/
+archive/paper/**/*.pdf
+!archive/paper/figures/fig1_pipeline_overview.pdf
+!archive/paper/jrtip/figures/fig_input_size.pdf
+!archive/paper/jrtip/figures/fig_operating.pdf
+!archive/paper/jrtip/figures/fig_seed_bias.pdf
+archive/paper/**/*.aux
+archive/paper/**/*.log
+archive/paper/**/*.blg
+archive/paper/**/*.bbl
+archive/paper/**/*.out
+archive/paper/**/*.synctex.gz
+archive/paper/**/*.zip
