@@ -13,8 +13,10 @@ khử được bias đó. Thí nghiệm dùng GT công khai (FastTrack, MOT17, D
 |---|---|
 | `code/evaluation/` | Metrics tracking/detection (MOTA, IDF1, IoU matching), kiểm chéo với `motmetrics` |
 | `code/utils/files.py` | `sha256`, `atomic_write` cho provenance |
+| `code/annotation_sim/` | Simulator GT seed-rồi-review (`prepare`, `simulate`; protocol mục 4 + A1) |
 | `tests/` | pytest |
 | `tools/caap.py` | CLI (`status`, `test`) |
+| `tools/kaggle_detect_cache.py` | Cache detection YOLO11 (COCO) trên Kaggle cho FastTrack/MOT17/DanceTrack |
 | `data/`, `weights/` | Dữ liệu và weights local, gitignored (`weights/yolo11n.pt` là YOLO11n pretrain COCO) |
 
 Code và dữ liệu detector cũ (tool dataset, ByteTrack vendor, nhãn train, `detector.pt`, video HCMC)

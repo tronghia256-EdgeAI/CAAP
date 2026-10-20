@@ -106,4 +106,55 @@ viết paper ngắn.
 
 ## Amendments
 
-- (chưa có)
+### A1 — 20/10/2026, trước khi có bất kỳ kết quả nào
+
+**Lý do.** Review phản biện bản simulator đầu tiên (3 hướng độc lập) phát hiện mô hình mục 4, khi diễn
+giải theo từng liên kết, kéo GT_S về phía seed ở mọi 0 < q < 1. Ví dụ: sửa một lần cho một lỗi
+"excursion" không có tác dụng gì; một swap được sửa trọn chỉ với xác suất khoảng q⁴. Hiệu ứng này làm SA
+tăng khoảng 0.01 IDF1, ngang ngưỡng dừng mục 7. Các điểm dưới đây thay thế cách diễn giải mục 4; giả
+thuyết, endpoint, lưới θ, θ_ref và quy tắc dừng giữ nguyên.
+
+1. **Matching box.** Hungarian theo từng frame, chỉ trên các cặp có IoU ≥ 0.5 (dung sai epsilon máy,
+   như TrackEval), lọc trước khi gán.
+2. **Danh tính.** Ghép một-một seed id ↔ GT id bằng Hungarian trên số box đã match (như IDF1).
+   `label(g)` = seed id được ghép với g, hoặc một nhãn mới nếu g không được ghép.
+3. **Đơn vị sửa ID = episode.** Một cặp (seed id, GT id) nằm ngoài phép ghép danh tính là một cặp lỗi.
+   Các cặp lỗi mà việc sửa sẽ va chạm nhau trong cùng frame (ví dụ hai nửa của một swap) gộp thành một
+   episode. Mỗi episode được sửa với xác suất **q**, rút một lần: được sửa thì mọi box của nó nhận
+   `label(g)`, không thì giữ seed id. Theo cách xây dựng, output luôn hợp lệ, không còn quy tắc xung đột.
+4. **Run.** Đoạn bị bỏ sót và đoạn FP là các đoạn **liên tục theo frame** của một id. Một khoảng trống
+   frame làm tách run.
+5. **Nhãn của box thêm/giữ.** Đoạn bỏ sót được thêm nhận `label(g)`, hoặc nhãn mới nếu `label(g)` đã bị
+   dùng ở một frame của đoạn. Đoạn FP được giữ nhận seed id của nó, hoặc nhãn mới nếu trùng.
+   **Box GT được thêm thay thế** box seed chưa match chồng lên nó (IoU ≥ 0.1) trong cùng frame: reviewer
+   sửa box lệch chứ không giữ cả hai.
+6. **Hình học a.** Rút theo từng box match.
+7. **Input.** Frame/id phải là số nguyên, (frame, id) duy nhất, mọi giá trị hữu hạn. Input được sắp xếp
+   về thứ tự chuẩn, nên kết quả không phụ thuộc thứ tự hàng trong file. Thứ tự rút ngẫu nhiên cố định:
+   episode (theo frame đầu), đoạn bỏ sót, đoạn FP (theo id rồi frame đầu), hình học.
+8. **Tiền xử lý chung.** GT_true và mọi output tracker đi qua **cùng một** bước lọc, trước khi mô phỏng
+   và trước khi chấm, để GT_true và GT_S được chấm như nhau:
+   - MOT17: GT_true là các hàng có consider = 1 và class = 1. Box tracker match (IoU ≥ 0.5) với GT
+     distractor (class 2, 7, 8, 12) hoặc consider = 0 bị bỏ một lần, theo đúng quy tắc của TrackEval.
+     Sau đó chấm không qua bước distractor.
+   - FastTrack: class 9 (`ignore_region`) và các class 10–15 là vùng bỏ qua. Box tracker có tâm nằm
+     trong một vùng bỏ qua cùng frame bị bỏ.
+9. **Detection (mục 3).** Detector chung là YOLO11x pretrain COCO. Điều kiện "different detector" dùng
+   YOLO11n. imgsz 1280, conf ≥ 0.05, ultralytics 8.4.92, script `tools/kaggle_detect_cache.py`.
+   MOT17 dùng detection YOLO11 trên ảnh của thư mục `*-FRCNN`, không dùng public detections.
+   Ánh xạ class (COCO → FastTrack, đánh số 1-based theo `labels.txt`):
+
+   | Class đánh giá | FastTrack | COCO |
+   |---|---|---|
+   | person | 1 | 0 person |
+   | bus | 2 bus_small, 3 bus_big | 5 bus |
+   | truck | 4 truck_small, 5 truck_big | 7 truck |
+   | car | 6 | 2 car |
+   | bicycle | 7 bike | 1 bicycle |
+   | motorbike | 8 | 3 motorcycle |
+
+   MOT17 và DanceTrack chỉ có person.
+10. **Chẩn đoán báo cáo kèm** (từ review phương pháp): tỉ lệ sửa thực tế theo kích thước episode; SA
+    tại a = 0 cạnh a = 1 (tách phần danh tính và phần hình học); độ nhạy theo ngưỡng match 0.4 / 0.6
+    (chỉ tại θ_ref); phân bố độ dài đoạn bỏ sót của từng tracker seed; phương sai giữa các random seed
+    trong từng ô của lưới.
