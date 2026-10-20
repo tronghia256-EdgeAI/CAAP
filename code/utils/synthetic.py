@@ -1,12 +1,11 @@
 """
 code/utils/synthetic.py
 ───────────────────────
-Synthetic trajectory generators shared by the tests and the experiment
-harness (run_experiment.py --synthetic).
+Synthetic trajectory generators for baseline tracker tests.
 
 All trajectories are sequences of bbox centers (n, 2) in pixels. Detections
 are N×6 arrays [x1, y1, x2, y2, score, class_id] — the same format the
-pipeline's Detector produces from YOLO11.
+Detector produces from YOLO.
 """
 
 from __future__ import annotations

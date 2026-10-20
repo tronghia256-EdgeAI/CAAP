@@ -1,4 +1,3 @@
 # Development / testing only
 pytest>=7.4
 motmetrics>=1.4         # cross-validation oracle for self-implemented MOTA/IDF1
-matplotlib>=3.7         # RMSE / trajectory plots for the paper

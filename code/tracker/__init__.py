@@ -1,5 +1,4 @@
-"""Tracker package: vendored ByteTrack + the adaptive class-conditioned wrapper."""
+"""Reusable vanilla ByteTrack baseline."""
+from .vendor import BYTETracker, STrack
 
-from .adaptive_bytetrack import AdaptiveBYTETracker, ClassAwareSTrack, MOTORCYCLE_CLASS_ID
-
-__all__ = ["AdaptiveBYTETracker", "ClassAwareSTrack", "MOTORCYCLE_CLASS_ID"]
+__all__ = ["BYTETracker", "STrack"]

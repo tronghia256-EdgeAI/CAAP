@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 if not exist ".venv\Scripts\python.exe" (
-  echo Missing .venv. See README.md for setup.
+  echo Missing .venv. See README.md.
   if "%~1"=="" pause
   exit /b 1
 )

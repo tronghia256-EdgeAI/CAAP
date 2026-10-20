@@ -32,6 +32,9 @@ implementation; existing severity code does not establish binary alert results.
 
 ## Current workspace map
 
-Read `docs/CURRENT_STATE.md` for the current evidence and open decisions.
-`archive/` contains historical drafts, plans and exploratory results, not
-current instructions or approval to resume their deadlines, claims or scope.
+Nghĩa requested a fresh start on 2026-10-20. Read `docs/PAPER_SCOPE.md`.
+All old tracking GT, ROI/review sessions, paper drafts, results and the C1/C2/C3
+pipeline have been removed from the working tree into an external local backup.
+Do not restore them or use their scores as evidence for a new paper by default.
+Detector training labels, training provenance, source videos and the current
+detector checkpoint are retained. Training labels are not independent tracking GT.

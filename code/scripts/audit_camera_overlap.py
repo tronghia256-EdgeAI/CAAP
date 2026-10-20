@@ -85,7 +85,7 @@ def write_sheets(rows: list, clips: list[Path], images_root: Path, out: Path,
                  max_bits: int, tile=(320, 180), cols: int = 4) -> None:
     """Contact sheet per clip: one clip frame (tile 0) next to every training
     image within `max_bits` of that clip, for the visual verdict. The sheets
-    show dataset images, so they go under gitignored data/, never experiments/."""
+    show dataset images, so they stay under gitignored data/."""
     out.mkdir(parents=True, exist_ok=True)
     tw, th = tile
     for j, clip in enumerate(clips):
@@ -116,7 +116,7 @@ def main() -> None:
     ap.add_argument("--step-sec", type=float, default=1.0)
     ap.add_argument("--threshold", type=int, default=10,
                     help="match = best distance <= this many of 64 bits")
-    ap.add_argument("--out", default="experiments/detector_leakage")
+    ap.add_argument("--out", default="data/processed/camera_overlap")
     ap.add_argument("--sheets", default=None, metavar="DIR",
                     help="only render contact sheets from an existing overlap.csv "
                          "(keep DIR under gitignored data/)")

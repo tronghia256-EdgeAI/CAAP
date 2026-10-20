@@ -9,11 +9,11 @@ from pathlib import Path
 import yaml
 
 from code.scripts.clean_detection_dataset import BUNDLE, REPO, CleanStore, payload, stamp
-from code.scripts.gt_review import sha256
+from code.utils.files import sha256
 from code.scripts.train_detection_trial import prepare_trial
 from code.scripts.kaggle_detection_helpers import verify_package
 
-DEFAULT = REPO / 'data/processed/kaggle/caap_accident_vehicle_dev_20261011'
+DEFAULT = REPO / 'data/processed/kaggle/caap_accident_vehicle_dev'
 
 
 def package(output=DEFAULT, bundle=BUNDLE, weights=REPO / 'weights/yolo11n.pt'):

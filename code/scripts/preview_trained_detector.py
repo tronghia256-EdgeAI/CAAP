@@ -1,4 +1,4 @@
-"""Run a local detector sanity check and open GT/prediction/video previews."""
+"""Preview detector predictions against training-dataset labels and source video."""
 from __future__ import annotations
 
 import argparse
@@ -14,12 +14,12 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from code.scripts.clean_detection_dataset import REPO, stamp, payload
-from code.scripts.gt_review import sha256
+from code.utils.files import sha256
 from code.scripts.kaggle_detection_helpers import NAMES
 
-DATASET = REPO / 'data/processed/kaggle/caap_accident_vehicle_dev_20261011'
+DATASET = REPO / 'data/processed/kaggle/caap_accident_vehicle_dev'
 VIDEO = REPO / 'data/raw/videos/NKKN-VoThiSau 2017-07-18_08_00_00_000.asf'
-OUTPUT = REPO / 'data/processed/detector_previews/best_20261012_v2'
+OUTPUT = REPO / 'data/processed/detector_previews/current'
 
 
 def draw_gt(path, label):
@@ -203,7 +203,7 @@ def view(output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--weights', type=Path, default=REPO / 'best.pt')
+    parser.add_argument('--weights', type=Path, default=REPO / 'weights/detector.pt')
     parser.add_argument('--dataset', type=Path, default=DATASET)
     parser.add_argument('--video', type=Path, default=VIDEO)
     parser.add_argument('--output', type=Path, default=OUTPUT)

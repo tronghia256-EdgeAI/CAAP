@@ -19,7 +19,7 @@ from code.scripts.clean_detection_dataset import (
     BUNDLE, REPO, CleanStore, child, csv_bytes, final_groups, label_text, log, payload, stamp,
 )
 from code.scripts.audit_detection_dataset import parse_label
-from code.scripts.gt_review import sha256
+from code.utils.files import sha256
 
 TRIALS = REPO / "data/processed/detector_trials"
 MODE = "DEVELOPMENT_ONLY_NOT_PAPER_EVALUATION"

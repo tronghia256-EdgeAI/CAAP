@@ -14,7 +14,7 @@ from code.scripts.audit_detection_dataset import audit
 from code.scripts.clean_detection_dataset import (
     CleanStore, assign_groups, child, export, final_groups, label_text, prepare,
 )
-from code.scripts.gt_review import sha256
+from code.utils.files import sha256
 
 
 def snapshot(root):

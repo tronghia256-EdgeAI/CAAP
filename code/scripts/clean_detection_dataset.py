@@ -25,11 +25,11 @@ import numpy as np
 import yaml
 
 from code.scripts.audit_detection_dataset import parse_label
-from code.scripts.gt_review import atomic_write, sha256
+from code.utils.files import atomic_write, sha256
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / "data/annotations/accident_vehicle"
-AUDIT = REPO / "data/processed/dataset_audits/accident_vehicle_20261010_v2"
+AUDIT = REPO / "data/processed/dataset_audit"
 BUNDLE = REPO / "data/annotations/accident_vehicle_clean/v1"
 META = ("source_id", "clip_id", "event_id", "camera_id", "domain",
         "provenance_confirmed", "unaugmented_confirmed")
@@ -258,7 +258,7 @@ def prepare(source=SOURCE, audit=AUDIT, bundle=BUNDLE, progress=log):
             "status": "DRAFT: missing reviewed provenance and frozen evaluation splits"}, sort_keys=False), encoding="utf-8")
         (stage / "README.md").write_text("# Prepared detection dataset — NOT a finalized evaluation dataset\n\n"
             "Original sources preserved. All images retained; polygons converted to boxes.\n"
-            "Open tools/launchers/review_accident_dataset.cmd to review candidates, edit boxes and record provenance.\n"
+            "Run caap.cmd detector-review to review candidates, edit boxes and record provenance.\n"
             "preview_data.yaml is an inventory preview, not a train/val/test configuration.\n"
             "Final releases are published under releases/ only after explicit human review.\n", encoding="utf-8")
         # Detect changes during copying before exposing a completed version.

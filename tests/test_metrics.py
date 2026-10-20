@@ -2,7 +2,7 @@
 tests/test_metrics.py
 ─────────────────────
 Cross-validate self-implemented MOTA/IDF1 against py-motmetrics (D5),
-plus detection/severity metric unit tests.
+plus detection metric unit tests.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from code.evaluation.metrics import (
     compute_iou,
     compute_tracking_metrics,
     compute_detection_metrics,
-    compute_severity_metrics,
 )
 
 
@@ -151,15 +150,3 @@ class TestDetectionMetrics:
         pred = [np.array([[0, 0, 10, 10, 0.9, 2]])]  # right box, wrong class
         m = compute_detection_metrics(pred, gt)
         assert m.precision == 0.0 and m.recall == 0.0
-
-
-class TestSeverityMetrics:
-    def test_accuracy_and_confusion(self):
-        gt = [0, 0, 1, 1, 2, 2]
-        pred = [0, 1, 1, 1, 2, 0]
-        m = compute_severity_metrics(pred, gt)
-        assert m.accuracy == pytest.approx(4 / 6)
-        assert m.confusion_matrix[0, 0] == 1
-        assert m.confusion_matrix[0, 1] == 1
-        assert m.confusion_matrix[2, 0] == 1
-        assert m.confusion_matrix.sum() == 6

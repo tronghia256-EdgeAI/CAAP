@@ -1,14 +1,11 @@
 """
 code/evaluation/metrics.py
 ───────────────────────────
-All evaluation metrics for Paper 2 — self-implemented (CLAUDE.md §9
-learning goal), cross-validated against py-motmetrics in
-tests/test_metrics.py.
+Reusable tracking/detection metrics, cross-validated against
+py-motmetrics in tests/test_metrics.py. No stored evaluation dataset is included.
 
 Tracking : MOTA, IDF1, Track Fragmentation Rate
 Detection : Precision, Recall, F1, mAP@0.5
-Severity  : Accuracy, Confusion Matrix (3-class)
-System    : FPS, Latency
 
 References:
   Bernardin & Stiefelhagen, EURASIP 2008 (CLEAR MOT metrics)
@@ -54,15 +51,7 @@ class DetectionMetrics:
     f1: float
     map50: float                 # mAP @ IoU 0.5
 
-@dataclass
-class SeverityMetrics:
-    accuracy: float
-    confusion_matrix: np.ndarray  # (3, 3)
 
-@dataclass
-class SystemMetrics:
-    fps: float
-    latency_ms: float
 
 
 # ── Geometry ─────────────────────────────────────────────────────────
@@ -297,18 +286,3 @@ def compute_detection_metrics(pred_boxes: List[np.ndarray],
 
     map50 = float(np.mean(aps)) if aps else 0.0
     return DetectionMetrics(precision=precision, recall=recall, f1=f1, map50=map50)
-
-
-# ── Severity metrics ─────────────────────────────────────────────────
-
-def compute_severity_metrics(pred_labels: List[int],
-                             gt_labels: List[int]) -> SeverityMetrics:
-    """Accuracy + 3×3 confusion matrix (rows = GT, cols = predicted)."""
-    pred = np.asarray(pred_labels, dtype=int)
-    gt = np.asarray(gt_labels, dtype=int)
-    assert pred.shape == gt.shape
-    cm = np.zeros((3, 3), dtype=int)
-    for g, p in zip(gt, pred):
-        cm[g, p] += 1
-    acc = float((pred == gt).mean()) if len(gt) else 0.0
-    return SeverityMetrics(accuracy=acc, confusion_matrix=cm)

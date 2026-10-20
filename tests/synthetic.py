@@ -2,8 +2,7 @@
 tests/synthetic.py
 ──────────────────
 Thin re-export: the trajectory generators live in code/utils/synthetic.py
-so the experiment harness (code/scripts/run_experiment.py --synthetic)
-shares one source of truth with the tests.
+as reusable synthetic inputs for the tracker tests.
 """
 
 from code.utils.synthetic import (  # noqa: F401

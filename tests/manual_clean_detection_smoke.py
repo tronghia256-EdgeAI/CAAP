@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from code.scripts.clean_detection_app import BoxEditor, CleanApp
-from code.scripts.gt_review import sha256
+from code.utils.files import sha256
 
 
 def main():
