@@ -1,8 +1,10 @@
 """
 code/seedbias/experiment.py
 ───────────────────────────
-Run the θ grid of PROTOCOL.md (section 4, A1, A3) on preprocessed tracks and
-summarise H1 (self-seed advantage) and the ranking part of H2.
+Run the experiments of PROTOCOL.md (section 4, A1, A3, A4) on preprocessed
+tracks: the θ grid for every seed system (H1, H2 ranking), the H2 null model
+and the H3 protocols on the r-slice S_r, and secondary metrics at θ_ref.
+Summaries are in code.seedbias.analysis.
 
     python -m code.seedbias.experiment --dataset fasttrack --out data/processed/seed_bias
 
@@ -27,18 +29,22 @@ import numpy as np
 import scipy.optimize
 import scipy.sparse
 import scipy.sparse.csgraph
-import scipy.stats
 
 from code.annotation_sim.simulate import Reviewer, prepare, read_mot, simulate
+from code.seedbias import analysis as AN
 from code.seedbias import data as D
-from code.seedbias.evaluate import _BaseDataset
+from code.seedbias.evaluate import _BaseDataset, evaluate_sequence, summarize
+from code.seedbias.null_model import null_gt
+from code.seedbias.protocols import consensus_seed, union_seed
 
 GRID = dict(r=(0, 0.25, 0.5, 0.75, 0.9, 1), p_fp=(0, 0.1, 0.25, 0.5), q=(0, 0.5, 0.9, 1), a=(1, 0))
 THETA_REF = dict(r=0.75, p_fp=0.1, q=0.5, a=1)
 N_SEEDS = 10
-N_BOOT = 10_000
 CELLS = [dict(zip(GRID, v)) for v in itertools.product(*GRID.values())]
 REF = CELLS.index(THETA_REF)
+SLICE = [CELLS.index({**THETA_REF, 'r': r}) for r in GRID['r']]     # S_r (A4 item 2)
+SHARED, OTHER = 'yolo11x', 'yolo11n'
+TRACKERS = ('botsort', 'bytetrack', 'ocsort', 'sort')
 
 
 @dataclass
@@ -50,15 +56,22 @@ class Unit:
     tracks: dict            # tracker → [frame, id, x1, y1, x2, y2]
 
 
-def load_units(tracks_root: Path, dataset: str, detector: str, trackers) -> list:
+def load_units(tracks_root: Path, dataset: str, systems) -> list:
+    """One unit per (sequence, class); tracks keyed by system name '<detector>/<tracker>'."""
     units = []
     for seq_dir in sorted((tracks_root / dataset / 'gt').iterdir()):
-        info = tracks_root / dataset / detector / seq_dir.name
         n_frames = json.loads((seq_dir / 'seqinfo.json').read_text())['n_frames']
         for cls in D.SPEC[dataset]['classes']:
-            units.append(Unit(seq_dir.name, cls, n_frames, read_mot(seq_dir / f'{cls}.txt'),
-                              {t: read_mot(info / cls / f'{t}.txt') for t in trackers}))
+            tracks = {}
+            for system in systems:
+                det, trk = system.split('/')
+                tracks[system] = read_mot(tracks_root / dataset / det / seq_dir.name / cls / f'{trk}.txt')
+            units.append(Unit(seq_dir.name, cls, n_frames, read_mot(seq_dir / f'{cls}.txt'), tracks))
     return units
+
+
+def _rng(*key):
+    return np.random.default_rng(list(key))
 
 
 def iou_pairs(a: np.ndarray, b: np.ndarray, thr: float = 0.5):
@@ -112,6 +125,7 @@ class FastIdentity:
     """
 
     def __init__(self, unit: Unit, gt_rows: np.ndarray, seed_rows: np.ndarray | None):
+        self.tracks = unit.tracks
         self.n_tr = {t: len(x) for t, x in unit.tracks.items()}
         self.tid = {t: np.unique(x[:, 1], return_inverse=True)[1].reshape(-1) for t, x in unit.tracks.items()}
         self.to_gt = {t: iou_pairs(x, gt_rows) for t, x in unit.tracks.items()}
@@ -120,7 +134,9 @@ class FastIdentity:
         self.n_gt_rows = len(gt_rows)
         self.n_seed_rows = 0 if seed_rows is None else len(seed_rows)
 
-    def idtp(self, labels: np.ndarray, origin: np.ndarray) -> dict:
+    def idtp(self, labels: np.ndarray, origin: np.ndarray, extra: np.ndarray | None = None) -> dict:
+        """labels/origin as returned by simulate(with_origin=True); extra: further GT rows
+        [frame, label, x1, y1, x2, y2] with their own geometry (null-model FP copies)."""
         lab_gt = np.full(self.n_gt_rows, -1)
         lab_seed = np.full(self.n_seed_rows, -1)
         g = origin[:, 0] == 1
@@ -134,6 +150,10 @@ class FastIdentity:
                 ti2, si = self.to_seed[t]
                 lab.append(lab_seed[si])
                 trk.append(self.tid[t][ti2])
+            if extra is not None and len(extra):
+                ti3, ei = iou_pairs(self.tracks[t], extra)
+                lab.append(extra[ei, 1].astype(int))
+                trk.append(self.tid[t][ti3])
             lab, trk = np.concatenate(lab), np.concatenate(trk)
             keep = lab >= 0
             out[t] = max_matching(lab[keep], trk[keep])
@@ -141,25 +161,86 @@ class FastIdentity:
 
 
 def _run_seed(args):
-    """All cells × rng seeds for one seed tracker: idtp[cell, k, tracker, unit], ngt[cell, k, unit]."""
-    tracks_root, dataset, detector, trackers, a_idx = args
-    units = load_units(Path(tracks_root), dataset, detector, trackers)
-    seed_name = trackers[a_idx]
-    idtp = np.zeros((len(CELLS), N_SEEDS, len(trackers), len(units)), dtype=np.int64)
+    """Grid (all cells × rng seeds) and the null model on S_r, for one seed system."""
+    tracks_root, dataset, systems, a, a_name = args
+    units = load_units(Path(tracks_root), dataset, systems)
+    shape = (N_SEEDS, len(systems), len(units))
+    idtp = np.zeros((len(CELLS),) + shape, dtype=np.int64)
     ngt = np.zeros((len(CELLS), N_SEEDS, len(units)), dtype=np.int64)
-    episodes = np.zeros((len(units), 2), dtype=np.int64)       # episodes, error pairs (diagnostic)
+    null_idtp = np.zeros((len(SLICE),) + shape, dtype=np.int64)
+    null_ngt = np.zeros((len(SLICE), N_SEEDS, len(units)), dtype=np.int64)
+    null_skipped = np.zeros(len(SLICE), dtype=np.int64)
+    episodes = np.zeros((len(units), 2), dtype=np.int64)
     for u, unit in enumerate(units):
-        prep = prepare(unit.tracks[seed_name], unit.gt)
+        prep = prepare(unit.tracks[a_name], unit.gt)
         episodes[u] = prep.n_episodes, prep.stats['error_pairs']
         fast = FastIdentity(unit, prep.gt, prep.seed)
+        fast_gt = FastIdentity(unit, prep.gt, None)
         for k in range(N_SEEDS):
             for c, cell in enumerate(CELLS):
-                rng = np.random.default_rng([k, a_idx, u])    # common random numbers across cells
-                out, _, origin = simulate(prep, Reviewer(**cell), rng, with_origin=True)
+                out, st, origin = simulate(prep, Reviewer(**cell), _rng(k, a, u), with_origin=True)
                 ngt[c, k, u] = len(out)
                 res = fast.idtp(out[:, 1].astype(int), origin)
-                idtp[c, k, :, u] = [res[t] for t in trackers]
-    return idtp, ngt, episodes
+                idtp[c, k, :, u] = [res[s] for s in systems]
+                if c in SLICE:
+                    j = SLICE.index(c)
+                    labels, extra, skipped = null_gt(prep.gt, unit.n_frames, st['missed_lengths'],
+                                                     st['unfixed_pairs'], st['kept_fp_lengths'], _rng(k, a, u, 1))
+                    keep = labels >= 0
+                    origin_n = np.column_stack([np.ones(keep.sum(), dtype=int), np.flatnonzero(keep)])
+                    res_n = fast_gt.idtp(labels[keep], origin_n, extra)
+                    null_idtp[j, k, :, u] = [res_n[s] for s in systems]
+                    null_ngt[j, k, u] = keep.sum() + len(extra)
+                    null_skipped[j] += skipped
+    return dict(idtp=idtp, ngt=ngt, null_idtp=null_idtp, null_ngt=null_ngt, null_skipped=null_skipped,
+                episodes=episodes)
+
+
+def protocol_list(seed_systems) -> list:
+    """H3 protocols (A4 item 4), members in alphabetical order of tracker name."""
+    protos = [dict(kind='union', name='P1 union ' + '+'.join(m.split('/')[1] for m in combo), members=list(combo))
+              for k in (2, 3) for combo in itertools.combinations(sorted(seed_systems), k)]
+    protos.append(dict(kind='consensus', name='P2 consensus', members=sorted(seed_systems)))
+    return protos
+
+
+def _run_protocol(args):
+    """One H3 protocol on S_r: idtp[j, k, system, unit], ngt[j, k, unit], cost[unit]."""
+    tracks_root, dataset, systems, p, proto = args
+    units = load_units(Path(tracks_root), dataset, systems)
+    idtp = np.zeros((len(SLICE), N_SEEDS, len(systems), len(units)), dtype=np.int64)
+    ngt = np.zeros((len(SLICE), N_SEEDS, len(units)), dtype=np.int64)
+    cost = np.zeros(len(units), dtype=np.int64)
+    for u, unit in enumerate(units):
+        outputs = [unit.tracks[m] for m in proto['members']]
+        if proto['kind'] == 'union':
+            seed, n_cand = union_seed(outputs), 0
+        else:
+            seed, n_cand = consensus_seed(outputs)
+        cost[u] = len(seed) + n_cand
+        prep = prepare(seed, unit.gt)
+        fast = FastIdentity(unit, prep.gt, prep.seed)
+        for k in range(N_SEEDS):
+            for j, c in enumerate(SLICE):
+                out, _, origin = simulate(prep, Reviewer(**CELLS[c]), _rng(k, 100 + p, u), with_origin=True)
+                ngt[j, k, u] = len(out)
+                res = fast.idtp(out[:, 1].astype(int), origin)
+                idtp[j, k, :, u] = [res[s] for s in systems]
+    return dict(idtp=idtp, ngt=ngt, cost=cost)
+
+
+def _run_secondary(args):
+    """Secondary metrics (A3 item 6) at θ_ref for one seed: summaries per (k, evaluated system)."""
+    tracks_root, dataset, systems, a, a_name, evaluated = args
+    units = load_units(Path(tracks_root), dataset, systems)
+    per = {(k, s): [] for k in range(N_SEEDS) for s in evaluated}
+    for u, unit in enumerate(units):
+        prep = prepare(unit.tracks[a_name], unit.gt)
+        for k in range(N_SEEDS):
+            gts, _ = simulate(prep, Reviewer(**THETA_REF), _rng(k, a, u))   # the grid's θ_ref draw
+            for s in evaluated:
+                per[(k, s)].append(evaluate_sequence(unit.tracks[s], gts, unit.n_frames))
+    return {f'{k}|{s}': summarize(r) for (k, s), r in per.items()}
 
 
 def true_scores(units, trackers):
@@ -176,82 +257,62 @@ def true_scores(units, trackers):
     return idtp, ngt, ntr
 
 
-def idf1(idtp, ngt, ntr):
-    return 2.0 * idtp / np.maximum(ngt + ntr, 1)
-
-
-def analyse(res: dict, seq_of_unit: np.ndarray, trackers, rng_seed: int = 0) -> dict:
-    """SA (H1) with sequence bootstrap; Kendall τ and flips (H2 ranking part)."""
-    n_seq = seq_of_unit.max() + 1
-    agg = lambda x: np.stack([x[..., seq_of_unit == s].sum(-1) for s in range(n_seq)], -1)  # units → seqs
-    idtp_s, ngt_s = agg(res['idtp']), agg(res['ngt'])             # [A, cell, k, T, S], [A, cell, k, S]
-    true_s, ngt_true_s, ntr_s = agg(res['idtp_true']), agg(res['ngt_true']), agg(res['ntr'])
-    n_t = len(trackers)
-    rng = np.random.default_rng(rng_seed)
-    weights = np.vstack([np.ones(n_seq), rng.multinomial(n_seq, np.full(n_seq, 1 / n_seq), N_BOOT)])  # row 0 = point
-
-    def sa_all(cell):
-        """SA[w, A, B] averaged over rng seeds, for every bootstrap weight row w."""
-        s_true = idf1(true_s @ weights.T, ngt_true_s @ weights.T, ntr_s @ weights.T)    # [T, W]
-        sim = idf1(idtp_s[:, cell] @ weights.T,                                         # [A, k, T, W]
-                   (ngt_s[:, cell] @ weights.T)[:, :, None, :], (ntr_s @ weights.T)[None, None])
-        own = sim[np.arange(n_t), :, np.arange(n_t)]                                    # [A, k, W]
-        delta_true = s_true[:, None, :] - s_true[None, :, :]                            # [A, B, W]
-        sa = (own[:, :, None, :] - sim) - delta_true[:, None, :, :]                     # [A, k, B, W]
-        return sa.mean(1).transpose(2, 0, 1)                                            # [W, A, B]
-
-    off = ~np.eye(n_t, dtype=bool)
-    cells_out = []
-    for c, cell in enumerate(CELLS):
-        sa = sa_all(c)
-        mean_sa = sa[:, off].mean(1)                                                     # [W]
-        lo, hi = np.percentile(mean_sa[1:], [2.5, 97.5])
-        sim_point = idf1(res['idtp'][:, c].sum(-1), res['ngt'][:, c].sum(-1)[..., None],
-                         res['ntr'].sum(-1)[None, None])                                 # [A, k, T]
-        true_point = idf1(res['idtp_true'].sum(-1), res['ngt_true'].sum(), res['ntr'].sum(-1))
-        taus, flips = [], []
-        for a in range(n_t):
-            for k in range(N_SEEDS):
-                tau = scipy.stats.kendalltau(true_point, sim_point[a, k]).statistic
-                taus.append(tau)
-                flips.append(sum((true_point[i] - true_point[j]) * (sim_point[a, k, i] - sim_point[a, k, j]) < 0
-                                 for i, j in itertools.combinations(range(n_t), 2)))
-        cells_out.append(dict(cell=cell, mean_sa=float(mean_sa[0]), ci95=[float(lo), float(hi)],
-                              sa_pairs=sa[0].tolist(), kendall_tau_mean=float(np.nanmean(taus)) if np.isfinite(taus).any() else float('nan'),
-                              flips_mean=float(np.mean(flips)), flips_any=float(np.mean(np.array(flips) > 0))))
-    return dict(trackers=list(trackers), idf1_true=true_point.tolist(), theta_ref=CELLS[REF],
-                h1=cells_out[REF], cells=cells_out)
-
-
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--tracks', type=Path, default=Path('data/processed/tracks'))
     ap.add_argument('--dataset', required=True, choices=sorted(D.SPEC))
-    ap.add_argument('--detector', default='yolo11x')
-    ap.add_argument('--trackers', nargs='+', default=['botsort', 'bytetrack', 'ocsort', 'sort'])
     ap.add_argument('--out', type=Path, default=Path('data/processed/seed_bias'))
     ap.add_argument('--workers', type=int, default=2)
+    ap.add_argument('--skip', nargs='*', default=[], choices=['protocols', 'secondary'])
     args = ap.parse_args(argv)
 
-    trackers = sorted(args.trackers)
-    units = load_units(args.tracks, args.dataset, args.detector, trackers)
-    idtp_true, ngt_true, ntr = true_scores(units, trackers)
-    jobs = [(str(args.tracks), args.dataset, args.detector, trackers, a) for a in range(len(trackers))]
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
-        per_seed = list(pool.map(_run_seed, jobs))
-    res = dict(idtp=np.stack([p[0] for p in per_seed]), ngt=np.stack([p[1] for p in per_seed]),
-               episodes=np.stack([p[2] for p in per_seed]), idtp_true=idtp_true, ngt_true=ngt_true, ntr=ntr)
+    systems = [f'{d}/{t}' for d in (SHARED, OTHER) for t in TRACKERS]
+    seed_systems = [s for s in systems if s.startswith(SHARED + '/')]
+    seed_sys = [systems.index(s) for s in seed_systems]
+    other_sys = [systems.index(s) for s in systems if s not in seed_systems]
+    units = load_units(args.tracks, args.dataset, systems)
+    idtp_true, ngt_true, ntr = true_scores(units, systems)
     seqs = sorted({u.seq for u in units})
     seq_of_unit = np.array([seqs.index(u.seq) for u in units])
-    out = args.out / args.dataset / args.detector
+    out = args.out / args.dataset
     out.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out / 'grid.npz', seq_of_unit=seq_of_unit, **res)
-    summary = analyse(res, seq_of_unit, trackers)
-    summary['units'] = [[u.seq, u.cls] for u in units]
-    summary['commit'] = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+    root = str(args.tracks)
+    protos = protocol_list(seed_systems)
+
+    pool = ProcessPoolExecutor(max_workers=args.workers) if args.workers > 0 else None
+    pmap = pool.map if pool else map                          # --workers 0: in-process (tests)
+    per_seed = list(pmap(_run_seed, [(root, args.dataset, systems, a, systems[a]) for a in seed_sys]))
+    per_proto = ([] if 'protocols' in args.skip else list(pmap(
+        _run_protocol, [(root, args.dataset, systems, p, pr) for p, pr in enumerate(protos)])))
+    secondary = ([] if 'secondary' in args.skip else list(pmap(
+        _run_secondary, [(root, args.dataset, systems, a, systems[a], seed_systems) for a in seed_sys])))
+    if pool:
+        pool.shutdown()
+    res = {key: np.stack([r[key] for r in per_seed]) for key in per_seed[0]}
+    res.update(idtp_true=idtp_true, ngt_true=ngt_true, ntr=ntr)
+    if per_proto:
+        res.update(proto_idtp=np.stack([r['idtp'] for r in per_proto]),
+                   proto_ngt=np.stack([r['ngt'] for r in per_proto]),
+                   proto_cost=np.stack([r['cost'] for r in per_proto]))
+    np.savez_compressed(out / 'arrays.npz', seq_of_unit=seq_of_unit, **res)
+
+    pooled = AN.Pooled(res, seq_of_unit)
+    slice_cells = [dict(index=c, theta=CELLS[c]) for c in SLICE]
+    summary = dict(
+        systems=systems, seed_systems=seed_systems, units=[[u.seq, u.cls] for u in units], theta_ref=THETA_REF,
+        idf1_true=dict(zip(systems, pooled.true[:, 0].tolist())),
+        h1=AN.h1(res, pooled, seed_sys, seed_sys, other_sys, CELLS),
+        ranking=AN.ranking(res, pooled, CELLS),
+        h2=AN.h2(res, pooled, slice_cells, SLICE.index(REF)),
+        h3=(AN.h3(res, pooled, seed_sys, seed_systems, protos, slice_cells, SLICE.index(REF), int(ngt_true.sum()))
+            if per_proto else None),
+        secondary=dict(zip(seed_systems, secondary)) if secondary else None,
+        secondary_true=({s: summarize([evaluate_sequence(u.tracks[s], u.gt, u.n_frames) for u in units])
+                         for s in seed_systems} if secondary else None),
+        commit=subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip())
     (out / 'summary.json').write_text(json.dumps(summary, indent=1))
-    h1 = summary['h1']
-    print(f"H1 at θ_ref {summary['theta_ref']}: mean SA = {h1['mean_sa']:+.4f} IDF1, 95% CI {h1['ci95']}")
+    ref = summary['h1'][REF]['sa_same_detector']
+    print(f"H1 at θ_ref {THETA_REF}: mean SA = {ref['point']:+.4f} IDF1, 95% CI {ref['ci95']}")
 
 
 if __name__ == '__main__':

@@ -207,3 +207,47 @@ Chốt cách tính và phân tích H1 và phần thứ hạng của H2 (`code/se
    sau, trước khi chạy.
 6. **Metric phụ** (HOTA@0.5, DetA, AssA, MOTA, IDSW) tính bằng cầu nối TrackEval đầy đủ, chỉ tại θ_ref,
    với cả 10 random seed.
+
+### A4 — 20/10/2026, trước khi có bất kỳ kết quả nào
+
+Chốt null model của H2, tập hệ thống được chấm, và định nghĩa vận hành của H3 (mục 5):
+
+1. **Tập hệ thống.** 8 hệ thống = 4 tracker × {YOLO11x, YOLO11n}. Seed vẫn là 4 hệ thống YOLO11x.
+   Endpoint H1 (A3 mục 4) giữ nguyên: chỉ gồm các cặp (A, B) cùng dùng YOLO11x. Các cặp (A YOLO11x,
+   B YOLO11n) được báo cáo riêng như thành phần detector của seed bias (mục 3, điều kiện "different
+   detector"). Thứ hạng cho H2 (τ, số cặp đảo) tính trên cả 8 hệ thống.
+2. **Lát cắt θ cho các phân tích đắt.** S_r = {θ_ref với r thay bằng từng giá trị trong lưới}, gồm 6 ô,
+   có θ_ref. Null model của H2 và các protocol của H3 chỉ chạy trên S_r, với 10 random seed.
+3. **Null model của H2.** Với mỗi lần rút GT_S (A, θ, k, đơn vị), dựng GT_R từ GT_true, cùng random
+   seed:
+   - Với mỗi đoạn bỏ sót không được thêm trong GT_S, độ dài ℓ: xoá một đoạn ℓ box liên tiếp ở vị trí
+     ngẫu nhiên trên một track GT ngẫu nhiên (chưa bị xoá), nếu track còn đủ dài.
+   - Với mỗi cặp lỗi ID không được sửa, n box: chọn một đoạn n box liên tiếp ngẫu nhiên trên một track
+     ngẫu nhiên. Nếu seed id của cặp lỗi đó còn nằm trên object khác (kiểu merge), gán đoạn này id của
+     một track khác không có mặt ở các frame đó; nếu không (kiểu fragment) hoặc không có track phù hợp,
+     gán một id mới.
+   - Với mỗi đoạn FP được giữ, độ dài ℓ: chép một đoạn ℓ box liên tiếp ngẫu nhiên của một track GT, dịch
+     sang thời điểm ngẫu nhiên khác trong sequence (độ dịch ≠ 0, nằm trong [1, n_frames]), với id mới.
+   - Hình học các box còn lại là của GT (a = 0), để so lỗi cấu trúc với lỗi cấu trúc. Phần SA đến từ
+     hình học được báo cáo riêng qua a = 0 / a = 1 (A1 mục 10).
+   - **Endpoint H2** tại θ_ref: trung bình (τ_null − τ_seed) và (số cặp đảo của seed − của null) trên
+     (A, k), cặp theo cùng (A, θ, k). CI 95% bằng bootstrap sequence như A3. Các ô còn lại của S_r được
+     báo cáo như đường cong.
+4. **Các protocol của H3** (chỉ trên 4 hệ thống YOLO11x, theo thứ tự chữ cái tên tracker):
+   - P0, seed đơn: như H1.
+   - P1, union seeding, k ∈ {2, 3}, mọi tổ hợp k hệ thống: hợp output theo thứ tự cố định; ở mỗi
+     frame, box của hệ thống sau bị bỏ nếu match (Hungarian, IoU ≥ 0.5) với box đã có trong hợp. Id
+     được tách riêng cho từng hệ thống, hình học giữ nguyên. Sau đó mô phỏng review với cùng θ.
+   - P2, **consensus seeding** (bản vận hành của "blind adjudication"): box đồng thuận là box mà cả 4
+     hệ thống đều có (match chuỗi IoU ≥ 0.5 với box của hệ thống đầu tiên). Hình học là trung bình các
+     box, nên không giống hình học của hệ thống nào. Hai box đồng thuận ở hai frame liên tiếp được nối
+     khi và chỉ khi mọi hệ thống giữ cùng id trên cả hai. Box bất đồng không được seed; reviewer bổ sung
+     chúng như đoạn bỏ sót với xác suất r.
+   - P3, bracket: với mỗi hệ thống T, khoảng [min_A M(T; GT_A), max_A M(T; GT_A)] trên 4 GT seed đơn.
+     Báo cáo độ rộng và tỉ lệ khoảng chứa M(T; GT_true). Chi phí bằng tổng chi phí các GT seed đơn
+     (sửa câu "chi phí review thêm bằng 0" ở mục 5).
+   - **Chỉ tiêu H3** cho mọi protocol: độ méo cặp đôi
+     D = trung bình trên các cặp có thứ tự (A, B) của |[M(A; GT_P) − M(B; GT_P)] − [M(A; true) − M(B; true)]|
+     (IDF1, 4 hệ thống YOLO11x). Với P1 báo cáo thêm SA của thành viên so với hệ thống ngoài tập.
+     **Chi phí** = số box hiển thị cho reviewer (box seed + box ứng viên bất đồng ở P2), chia cho số box
+     của GT_true. Kết quả là đường Pareto (chi phí, D) tại θ_ref, kèm CI bootstrap sequence cho D.

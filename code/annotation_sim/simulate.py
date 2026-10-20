@@ -161,6 +161,7 @@ class Prepared:
     seed_label: np.ndarray      # seed row → label of its seed id
     gt_label: np.ndarray        # GT row → label(g)
     tp_episode: np.ndarray      # matched seed row (index into tp) → episode index or -1
+    err_pairs: np.ndarray       # per error pair: [episode, n boxes, merge] (merge: its seed id is also on another GT id)
     n_episodes: int
     fn_runs: list               # lists of GT rows
     fp_runs: list               # lists of seed rows
@@ -231,7 +232,11 @@ def prepare(seed, gt, thr: float = IOU_MATCH_THRESHOLD) -> Prepared:
     stats = dict(tp=int(tp.size), error_pairs=int(error.sum()), episodes=len(order),
                  episode_sizes=np.bincount(pair_episode[error], minlength=len(order)).tolist(),
                  fn_runs=len(fn_runs), fp_runs=len(fp_runs), loc_pairs=int(has.size))
-    return Prepared(seed, gt, m, tp, seed_label, gt_label, tp_episode, len(order),
+    err = np.flatnonzero(error)
+    n_pairs_of_seed = np.bincount(pairs[:, 0], minlength=n_s) if len(pairs) else np.zeros(n_s, dtype=int)
+    err_pairs = np.column_stack([pair_episode[err], [len(tp_of_pair[p]) for p in err],
+                                 n_pairs_of_seed[pairs[err, 0]] > 1]).astype(int).reshape(-1, 3)
+    return Prepared(seed, gt, m, tp, seed_label, gt_label, tp_episode, err_pairs, len(order),
                     fn_runs, fp_runs, loc_partner, n_s + n_g, stats)
 
 
@@ -261,7 +266,10 @@ def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator, with_
     taken = set(zip(seed[tp, 0].tolist(), labels.tolist()))
     fresh = prep.fresh_base
     stats = dict(episodes_fixed=int(fixed.sum()), fn_added=0, fn_added_boxes=0, fn_fresh=0,
-                 fp_kept=0, fp_kept_boxes=0, fp_replaced_boxes=0, fp_fresh=0)
+                 fp_kept=0, fp_kept_boxes=0, fp_replaced_boxes=0, fp_fresh=0,
+                 missed_lengths=[len(run) for run, u in zip(prep.fn_runs, u_fn) if u >= reviewer.r],
+                 unfixed_pairs=prep.err_pairs[~fixed[prep.err_pairs[:, 0]], 1:].tolist() if len(prep.err_pairs) else [],
+                 kept_fp_lengths=[])
 
     replaced = set()
     for run, u in zip(prep.fn_runs, u_fn):
@@ -294,6 +302,7 @@ def simulate(prep: Prepared, reviewer: Reviewer, rng: np.random.Generator, with_
         origins.append(np.column_stack([np.zeros(len(kept), dtype=int), kept]))
         stats['fp_kept'] += 1
         stats['fp_kept_boxes'] += len(kept)
+        stats['kept_fp_lengths'].append(len(kept))
 
     out = np.concatenate(parts)
     origin = np.concatenate(origins).astype(int)

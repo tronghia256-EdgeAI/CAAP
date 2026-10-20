@@ -1,5 +1,3 @@
-import itertools
-
 import numpy as np
 import pytest
 import scipy.optimize
@@ -71,33 +69,3 @@ def test_max_matching_equals_dense_hungarian():
 
 def test_grid_contains_theta_ref_and_both_geometries():
     assert E.CELLS[E.REF] == E.THETA_REF and len(E.CELLS) == 6 * 4 * 4 * 2
-
-
-def test_analyse_gives_zero_sa_when_simulated_gt_is_the_truth():
-    rng = np.random.default_rng(3)
-    n_t, n_u = 3, 4
-    idtp_true = rng.integers(50, 100, (n_t, n_u))
-    ngt_true = np.full(n_u, 120)
-    ntr = rng.integers(90, 130, (n_t, n_u))
-    idtp = np.broadcast_to(idtp_true, (n_t, len(E.CELLS), E.N_SEEDS, n_t, n_u)).copy()
-    ngt = np.broadcast_to(ngt_true, (n_t, len(E.CELLS), E.N_SEEDS, n_u)).copy()
-    res = dict(idtp=idtp, ngt=ngt, idtp_true=idtp_true, ngt_true=ngt_true, ntr=ntr)
-    out = E.analyse(res, np.array([0, 0, 1, 2]), ['a', 'b', 'c'])
-    assert out['h1']['mean_sa'] == pytest.approx(0) and out['h1']['ci95'] == pytest.approx([0, 0])
-    assert out['h1']['flips_mean'] == 0 and out['h1']['kendall_tau_mean'] == pytest.approx(1)
-
-
-def test_analyse_detects_a_planted_self_advantage():
-    rng = np.random.default_rng(4)
-    n_t, n_u = 3, 6
-    idtp_true = np.full((n_t, n_u), 80)
-    ngt_true = np.full(n_u, 100)
-    ntr = np.full((n_t, n_u), 100)
-    idtp = np.broadcast_to(idtp_true, (n_t, len(E.CELLS), E.N_SEEDS, n_t, n_u)).copy()
-    for a in range(n_t):
-        idtp[a, :, :, a, :] += 10                          # each seed scores 0.1 IDF1 higher on its own GT
-    ngt = np.broadcast_to(ngt_true, (n_t, len(E.CELLS), E.N_SEEDS, n_u)).copy()
-    out = E.analyse(dict(idtp=idtp, ngt=ngt, idtp_true=idtp_true, ngt_true=ngt_true, ntr=ntr),
-                    np.arange(n_u), ['a', 'b', 'c'])
-    assert out['h1']['mean_sa'] == pytest.approx(0.1)
-    assert out['h1']['ci95'][0] > 0.09
