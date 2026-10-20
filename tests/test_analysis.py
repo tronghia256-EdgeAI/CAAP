@@ -66,6 +66,7 @@ def write_dataset(root, rng, n_seq=3):
             tdir = root / 'mot17' / det / f'SEQ-{s}' / 'person'
             tdir.mkdir(parents=True, exist_ok=True)
             write_mot(tdir / f'{trk}.txt', outs[i % len(outs)])
+        write_mot(root / 'mot17' / E.SHARED / f'SEQ-{s}' / 'person' / 'sort_all.txt', unit.tracks['b'])
 
 
 def test_experiment_end_to_end_on_a_tiny_grid(tmp_path, monkeypatch):
@@ -92,6 +93,8 @@ def test_experiment_end_to_end_on_a_tiny_grid(tmp_path, monkeypatch):
     assert len(diag['per_sequence']) == 3 and len(diag['per_class']) == 1
     assert {'a1', 'a0'} == diag['geometry_other_detector'].keys()
     assert 'person' in summary['class_confusion']
+    sens = summary['sort_all_sensitivity']
+    assert f'{E.SHARED}/sort_all' in sens['systems'] and np.isfinite(sens['h1']['sa_same_detector']['point'])
     prov = json.loads((tmp_path / 'out' / 'mot17' / 'provenance.json').read_text())
     parts = list((tmp_path / 'out' / 'mot17' / 'parts').rglob('*.npz'))
     assert prov['run_key'].startswith(parts[0].parent.name) and len(parts) == 4 * 3   # 4 seeds x 3 units

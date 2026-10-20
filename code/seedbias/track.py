@@ -15,6 +15,8 @@ import trackers
 TRACKERS = {
     # SORT has no low-score stage; feed only detections that pass its own activation threshold.
     'sort': (lambda fr: trackers.SORTTracker(frame_rate=fr), 0.25),
+    # A5 item 10 sensitivity only: SORT fed every cached detection (conf >= 0.05).
+    'sort_all': (lambda fr: trackers.SORTTracker(frame_rate=fr), 0.0),
     'bytetrack': (lambda fr: trackers.ByteTrackTracker(frame_rate=fr), 0.0),
     'ocsort': (lambda fr: trackers.OCSORTTracker(frame_rate=fr), 0.0),
     # No camera-motion compensation: frames are not available offline.

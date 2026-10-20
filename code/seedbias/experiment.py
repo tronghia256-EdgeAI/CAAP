@@ -220,6 +220,23 @@ def _run_seed(args):
                 episodes=episodes)
 
 
+def _run_ref_only(args):
+    """θ_ref only, for one seed: idtp[1, k, system, unit], ngt[1, k, unit] (A5 item 10 sensitivity)."""
+    tracks_root, dataset, systems, a, a_name = args
+    units = load_units(Path(tracks_root), dataset, systems)
+    idtp = np.zeros((1, N_SEEDS, len(systems), len(units)), dtype=np.int64)
+    ngt = np.zeros((1, N_SEEDS, len(units)), dtype=np.int64)
+    for u, unit in enumerate(units):
+        prep = prepare(unit.tracks[a_name], unit.gt)
+        fast = FastIdentity(unit, prep.gt, prep.seed)
+        for k in range(N_SEEDS):
+            out, _, origin = simulate(prep, Reviewer(**THETA_REF), _rng(k, a, u), with_origin=True)
+            ngt[0, k, u] = len(out)
+            res = fast.idtp(out[:, 1].astype(int), origin)
+            idtp[0, k, :, u] = [res[s] for s in systems]
+    return dict(idtp=idtp, ngt=ngt)
+
+
 def protocol_list(seed_systems) -> list:
     """H3 protocols (A4 item 4), members in alphabetical order of tracker name."""
     protos = [dict(kind='union', name='P1 union ' + '+'.join(m.split('/')[1] for m in combo), members=list(combo))
@@ -312,7 +329,7 @@ def main(argv=None):
     ap.add_argument('--dataset', required=True, choices=sorted(D.SPEC))
     ap.add_argument('--out', type=Path, default=Path('data/processed/seed_bias'))
     ap.add_argument('--workers', type=int, default=2)
-    ap.add_argument('--skip', nargs='*', default=[], choices=['protocols', 'secondary'])
+    ap.add_argument('--skip', nargs='*', default=[], choices=['protocols', 'secondary', 'sort_all'])
     args = ap.parse_args(argv)
 
     systems = [f'{d}/{t}' for d in (SHARED, OTHER) for t in TRACKERS]
@@ -344,6 +361,18 @@ def main(argv=None):
         _run_protocol, [(root, args.dataset, systems, p, pr) for p, pr in enumerate(protos)])))
     secondary = ([] if 'secondary' in args.skip else list(pmap(
         _run_secondary, [(root, args.dataset, systems, a, systems[a], seed_systems) for a in seed_sys])))
+    alt = [s.replace('/sort', '/sort_all') if s == f'{SHARED}/sort' else s for s in seed_systems]
+    sort_alt = None
+    has_alt = all((args.tracks / args.dataset / SHARED / u.seq / u.cls / 'sort_all.txt').exists() for u in units)
+    if 'sort_all' not in args.skip and has_alt:
+        alt_units = load_units(args.tracks, args.dataset, alt)
+        alt_true = true_scores(alt_units, alt)
+        per_alt = list(pmap(_run_ref_only, [(root, args.dataset, alt, a, alt[a]) for a in range(len(alt))]))
+        alt_res = dict(idtp=np.stack([r['idtp'] for r in per_alt]), ngt=np.stack([r['ngt'] for r in per_alt]),
+                       idtp_true=alt_true[0], ngt_true=alt_true[1], ntr=alt_true[2])
+        alt_pooled = AN.Pooled(alt_res, seq_of_unit)
+        sort_alt = dict(systems=alt, h1=AN.h1(alt_res, alt_pooled, list(range(len(alt))), list(range(len(alt))),
+                                               [], [THETA_REF])[0])
     if pool:
         pool.shutdown()
     res = {key: np.stack([r[key] for r in per_seed]) for key in per_seed[0]}
@@ -364,6 +393,7 @@ def main(argv=None):
             res, seq_of_unit, class_of_unit, seed_sys, seed_sys, other_sys, REF, CELLS.index({**THETA_REF, 'a': 0}),
             exclude=[systems.index(f'{SHARED}/sort')])),
         class_confusion=class_confusion(units, seed_systems),
+        sort_all_sensitivity=sort_alt,
         ranking=AN.ranking(res, pooled, CELLS),
         h2=AN.h2(res, pooled, slice_cells, SLICE.index(REF)),
         h3=(AN.h3(res, pooled, seed_sys, seed_systems, protos, slice_cells, SLICE.index(REF), int(ngt_true.sum()))
