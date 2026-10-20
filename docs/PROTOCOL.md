@@ -378,3 +378,29 @@ vẫn thiên vị.
    được viết rằng null khớp "mọi lỗi".
 3. **Sửa crash.** Histogram độ dài đoạn bỏ sót dùng mảng kiểu số nguyên. Test end-to-end nay có một đơn vị
    không có GT và một đơn vị có seed trùng GT.
+
+### A8 — 21/10/2026, sau khi đã có kết quả H1, H2 và P2 (công bố rõ)
+
+**Lý do.** Review bản thảo phát hiện lý do bỏ P1 ở A6 mục 3 là **sai trên dữ liệu thật**. Box khớp nhau thì
+có cùng hình học (99,6–100%), nhưng mỗi tracker xuất ra một tập con detection khác nhau. Vì vậy hợp đã
+khử trùng lặp có nhiều box hơn thành viên đầu tiên: 1,45 lần (MOT17), 1,06 lần (DanceTrack, 6 sequence
+đầu), 1,40 lần (FastTrack). A8 rút lại lý do đó.
+
+1. **P1 được chạy** đúng định nghĩa ở A4 mục 4: mọi tổ hợp 2 và 3 hệ thống YOLO11x, hợp theo thứ tự chữ
+   cái, trên S_r, 10 random seed. Báo cáo D, ΔD, SA của thành viên so với YOLO11n và so với hệ thống ngoài
+   tập, cùng chi phí hai phần. Vì P1 chạy **sau** khi đã thấy H1, H2 và P2, paper phải ghi rõ thứ tự này.
+   Định nghĩa P1 không đổi so với A4, nên không có độ tự do phân tích mới. Kết quả P1 không được dùng để
+   chọn hay đổi các phân tích khác.
+2. **Các phân tích exploratory sau khi xem kết quả**, được gắn nhãn exploratory trong paper:
+   - τ giữa 7 hệ thống không tính seed, kèm CI;
+   - "kin bias" (hệ thống YOLO11n cùng thuật toán với seed);
+   - quan hệ gần tuyến tính của SA theo q;
+   - SA theo từng seed so với IDF1 thật của seed;
+   - độ lệch giữa các tracker không phải seed;
+   - IDSW.
+3. **Lệch so với protocol, công bố trong paper:**
+   - Tracker có ReID (mục 3) không được chạy. Lý do: cần ảnh trên GPU, và BoxMOT xung đột phiên bản
+     opencv trên máy. Mọi kết luận chỉ áp dụng cho bốn tracker dựa trên chuyển động.
+   - Human mini-study hoãn (mục 6).
+   - H1 được phát biểu lại thành phép kiểm độ lớn (A5).
+   - Endpoint H3 được thay bằng ΔD (A4, A6).

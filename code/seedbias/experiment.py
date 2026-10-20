@@ -35,7 +35,7 @@ from code.seedbias import analysis as AN
 from code.seedbias import data as D
 from code.seedbias.evaluate import _BaseDataset, evaluate_sequence, summarize
 from code.seedbias.null_model import null_gt
-from code.seedbias.protocols import consensus_seed
+from code.seedbias.protocols import consensus_seed, union_seed
 from code.utils.files import git_state, sha256, source_hash
 
 SOURCES = ('code/annotation_sim/simulate.py', 'code/seedbias/experiment.py', 'code/seedbias/analysis.py',
@@ -286,6 +286,11 @@ def protocol_list(seed_systems) -> list:
     for out in members:
         protos.append(dict(kind='consensus', name=f"P2 consensus without {out.split('/')[1]}",
                            members=[m for m in members if m != out], held_out=out))
+    # A8: P1 union seeding as defined in A4 item 4, appended so the P2 indices (and rng streams) stay fixed
+    for k in (2, 3):
+        for combo in itertools.combinations(members, k):
+            protos.append(dict(kind='union', name='P1 union ' + '+'.join(m.split('/')[1] for m in combo),
+                               members=list(combo), held_out=None))
     return protos
 
 
@@ -298,7 +303,10 @@ def _run_protocol(args):
     drawn = np.zeros((len(SLICE), N_SEEDS, len(units)), dtype=np.int64)
     verify = np.zeros(len(units), dtype=np.int64)
     for u, unit in enumerate(units):
-        seed, candidates = consensus_seed([unit.tracks[m] for m in proto['members']])
+        if proto['kind'] == 'union':
+            seed, candidates = union_seed([unit.tracks[m] for m in proto['members']]), np.empty((0, 6))
+        else:
+            seed, candidates = consensus_seed([unit.tracks[m] for m in proto['members']])
         verify[u] = len(seed) + len(candidates)               # boxes shown to the reviewer
         if len(candidates):                                    # candidate FPs enter as FP runs (A6 item 4, A7)
             fp = candidates[~_overlaps_gt(candidates, unit.gt)]
@@ -370,12 +378,35 @@ def class_confusion(units, seed_systems) -> dict:
     return out
 
 
+def _protocols_only(args, out, root, systems, seed_sys, other_sys, protos, pmap, seq_of_unit):
+    """A8: run the protocols that arrays.npz does not hold yet (appended at the end) and rewrite H3."""
+    z = dict(np.load(out / 'arrays.npz'))
+    done = len(z['proto_idtp']) if 'proto_idtp' in z else 0
+    new = list(pmap(_run_protocol, [(root, args.dataset, systems, p, protos[p]) for p in range(done, len(protos))]))
+    for key in ('idtp', 'ngt', 'verify', 'drawn'):
+        stacked = np.stack([r[key] for r in new]) if new else None
+        if stacked is not None:
+            z[f'proto_{key}'] = np.concatenate([z[f'proto_{key}'], stacked]) if done else stacked
+    np.savez_compressed(out / 'arrays.npz', **z)
+    summary = json.loads((out / 'summary.json').read_text())
+    res = {k: v for k, v in z.items() if k not in ('seq_of_unit', 'class_of_unit')}
+    slice_thetas = [dict(index=c, theta=CELLS[c]) for c in SLICE]
+    summary['h3'] = AN.h3(res, AN.Pooled(res, seq_of_unit), seed_sys, other_sys, systems, protos, slice_thetas,
+                          SLICE.index(REF), int(z['ngt_true'].sum()))
+    summary['h3_protocols_added_after_results'] = [pr['name'] for pr in protos[done:]]
+    (out / 'summary.json').write_text(json.dumps(summary, indent=1))
+    print(f'protocols-only: ran {len(protos) - done} protocols, H3 rewritten')
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--tracks', type=Path, default=Path('data/processed/tracks'))
     ap.add_argument('--dataset', required=True, choices=sorted(D.SPEC))
     ap.add_argument('--out', type=Path, default=Path('data/processed/seed_bias'))
     ap.add_argument('--workers', type=int, default=2)
+    ap.add_argument('--ref-only', action='store_true', help='H1 at θ_ref only (A5 item 5 merged-class sensitivity)')
+    ap.add_argument('--protocols-only', action='store_true',
+                    help='A8: run only protocols missing from an existing arrays.npz, then recompute H3')
     ap.add_argument('--skip', nargs='*', default=[],
                     choices=['protocols', 'secondary', 'sort_all', 'thresholds'])
     args = ap.parse_args(argv)
@@ -400,10 +431,32 @@ def main(argv=None):
     parts_dir = out / 'parts' / run_key[:16]
     provenance = dict(**git_state(), source_hash=source_hash(*SOURCES), run_key=run_key, grid=GRID,
                       theta_ref=THETA_REF, n_seeds=N_SEEDS, n_boot=AN.N_BOOT, systems=systems, inputs_sha256=inputs)
-    (out / 'provenance.json').write_text(json.dumps(provenance, indent=1))
+    prov_name = 'provenance_protocols_only.json' if args.protocols_only else 'provenance.json'   # keep the main run's record
+    (out / prov_name).write_text(json.dumps(provenance, indent=1))
 
     pool = ProcessPoolExecutor(max_workers=args.workers) if args.workers > 0 else None
     pmap = pool.map if pool else map                          # --workers 0: in-process (tests)
+    if args.protocols_only:
+        _protocols_only(args, out, root, systems, seed_sys, other_sys, protos, pmap, seq_of_unit)
+        if pool:
+            pool.shutdown()
+        return
+    if args.ref_only:                       # A5 item 5 sensitivity: H1 at θ_ref only (no grid, null or protocols)
+        idtp_t, ngt_t, ntr_t = true_scores(units, seed_systems)
+        runs = list(pmap(_run_ref_only, [(root, args.dataset, seed_systems, a, seed_systems[a], 0.5)
+                                         for a in range(len(seed_systems))]))
+        alt = dict(idtp=np.stack([r['idtp'] for r in runs]), ngt=np.stack([r['ngt'] for r in runs]),
+                   idtp_true=idtp_t, ngt_true=ngt_t, ntr=ntr_t)
+        idx = list(range(len(seed_systems)))
+        h1 = AN.h1(alt, AN.Pooled(alt, seq_of_unit), idx, idx, [], [THETA_REF])
+        (out / 'summary.json').write_text(json.dumps(dict(
+            mode='ref_only', systems=seed_systems, sequences=seqs, theta_ref=THETA_REF, h1=h1,
+            idf1_true=dict(zip(seed_systems, AN.Pooled(alt, seq_of_unit).true[:, 0].tolist())),
+            provenance=provenance), indent=1))
+        if pool:
+            pool.shutdown()
+        print(f"ref-only H1: SA = {h1[0]['sa_same_detector']['point']:+.4f}, BCa {h1[0]['sa_same_detector']['ci95']}")
+        return
     per_seed = list(pmap(_run_seed, [(root, args.dataset, systems, a, systems[a], str(parts_dir)) for a in seed_sys]))
     per_proto = ([] if 'protocols' in args.skip else list(pmap(
         _run_protocol, [(root, args.dataset, systems, p, pr) for p, pr in enumerate(protos)])))

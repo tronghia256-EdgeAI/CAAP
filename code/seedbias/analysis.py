@@ -246,6 +246,9 @@ def h3(res, pooled: Pooled, seed_sys, n_sys, systems, protocols, slice_thetas, r
             if proto['held_out']:
                 entry['member_sa_vs_held_out'] = pooled.ci(
                     _member_sa(sim, pooled.true, members, [systems.index(proto['held_out'])]))
+            outside = [t for t in seed_sys if t not in members]
+            if proto['kind'] == 'union' and outside:              # A8: union members vs YOLO11x non-members
+                entry['member_sa_vs_non_members'] = pooled.ci(_member_sa(sim, pooled.true, members, outside))
             rows[proto['name']] = entry
         if j == ref_pos:
             p0x = sim_p0[:, :, seed_sys]

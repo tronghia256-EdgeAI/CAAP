@@ -106,7 +106,8 @@ def test_experiment_end_to_end_on_a_tiny_grid(tmp_path, monkeypatch):
     assert 'person' in summary['class_confusion']
     sens = summary['sort_all_sensitivity']
     assert f'{E.SHARED}/sort_all' in sens['systems'] and np.isfinite(sens['h1']['sa_same_detector']['point'])
-    prov = json.loads((tmp_path / 'out' / 'mot17' / 'provenance.json').read_text())
+    prov_text = (tmp_path / 'out' / 'mot17' / 'provenance.json').read_text()
+    prov = json.loads(prov_text)
     parts = list((tmp_path / 'out' / 'mot17' / 'parts').rglob('*.npz'))
     assert prov['run_key'].startswith(parts[0].parent.name) and len(parts) == 4 * 5   # 4 seeds x 5 units
     first = (tmp_path / 'out' / 'mot17' / 'summary.json').read_text()
@@ -114,6 +115,18 @@ def test_experiment_end_to_end_on_a_tiny_grid(tmp_path, monkeypatch):
             '--workers', '0'])                                    # rerun: every unit comes from its checkpoint
     again = json.loads((tmp_path / 'out' / 'mot17' / 'summary.json').read_text())
     assert again['h1'] == json.loads(first)['h1']
+    union = [n for n in again['h3'][str(E.THETA_REF)] if n.startswith('P1 union')]
+    assert len(union) == 10 and 'member_sa_vs_non_members' in again['h3'][str(E.THETA_REF)][union[0]]
+    E.main(['--tracks', str(tmp_path / 'tracks'), '--dataset', 'mot17', '--out', str(tmp_path / 'out'),
+            '--workers', '0', '--protocols-only'])                # nothing missing: H3 rewritten unchanged
+    third = json.loads((tmp_path / 'out' / 'mot17' / 'summary.json').read_text())
+    assert third['h3'] == again['h3'] and third['h3_protocols_added_after_results'] == []
+    assert (tmp_path / 'out' / 'mot17' / 'provenance.json').read_text() == prov_text
+    E.main(['--tracks', str(tmp_path / 'tracks'), '--dataset', 'mot17', '--out', str(tmp_path / 'ref'),
+            '--workers', '0', '--ref-only'])
+    ref = json.loads((tmp_path / 'ref' / 'mot17' / 'summary.json').read_text())
+    assert ref['mode'] == 'ref_only' and np.isfinite(ref['h1'][0]['sa_same_detector']['point'])
+    assert ref['h1'][0]['sa_same_detector']['point'] == pytest.approx(again['h1'][E.REF]['sa_same_detector']['point'])
 
 
 def test_bca_is_close_to_percentile_for_a_symmetric_statistic():
