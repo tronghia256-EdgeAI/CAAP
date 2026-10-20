@@ -1,8 +1,8 @@
-# Protocol — seed bias trong GT MOT (DRAFT, chờ Nghĩa duyệt)
+# Protocol — seed bias trong GT MOT (ĐÃ ĐÓNG BĂNG 20/10/2026)
 
-Trạng thái: **DRAFT**. Chưa có thí nghiệm nào được chạy và chưa xem số nào. Khi Nghĩa duyệt, ghi
-commit đóng băng vào mục "Đóng băng". Sau đó mọi thay đổi chỉ được thêm vào mục "Amendments" (có ngày),
-trước khi xem kết quả mà thay đổi đó ảnh hưởng.
+Trạng thái: **FROZEN 2026-10-20**, Nghĩa duyệt. Lúc đóng băng chưa có thí nghiệm nào chạy và chưa xem số
+nào. Từ đây mọi thay đổi chỉ được thêm vào mục "Amendments" (có ngày), trước khi xem kết quả mà thay
+đổi đó ảnh hưởng.
 
 ## 1. Định nghĩa
 
@@ -16,9 +16,11 @@ trước khi xem kết quả mà thay đổi đó ảnh hưởng.
 
 ## 2. Giả thuyết và endpoint
 
-- **H1 (chính):** `SA(A, B) > 0` ở tham số reviewer thực tế θ\* (lấy từ mini-study, mục 6).
+- **H1 (chính):** `SA(A, B) > 0` ở tham số tham chiếu θ_ref = (r=0.75, p_fp=0.1, q=0.5, a=1).
+  θ_ref được chọn trước khi chạy; nó là **giả định**, không phải số đo, và paper phải nói rõ như vậy.
   Endpoint chính: trung bình `SA` theo IDF1 trên mọi cặp (A, B), kèm CI 95% bootstrap theo sequence
-  (10 000 lần lặp), báo cáo riêng cho từng dataset.
+  (10 000 lần lặp), báo cáo riêng cho từng dataset. Báo cáo thêm, trên toàn bộ lưới ở mục 4, vùng θ mà
+  CI loại trừ 0, để kết luận không phụ thuộc vào một điểm θ_ref duy nhất.
 - **H2:** Lỗi GT tương quan với seed làm đảo thứ hạng nhiều hơn lỗi ngẫu nhiên có **cùng số lượng**
   FN, FP và lỗi ID. Endpoint: Kendall τ giữa thứ hạng trên `GT_S` và trên `GT_true`, so với τ trên GT
   lỗi ngẫu nhiên đã khớp số lượng lỗi.
@@ -72,15 +74,17 @@ Ghép output seed với `GT_true` theo từng frame (Hungarian, IoU ≥ 0.5). Sa
 
 Chi phí: số box hiển thị cho reviewer, so với số box của `GT_true` (chi phí gán nhãn lại toàn bộ).
 
-## 6. Human mini-study
+## 6. Human mini-study — HOÃN
 
-- 2 người (Nghĩa và một thành viên). Mỗi người khoảng 3–4 giờ trên CVAT.
-- Khoảng 6 đoạn 10–20 s, mật độ vừa phải, lấy từ FastTrack và DanceTrack (đã có `GT_true`). Danh sách
-  đoạn được chọn và ghi lại trước khi xem output tracker trên đoạn đó.
-- Thiết kế chéo: mỗi người review mỗi đoạn đúng một lần, dưới seed A hoặc seed B (Latin square).
-  Điều kiện gán nhãn từ đầu chỉ làm nếu còn thời gian.
-- Đo r, p_fp, q, a thật bằng cách so kết quả review với `GT_true`. Tham số θ\* là trung vị của hai người.
-  CVAT đánh lại số ID khi export MOT; việc này không ảnh hưởng, vì phép đo dựa trên ghép với `GT_true`.
+Nghĩa quyết định ngày 20/10/2026: bản nộp đầu tiên không có human mini-study. Chỉ làm khi reviewer
+yêu cầu trong vòng revision. Khi đó dùng thiết kế dự phòng dưới đây, thêm vào protocol bằng một
+amendment, và chỉ dùng nó để hiệu chỉnh θ (không đổi giả thuyết hay endpoint):
+- 2 người, khoảng 3–4 giờ mỗi người trên CVAT, khoảng 6 đoạn 10–20 s từ FastTrack và DanceTrack
+  (đã có `GT_true`).
+- Thiết kế chéo seed A / seed B (Latin square). Đo r, p_fp, q, a bằng cách so với `GT_true`.
+
+Hệ quả cho bản nộp đầu: kết quả dựa trên mô phỏng. Paper phải nêu đây là giới hạn và trình bày kết luận
+theo cả lưới θ, không chỉ tại θ_ref.
 
 ## 7. Quy tắc dừng sớm
 
@@ -96,7 +100,9 @@ viết paper ngắn.
 
 ## Đóng băng
 
-- Chưa đóng băng.
+- 2026-10-20: Nghĩa duyệt. Trước khi đóng băng, mini-study được hoãn đến vòng revision và θ_ref thay
+  cho θ\* đo từ mini-study (mục 2, mục 6). Commit đóng băng là commit đầu tiên chứa dòng
+  `FROZEN 2026-10-20`: `git log --format=%h -S "FROZEN 2026-10-20" -- docs/PROTOCOL.md`.
 
 ## Amendments
 

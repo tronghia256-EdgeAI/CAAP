@@ -3,7 +3,7 @@
 The project package is named `code`, which collides with the stdlib `code`
 module. pytest imports pdb at startup, and pdb imports the stdlib `code`
 module — so by the time tests run, sys.modules['code'] already holds the
-stdlib module and `import code.detection` fails with "'code' is not a package".
+stdlib module and `import code.evaluation` fails with "'code' is not a package".
 Purge it so the project package (repo root is first on sys.path) wins.
 """
 

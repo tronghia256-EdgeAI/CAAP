@@ -26,7 +26,7 @@ Nghĩa decided on 2026-10-12 to remove accident severity (`minor`/`severe`)
 from this paper. Read `docs/PAPER_SCOPE.md` when planning paper, GT or accident
 evaluation work. Do not reintroduce severity labeling, classifier training,
 severity metrics or severity claims unless Nghĩa explicitly changes this decision.
-Keep the detector's `Accident` class. Any accident evaluation within scope is
+Any accident evaluation within scope is
 binary event detection/alerting, conditional on suitable video GT and a verified
 implementation; existing severity code does not establish binary alert results.
 
@@ -36,5 +36,9 @@ Nghĩa requested a fresh start on 2026-10-20. Read `docs/PAPER_SCOPE.md`.
 All old tracking GT, ROI/review sessions, paper drafts, results and the C1/C2/C3
 pipeline have been removed from the working tree into an external local backup.
 Do not restore them or use their scores as evidence for a new paper by default.
-Detector training labels, training provenance, source videos and the current
-detector checkpoint are retained. Training labels are not independent tracking GT.
+On 2026-10-20 Nghĩa chose the seed-bias research question (`docs/PROTOCOL.md`,
+frozen). The detector tooling, ByteTrack vendor, detector training labels and
+provenance, `detector.pt` and the HCMC source videos were then moved to
+`C:/Users/ASUS/Desktop/CAAP_detector_backup_20261020` (verified by
+`MANIFEST.sha256`). Do not restore them unless Nghĩa asks; they remain in Git
+history. If a detector with an `Accident` class is restored, keep that class.

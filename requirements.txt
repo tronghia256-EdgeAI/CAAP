@@ -1,4 +1,4 @@
-# Detector inference, vanilla ByteTrack, evaluation and dataset preparation.
+# Metrics, evaluation and COCO-pretrained YOLO11 detection.
 numpy>=1.24
 scipy>=1.10
 opencv-python>=4.8
