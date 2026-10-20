@@ -17,6 +17,7 @@ khử được bias đó. Thí nghiệm dùng GT công khai (FastTrack, MOT17, D
 | `tests/` | pytest |
 | `tools/caap.py` | CLI (`status`, `test`) |
 | `tools/kaggle_detect_cache.py` | Cache detection YOLO11 (COCO) trên Kaggle cho FastTrack/MOT17/DanceTrack |
+| `notebooks/caap-q1.ipynb` | Notebook Kaggle chạy script trên (cell 0 ghi script bằng `%%writefile`) |
 | `data/`, `weights/` | Dữ liệu và weights local, gitignored (`weights/yolo11n.pt` là YOLO11n pretrain COCO) |
 
 Code và dữ liệu detector cũ (tool dataset, ByteTrack vendor, nhãn train, `detector.pt`, video HCMC)
