@@ -158,3 +158,29 @@ thuyết, endpoint, lưới θ, θ_ref và quy tắc dừng giữ nguyên.
     tại a = 0 cạnh a = 1 (tách phần danh tính và phần hình học); độ nhạy theo ngưỡng match 0.4 / 0.6
     (chỉ tại θ_ref); phân bố độ dài đoạn bỏ sót của từng tracker seed; phương sai giữa các random seed
     trong từng ô của lưới.
+
+### A2 — 20/10/2026, trước khi có bất kỳ kết quả nào
+
+Chốt chi tiết chạy tracker và chấm điểm (mục 3, mục 8), sau khi đã xem API của thư viện:
+
+1. **Tracker.** Roboflow `trackers` 2.6.1, tham số mặc định của thư viện, `frame_rate` lấy từ
+   `seqinfo.ini`. Chạy riêng cho từng class đánh giá. ByteTrack, OC-SORT và BoT-SORT nhận toàn bộ
+   detection đã cache (conf ≥ 0.05) và tự áp ngưỡng của mình. **SORT** chỉ nhận detection có
+   conf ≥ 0.25 (ngưỡng kích hoạt của nó), vì SORT không có tầng điểm thấp. **BoT-SORT tắt CMC**, vì
+   không có ảnh khi chạy offline. Tracker có ReID chạy trên Kaggle ở bước sau và sẽ được chốt bằng một
+   amendment riêng trước khi chạy.
+2. **Tiền xử lý MOT17 theo đúng TrackEval.** Chỉ bỏ box tracker match (Hungarian, IoU ≥ 0.5) với GT
+   thuộc class distractor 2/7/8/12. Box match với GT pedestrian có consider = 0 **không** bị bỏ (sửa
+   cụm "hoặc consider = 0" ở A1 mục 8 cho khớp quy tắc của TrackEval). GT_true là consider = 1 và
+   class = 1.
+3. **Metric.** TrackEval chính thức @12c8791 (JonathonLuiten), gọi trực tiếp các lớp metric HOTA,
+   CLEAR và Identity trên dữ liệu trong bộ nhớ. Các alias `np.float`/`np.int`/`np.bool` mà numpy 2 đã
+   bỏ được khôi phục trước khi import. Cầu nối phải cho kết quả trùng với Evaluator file-based chính
+   thức của TrackEval (sai số tuyệt đối ≤ 1e-12, có test). Phép kiểm này **thay cho sanity check ở
+   mục 3** ("ByteTrack trên MOT17 lệch ≤ 1 điểm so với số công bố"), vì không có số tham chiếu nào
+   được công bố cho detector YOLO11 COCO này.
+4. **Đơn vị.** Mỗi (sequence, class) là một đơn vị chấm. Dataset-level metric cộng gộp theo cách của
+   TrackEval (`combine_sequences`). Bootstrap lấy mẫu lại theo **sequence**, mỗi sequence mang theo
+   mọi class của nó.
+5. **Lưu trữ.** Track đã tiền xử lý nằm ở `data/processed/tracks/`. `provenance.json` ghi commit,
+   trạng thái thay đổi chưa commit, phiên bản thư viện và hash của mọi file detection/GT đầu vào.

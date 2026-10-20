@@ -6,12 +6,14 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 COMMANDS = {
     'test': 'pytest',
+    'track': 'code.seedbias.run_tracks',
 }
 HELP = '''CAAP - seed bias in tracker-assisted MOT ground truth
 
 Usage: caap.cmd <command> [tool arguments]
   status             Read-only inventory
   test               Run tests
+  track              Run trackers on cached detections, write tracks + baseline
 
 Protocol: docs/PROTOCOL.md. Without a command, only this help is displayed.
 '''

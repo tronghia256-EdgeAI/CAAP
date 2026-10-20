@@ -1,4 +1,6 @@
 # Metrics, evaluation and COCO-pretrained YOLO11 detection.
+trackers==2.6.1
+trackeval @ git+https://github.com/JonathonLuiten/TrackEval@12c8791b303e0a0b50f753af204249e622d0281a
 numpy>=1.24
 scipy>=1.10
 opencv-python>=4.8
