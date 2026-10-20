@@ -233,5 +233,18 @@ def test_run_tracks_regenerates_outputs_when_inputs_change(tmp_path, capsys):
     run_tracks.main(args)
     assert '1 track files, 1 to (re)run' in capsys.readouterr().out
     assert out.read_text() != first
-    prov = json.loads((tmp_path / 'tracks' / 'provenance.json').read_text())
+    prov = json.loads((tmp_path / 'tracks' / 'provenance_dancetrack.json').read_text())
     assert prov['commit'] and len(prov['source_hash']) == 64
+
+
+def test_fasttrack_vehicle_merges_car_bus_truck_on_the_fasttrack_files(tmp_path):
+    d = tmp_path / 'task_v'
+    d.mkdir()
+    (d / 'seqinfo.ini').write_text('[Sequence]\nname=task_v\nframeRate=25\nseqLength=3\n')
+    (d / 'gt.txt').write_text('1,1,0,0,10,10,1,6,1\n1,2,20,0,10,10,1,2,1\n1,3,40,0,10,10,1,5,1\n1,4,60,0,10,10,1,8,1\n')
+    (d / 'det_m.txt').write_text('1,-1,0,0,10,10,0.9,2,-1\n1,-1,40,0,10,10,0.8,7,-1\n1,-1,60,0,10,10,0.8,3,-1\n')
+    (d / 'labels.txt').write_text('\n'.join(D.SPEC['fasttrack']['labels']) + '\n')
+    s = D.load(d, 'fasttrack_vehicle', 'm')
+    assert D.source('fasttrack_vehicle') == 'fasttrack'
+    assert sorted(D.gt_true(s, 'vehicle')[:, 1]) == [1, 2, 3]          # car, bus_small, truck_big; not motorbike
+    assert len(D.class_dets(s, 'vehicle')) == 2                         # COCO car and truck, not motorcycle

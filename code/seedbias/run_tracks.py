@@ -54,26 +54,26 @@ def _job(args):
 
 
 def sequences(dets_root: Path, dataset: str):
-    return sorted(p for p in (dets_root / dataset).iterdir() if (p / 'done.json').exists())
+    return sorted(p for p in (dets_root / D.source(dataset)).iterdir() if (p / 'done.json').exists())
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--dets', type=Path, default=Path('data/processed/dets'))
     ap.add_argument('--out', type=Path, default=Path('data/processed/tracks'))
-    ap.add_argument('--datasets', nargs='+', default=sorted(D.SPEC))
+    ap.add_argument('--datasets', nargs='+', default=[d for d in sorted(D.SPEC) if 'source' not in D.SPEC[d]])
     ap.add_argument('--detectors', nargs='+', default=['yolo11x', 'yolo11n'])
     ap.add_argument('--trackers', nargs='+', default=sorted(TRACKERS))
     ap.add_argument('--workers', type=int, default=2, help='parallel tracker processes (laptop: keep small)')
     args = ap.parse_args(argv)
 
-    datasets = [d for d in args.datasets if (args.dets / d).is_dir()]
+    datasets = [d for d in args.datasets if (args.dets / D.source(d)).is_dir()]
     code_key = source_hash(*SOURCES)
     started = git_state()                       # the code that produces the tracks, not the code at the end
     manifest_path = args.out / 'manifest.json'
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     inputs = {p.relative_to(args.dets).as_posix(): sha256(p)
-              for d in datasets for p in sorted((args.dets / d).rglob('*.txt'))}
+              for d in {D.source(x) for x in datasets} for p in sorted((args.dets / d).rglob('*.txt'))}
     rel = lambda p: p.relative_to(args.out).as_posix()
     jobs, keys = [], {}
     for dataset in datasets:
@@ -82,7 +82,7 @@ def main(argv=None):
             info = args.out / dataset / 'gt' / seq_dir.name / 'seqinfo.json'
             info.parent.mkdir(parents=True, exist_ok=True)
             info.write_text(json.dumps({'n_frames': gt_seq.n_frames, 'frame_rate': gt_seq.frame_rate}))
-            gt_hash = inputs[f'{dataset}/{seq_dir.name}/gt.txt']
+            gt_hash = inputs[f'{D.source(dataset)}/{seq_dir.name}/gt.txt']
             for cls in D.SPEC[dataset]['classes']:
                 gt_file = args.out / dataset / 'gt' / seq_dir.name / f'{cls}.txt'
                 key = _key(code_key, gt_hash, cls)
@@ -90,7 +90,7 @@ def main(argv=None):
                     _write(gt_file, D.gt_true(gt_seq, cls))
                     manifest[rel(gt_file)] = key
                 for detector in args.detectors:
-                    det_hash = inputs[f'{dataset}/{seq_dir.name}/det_{detector}.txt']
+                    det_hash = inputs[f'{D.source(dataset)}/{seq_dir.name}/det_{detector}.txt']
                     for tracker in args.trackers:
                         out = args.out / dataset / detector / seq_dir.name / cls / f'{tracker}.txt'
                         keys[rel(out)] = _key(code_key, version('trackers'), gt_hash, det_hash, cls, tracker)
@@ -120,8 +120,9 @@ def main(argv=None):
                 baseline[f'{dataset}/{detector}/{tracker}'] = summarize(per_seq)
                 print(dataset, detector, tracker, {k: round(v, 4) for k, v in baseline[f'{dataset}/{detector}/{tracker}'].items()})
 
-    (args.out / 'baseline.json').write_text(json.dumps(baseline, indent=2))
-    (args.out / 'provenance.json').write_text(json.dumps({
+    tag = '+'.join(datasets)                     # one record per dataset set, so runs do not overwrite each other
+    (args.out / f'baseline_{tag}.json').write_text(json.dumps(baseline, indent=2))
+    (args.out / f'provenance_{tag}.json').write_text(json.dumps({
         **started, 'source_hash': code_key, 'trackers': version('trackers'), 'trackeval_commit': '12c8791b303e0a0b50f753af204249e622d0281a',
         'numpy': np.__version__, 'inputs_sha256': inputs}, indent=2))
 

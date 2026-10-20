@@ -31,8 +31,15 @@ SPEC = {
                    'ignore_region', 'tractor', 'trailor', 'wheelchair', 'heavy_equipment', 'pm', 'umbrella'],
     },
     'mot17': {'classes': {'person': ([1], [0])}, 'distractors': [2, 7, 8, 12]},
+    # A5 item 5 sensitivity: FastTrack with car, bus and truck merged into one class (same dets and GT files).
     'dancetrack': {'classes': {'person': ([1], [0])}},
 }
+SPEC['fasttrack_vehicle'] = dict(SPEC['fasttrack'], classes={'vehicle': ([2, 3, 4, 5, 6], [2, 5, 7])}, source='fasttrack')
+
+
+def source(dataset: str) -> str:
+    """Name of the cached-detection folder a dataset reads from."""
+    return SPEC[dataset].get('source', dataset)
 
 
 @dataclass
@@ -93,7 +100,7 @@ def preprocess(seq: Sequence, tracks: np.ndarray, cls: str) -> np.ndarray:
     MOT17 (A2 item 2): TrackEval's recipe, frame by frame: IoU of every GT row (file order) with every
     tracker box, scores below 0.5 - eps set to 0, Hungarian on the negated scores, keep matches > eps,
     drop tracker boxes matched to a distractor class.
-    FastTrack (A5): drop a box whose centre lies inside an ignore box of the same frame, unless it is
+    FastTrack and fasttrack_vehicle (A5): drop a box whose centre lies inside an ignore box of the same frame, unless it is
     matched (IoU >= 0.5) to a GT_true box of the evaluated class in that frame.
     """
     tracks = _validated(tracks, 'tracks')
@@ -113,7 +120,7 @@ def preprocess(seq: Sequence, tracks: np.ndarray, cls: str) -> np.ndarray:
             r, c = r[ok], c[ok]
             drop[ti[c[np.isin(raw[gi[r], 7], spec['distractors'])]]] = True
         return tracks[~drop]
-    if seq.dataset == 'fasttrack' and len(tracks):
+    if 'ignore' in spec and len(tracks):
         ign = raw[np.isin(raw[:, 7], spec['ignore']) & (raw[:, 0] <= seq.n_frames)]
         if not len(ign):
             return tracks
