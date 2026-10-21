@@ -120,6 +120,52 @@ def fig_h2(S, out: Path):
     plt.close(fig)
 
 
+def fig_graphical_abstract(S, out: Path):
+    """Graphical abstract (separate submission file): 13 cm wide, >= 1328 px, readable at that width."""
+    from matplotlib.patches import FancyBboxPatch
+    fig = plt.figure(figsize=(5.12, 2.1))
+    left = fig.add_axes((0, 0, 0.5, 1))
+    left.set_axis_off()
+    left.set_xlim(0, 1)
+    left.set_ylim(0, 1)
+    steps = ('Seed tracker output', 'Reviewer fixes some errors', 'Seeded ground truth',
+             'Evaluate trackers on it')
+    ys = (0.86, 0.62, 0.38, 0.14)
+    for i, (text, y) in enumerate(zip(steps, ys)):
+        left.add_patch(FancyBboxPatch((0.08, y - 0.08), 0.84, 0.16, boxstyle='round,pad=0,rounding_size=0.03',
+                                      facecolor='#f4f3ee', edgecolor='#c3c2b7', linewidth=0.6))
+        left.text(0.5, y, text, ha='center', va='center', fontsize=7.5, color=INK)
+        if i:
+            left.annotate('', (0.5, y + 0.08), (0.5, ys[i - 1] - 0.08),
+                          arrowprops=dict(arrowstyle='-|>', color=MUTED, lw=0.8, shrinkA=0, shrinkB=0))
+    left.text(0.5, -0.02, 'errors left unfixed favour the seed', ha='center', va='top', fontsize=7,
+              color=MUTED, style='italic')
+    ax = fig.add_axes((0.6, 0.2, 0.36, 0.66))
+    names = [title for _, title in DATASETS][::-1]
+    for i, ((key, _), color) in enumerate(zip(DATASETS[::-1], COLORS[::-1])):
+        sa = S[key]['h1']
+        ref = S[key]['theta_ref']
+        cell = next(c['sa_same_detector'] for c in sa if c['cell'] == ref)
+        lo, hi = cell['ci95']
+        ax.barh(i, cell['point'], color=color, height=0.55)
+        ax.errorbar(cell['point'], i, xerr=[[cell['point'] - lo], [hi - cell['point']]], color=INK,
+                    capsize=2, linewidth=0.7)
+        ax.annotate(f"{cell['point']:.3f}", (hi, i), xytext=(3, 0), textcoords='offset points', va='center',
+                    fontsize=7, color=INK)
+    ax.axvline(DELTA, color=MUTED, linewidth=0.8, linestyle=(0, (3, 2)))
+    ax.annotate('δ', (DELTA, 0), xycoords=('data', 'axes fraction'), xytext=(2, 2), textcoords='offset points',
+                fontsize=7, color=MUTED)
+    ax.set_yticks(range(len(names)))
+    ax.set_yticklabels(names)
+    ax.set_xlim(0, 0.215)
+    ax.grid(axis='y', visible=False)
+    ax.set_xlabel('seed advantage (IDF1), 95% CI')
+    ax.set_title('Simulated reference reviewer', loc='left', fontsize=7.5, color=INK)
+    fig.savefig(out / 'graphical_abstract.pdf')
+    fig.savefig(out / 'graphical_abstract.png', dpi=300)
+    plt.close(fig)
+
+
 def _spread(values, gap):
     """Label positions: the values, pushed apart so neighbours are at least `gap` apart."""
     order = sorted(range(len(values)), key=lambda i: values[i])
@@ -141,6 +187,7 @@ def main(argv=None):
     S = load(args.src)
     fig_sa_curves(S, args.out)
     fig_h2(S, args.out)
+    fig_graphical_abstract(S, args.out.parent)
     print('written', sorted(p.name for p in args.out.glob('*.pdf')))
 
 

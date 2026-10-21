@@ -25,3 +25,8 @@ SCOPE.md
 .DS_Store
 Thumbs.db
 kernel.errors.txt
+
+# Elsevier submission files: the journal form, the filled form and the logo cut from it (local only)
+paper/patrec-authorship-and-formatting.pdf
+paper/authorship_confirmation_filled.pdf
+paper/elsevier-logo.pdf

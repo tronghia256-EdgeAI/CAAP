@@ -1,8 +1,11 @@
-\documentclass[5p,times]{elsarticle}
-% Draft in Elsevier's generic two-column layout. Page limit, highlights and front matter follow the
-% target journal's Guide for Authors once it has been read (docs/PAPER_OUTLINE.md).
+\documentclass[final,times,twocolumn]{elsarticle}
+% Pattern Recognition Letters layout: elsarticle + prletters.sty (Elsevier, LPPL), as the journal's
+% mandatory authorship and formats form requires. Limit: 7 double-column pages including references.
+% prletters.sty needs elsevier-logo.pdf, which is not in git: cut it from page 4 of the journal's form
+% (legacyfileshare.elsevier.com/promis_misc/patrec-authorship-and-formatting.pdf).
 % Every number is taken from results/paper_numbers.json (unrounded values and bound-safe ranges).
 
+\usepackage{prletters}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
@@ -23,12 +26,14 @@
 \title{How much does a tracker-seeded ground truth favour its seed?\\
 Measuring seed bias in multi-object tracking benchmarks}
 
-% Author list, affiliations and e-mails to be confirmed by the authors.
-\author[uef]{Trong Nghia Le}
-\author[uef]{Thien Bao Nguyen\corref{cor}}
+\author[ueh]{Trong Nghia Le}
+\ead{nghiale.31241024698@st.ueh.edu.vn}
+\author[ueh]{Thien Bao Nguyen\corref{cor}}
+\ead{baont@ueh.edu.vn}
 \cortext[cor]{Corresponding author.}
-\affiliation[uef]{organization={3ITech, College of Technology and Design, University of Economics Ho Chi Minh City (UEH)},
-  city={Ho Chi Minh City}, country={Vietnam}}
+\address[ueh]{Institute of Intelligent and Interactive Technologies (3ITech), College of Technology and Design,
+University of Economics Ho Chi Minh City (UEH), 279 Nguyen Tri Phuong, Dien Hong Ward, Ho Chi Minh City,
+Vietnam}
 
 \begin{abstract}
 Ground truth for multi-object tracking is increasingly produced by correcting a tracker's output. If the
@@ -37,11 +42,10 @@ tracker. We measure this seed bias. A parametric reviewer model turns a seed tra
 complete public ground truth of MOT17, DanceTrack and the traffic benchmark FastTrack into simulated
 reviewed ground truth. With four trackers on a shared detector and an assumed reference reviewer, the
 seed's advantage over the other trackers is 0.069, 0.160 and 0.049 IDF1, with 95\% lower bounds far above
-a pre-specified relevance threshold of 0.01. In an exploratory analysis around this reviewer, the
-advantage grows almost linearly with the share of identity errors left unfixed, by 0.006--0.033 IDF1 per
-tenth, and an external appearance-based seed trained on MOT17 still gains 0.041 IDF1 there. Seed-correlated
-errors reorder the eight evaluated systems more than random errors matched in number and length and, in
-an exploratory analysis, also the seven systems other than the seed. Seeding from the union of several trackers helps little
+a pre-specified relevance threshold of 0.01. In an exploratory analysis, the advantage grows almost
+linearly with the share of identity errors left unfixed, and an external appearance-based seed trained on
+MOT17 still gains 0.041 IDF1. Seed-correlated errors reorder the eight evaluated systems more than random
+errors matched in number and length. Seeding from the union of several trackers helps little
 and favours its members; consensus seeding reduces the distortion but does not protect trackers outside
 the consensus; and a bracket over single-seed ground truths never contained the true score. Code and protocol are released.
 \end{abstract}
@@ -397,10 +401,17 @@ seed and its variants on their own ground truth.
 
 \section*{Data and code availability}
 All datasets are public. Code, the protocol with its amendments, and scripts reproducing every number are
-released at [repository URL to be added]. No video or ground truth is redistributed.
+released at \url{https://github.com/tronghia256-EdgeAI/CAAP}. No video or ground truth is redistributed.
+
+\section*{CRediT authorship contribution statement}
+% Roles to be confirmed by both authors before submission.
+\textbf{Trong Nghia Le:} Conceptualization, Methodology, Software, Formal analysis, Investigation, Data
+curation, Visualization, Writing -- original draft. \textbf{Thien Bao Nguyen:} Supervision, Writing --
+review \& editing.
 
 \section*{Declaration of competing interest}
-The authors declare no competing interests.
+The authors declare that they have no known competing financial interests or personal relationships that
+could have appeared to influence the work reported in this paper.
 
 \bibliographystyle{elsarticle-num}
 \bibliography{references}
