@@ -1,150 +1,152 @@
-# Protocol — seed bias trong GT MOT (ĐÃ ĐÓNG BĂNG 20/10/2026)
+# Protocol — seed bias in MOT GT (FROZEN 20/10/2026)
 
-Trạng thái: **FROZEN 2026-10-20**, Nghĩa duyệt. Lúc đóng băng chưa có thí nghiệm nào chạy và chưa xem số
-nào. Từ đây mọi thay đổi chỉ được thêm vào mục "Amendments" (có ngày), trước khi xem kết quả mà thay
-đổi đó ảnh hưởng.
+_This is an English translation. The protocol and its amendments were written and frozen in Vietnamese; the Vietnamese originals are in the repository history (git log -- docs/PROTOCOL.md)._
 
-## 1. Định nghĩa
+Status: **FROZEN 2026-10-20**, approved by Nghĩa. At the time of freezing, no experiment had been run and no
+number had been seen. From here on, every change may only be added to the "Amendments" section (dated),
+before seeing the results that the change affects.
 
-- `GT_true`: GT công khai của dataset.
-- `GT_S(θ)`: GT mô phỏng, tạo bằng cách cho một "reviewer" có tham số θ review output của tracker seed S
-  (mục 4).
-- `M(T; G)`: metric của tracker T khi chấm trên GT G.
+## 1. Definitions
+
+- `GT_true`: the public GT of the dataset.
+- `GT_S(θ)`: simulated GT, created by having a "reviewer" with parameters θ review the output of seed tracker S
+  (Section 4).
+- `M(T; G)`: the metric of tracker T when scored against GT G.
 - Bias: `b(T, S) = M(T; GT_S) − M(T; GT_true)`.
-- **Self-seed advantage** của A so với B dưới seed A:
+- **Self-seed advantage** of A over B under seed A:
   `SA(A, B) = [M(A; GT_A) − M(B; GT_A)] − [M(A; GT_true) − M(B; GT_true)]`.
 
-## 2. Giả thuyết và endpoint
+## 2. Hypotheses and endpoints
 
-- **H1 (chính):** `SA(A, B) > 0` ở tham số tham chiếu θ_ref = (r=0.75, p_fp=0.1, q=0.5, a=1).
-  θ_ref được chọn trước khi chạy; nó là **giả định**, không phải số đo, và paper phải nói rõ như vậy.
-  Endpoint chính: trung bình `SA` theo IDF1 trên mọi cặp (A, B), kèm CI 95% bootstrap theo sequence
-  (10 000 lần lặp), báo cáo riêng cho từng dataset. Báo cáo thêm, trên toàn bộ lưới ở mục 4, vùng θ mà
-  CI loại trừ 0, để kết luận không phụ thuộc vào một điểm θ_ref duy nhất.
-- **H2:** Lỗi GT tương quan với seed làm đảo thứ hạng nhiều hơn lỗi ngẫu nhiên có **cùng số lượng**
-  FN, FP và lỗi ID. Endpoint: Kendall τ giữa thứ hạng trên `GT_S` và trên `GT_true`, so với τ trên GT
-  lỗi ngẫu nhiên đã khớp số lượng lỗi.
-- **H3:** Protocol khử bias làm giảm |SA| với chi phí review (số box hiển thị cho reviewer) thấp hơn
-  gán nhãn lại toàn bộ. Endpoint: đường Pareto giữa |SA| còn lại và chi phí.
-- Metric phụ: HOTA@α=0.5, DetA, AssA, MOTA, số ID switch. HOTA lấy trung bình theo α chỉ là phụ, vì
-  reviewer giữ nguyên hình học box của seed.
+- **H1 (primary):** `SA(A, B) > 0` at the reference parameters θ_ref = (r=0.75, p_fp=0.1, q=0.5, a=1).
+  θ_ref was chosen before running; it is an **assumption**, not a measurement, and the paper must state this clearly.
+  Primary endpoint: the mean `SA` in IDF1 over all pairs (A, B), with a 95% CI from a sequence-level bootstrap
+  (10 000 iterations), reported separately for each dataset. Additionally report, over the whole grid in Section 4, the region of θ where
+  the CI excludes 0, so that the conclusion does not depend on a single point θ_ref.
+- **H2:** GT errors correlated with the seed reverse rankings more than random errors with the **same number** of
+  FN, FP and ID errors. Endpoint: Kendall τ between the ranking on `GT_S` and on `GT_true`, compared with τ on a GT
+  with random errors matched in error count.
+- **H3:** A debiasing protocol reduces |SA| at a review cost (number of boxes shown to the reviewer) lower than
+  full relabelling. Endpoint: the Pareto curve between remaining |SA| and cost.
+- Secondary metrics: HOTA@α=0.5, DetA, AssA, MOTA, number of ID switches. HOTA averaged over α is only secondary, because
+  the reviewer keeps the seed's box geometry.
 
-## 3. Dữ liệu, detector, tracker
+## 3. Data, detector, trackers
 
-| Dataset | Phần dùng | Vai trò | Giấy phép (phải kiểm lại khi tải) |
+| Dataset | Part used | Role | Licence (must be rechecked at download) |
 |---|---|---|---|
-| FastTrack (arXiv 2508.14370) | 12 video | Testbed traffic CCTV chính | OpenRAIL-M (HF); paper CC BY-NC-SA |
-| MOT17 | 7 sequence train | Tổng quát hoá, có public detections | CC BY-NC-SA 3.0 |
-| DanceTrack | 25 sequence val | Tổng quát hoá, ngoại hình giống nhau | Nhãn CC BY 4.0, video phi thương mại |
+| FastTrack (arXiv 2508.14370) | 12 videos | Main traffic CCTV testbed | OpenRAIL-M (HF); paper CC BY-NC-SA |
+| MOT17 | 7 train sequences | Generalisation, has public detections | CC BY-NC-SA 3.0 |
+| DanceTrack | 25 val sequences | Generalisation, similar appearance | Labels CC BY 4.0, video non-commercial |
 
-- Detector: YOLO11 pretrain COCO, không fine-tune. Ánh xạ class COCO sang class của dataset; bảng
-  ánh xạ được ghi trước khi chạy. Detection chạy một lần trên Kaggle T4 rồi cache, mọi tracker dùng
-  chung cache (điều kiện "shared detector").
-- Điều kiện phụ "different detector": tracker A dùng YOLO11x, tracker B dùng YOLO11n, để đo thành phần
-  seed bias đến từ detector.
-- Tracker (tham số mặc định đã công bố, cố định trước khi chạy): SORT, ByteTrack, OC-SORT, BoT-SORT
-  (không ReID), và một tracker có ReID (Deep OC-SORT hoặc StrongSORT). Chạy qua `trackers` (Roboflow)
-  hoặc BoxMOT; chỉ cài để dùng, không vendor code AGPL.
-- Sanity check pipeline: ByteTrack trên MOT17 phải lệch không quá 1 điểm IDF1 so với số tham chiếu
-  công bố cho cùng detector. Nếu không đạt, sửa pipeline trước khi chạy tiếp.
+- Detector: YOLO11 pretrained on COCO, not fine-tuned. COCO classes are mapped to the dataset's classes; the
+  mapping table is recorded before running. Detection is run once on a Kaggle T4 and then cached; all trackers use
+  the same cache (the "shared detector" condition).
+- Secondary "different detector" condition: tracker A uses YOLO11x, tracker B uses YOLO11n, to measure the component of
+  seed bias that comes from the detector.
+- Trackers (published default parameters, fixed before running): SORT, ByteTrack, OC-SORT, BoT-SORT
+  (without ReID), and one tracker with ReID (Deep OC-SORT or StrongSORT). Run via `trackers` (Roboflow)
+  or BoxMOT; installed for use only, no AGPL code vendored.
+- Pipeline sanity check: ByteTrack on MOT17 must deviate by no more than 1 IDF1 point from the published reference number
+  for the same detector. If this fails, fix the pipeline before continuing.
 
-## 4. Mô hình reviewer (simulator)
+## 4. Reviewer model (simulator)
 
-Ghép output seed với `GT_true` theo từng frame (Hungarian, IoU ≥ 0.5). Sau đó:
+Match the seed output to `GT_true` frame by frame (Hungarian, IoU ≥ 0.5). Then:
 
-| Tham số | Ý nghĩa | Lưới |
+| Parameter | Meaning | Grid |
 |---|---|---|
-| r | Xác suất reviewer thêm một đoạn GT mà seed bỏ sót (đoạn liên tục của một GT id) | 0, 0.25, 0.5, 0.75, 0.9, 1 |
-| p_fp | Xác suất giữ một đoạn FP của seed | 0, 0.1, 0.25, 0.5 |
-| q | Xác suất sửa một lỗi ID của seed (switch hoặc fragment) | 0, 0.5, 0.9, 1 |
-| a | Xác suất giữ hình học box của seed thay vì box GT | 1 (chính), 0 (kiểm tra) |
+| r | Probability that the reviewer adds a GT segment the seed missed (a contiguous segment of one GT id) | 0, 0.25, 0.5, 0.75, 0.9, 1 |
+| p_fp | Probability of keeping an FP segment of the seed | 0, 0.1, 0.25, 0.5 |
+| q | Probability of correcting an ID error of the seed (switch or fragment) | 0, 0.5, 0.9, 1 |
+| a | Probability of keeping the seed's box geometry instead of the GT box | 1 (main), 0 (check) |
 
-- Mỗi ô của lưới chạy 10 random seed.
-- Kiểm tra bắt buộc bằng test synthetic: với r=1, p_fp=0, q=1, a=0 thì `GT_S = GT_true` và bias = 0.
-  Với r=0, p_fp=1, q=0, a=1 thì `GT_S` = output seed và tracker seed đạt IDF1 = 1.
-- Lỗi ngẫu nhiên cho H2: cùng số đoạn FN, FP và lỗi ID như `GT_S`, nhưng chọn ngẫu nhiên, độc lập
-  với tracker.
+- Each cell of the grid is run with 10 random seeds.
+- Mandatory check with a synthetic test: with r=1, p_fp=0, q=1, a=0, `GT_S = GT_true` and bias = 0.
+  With r=0, p_fp=1, q=0, a=1, `GT_S` = seed output and the seed tracker achieves IDF1 = 1.
+- Random errors for H2: the same number of FN, FP and ID-error segments as `GT_S`, but chosen at random, independently
+  of the tracker.
 
-## 5. Protocol khử bias (H3)
+## 5. Debiasing protocol (H3)
 
-1. **Union seeding:** seed bằng hợp output của k ∈ {2, 3} tracker, rồi review với cùng θ.
-2. **Blind adjudication:** chỉ review các vùng mà các tracker bất đồng; reviewer không biết box thuộc
-   tracker nào (r áp dụng trên vùng bất đồng).
-3. **Bracket bound:** chấm trên `GT_A` và `GT_B`, báo cáo khoảng. Chi phí review thêm bằng 0.
+1. **Union seeding:** seed with the union of the outputs of k ∈ {2, 3} trackers, then review with the same θ.
+2. **Blind adjudication:** review only the regions where the trackers disagree; the reviewer does not know which
+   tracker a box belongs to (r applies to the disagreement regions).
+3. **Bracket bound:** score on `GT_A` and `GT_B`, report the interval. Additional review cost is 0.
 
-Chi phí: số box hiển thị cho reviewer, so với số box của `GT_true` (chi phí gán nhãn lại toàn bộ).
+Cost: the number of boxes shown to the reviewer, relative to the number of boxes in `GT_true` (the cost of full relabelling).
 
-## 6. Human mini-study — HOÃN
+## 6. Human mini-study — DEFERRED
 
-Nghĩa quyết định ngày 20/10/2026: bản nộp đầu tiên không có human mini-study. Chỉ làm khi reviewer
-yêu cầu trong vòng revision. Khi đó dùng thiết kế dự phòng dưới đây, thêm vào protocol bằng một
-amendment, và chỉ dùng nó để hiệu chỉnh θ (không đổi giả thuyết hay endpoint):
-- 2 người, khoảng 3–4 giờ mỗi người trên CVAT, khoảng 6 đoạn 10–20 s từ FastTrack và DanceTrack
-  (đã có `GT_true`).
-- Thiết kế chéo seed A / seed B (Latin square). Đo r, p_fp, q, a bằng cách so với `GT_true`.
+Nghĩa decided on 20/10/2026: the first submission has no human mini-study. It is done only if reviewers
+request it in the revision round. In that case, the fallback design below is used, added to the protocol through an
+amendment, and used only to calibrate θ (without changing hypotheses or endpoints):
+- 2 people, about 3–4 hours each on CVAT, about 6 clips of 10–20 s from FastTrack and DanceTrack
+  (which already have `GT_true`).
+- Crossover design seed A / seed B (Latin square). Measure r, p_fp, q, a by comparison with `GT_true`.
 
-Hệ quả cho bản nộp đầu: kết quả dựa trên mô phỏng. Paper phải nêu đây là giới hạn và trình bày kết luận
-theo cả lưới θ, không chỉ tại θ_ref.
+Consequence for the first submission: the results rest on simulation. The paper must state this as a limitation and present the conclusions
+over the whole θ grid, not only at θ_ref.
 
-## 7. Quy tắc dừng sớm
+## 7. Early stopping rule
 
-Nếu sau khi chạy đủ lưới ở mục 4, |SA| < 0.01 IDF1 với mọi θ có r ≥ 0.5 trên cả ba dataset và không có
-lần đảo thứ hạng nào, thì đổi framing thành "GT do tracker hỗ trợ là an toàn khi r ≥ X", bỏ mục 5 và
-viết paper ngắn.
+If, after running the full grid in Section 4, |SA| < 0.01 IDF1 for every θ with r ≥ 0.5 on all three datasets and there is no
+ranking reversal, then change the framing to "tracker-assisted GT is safe when r ≥ X", drop Section 5 and
+write a short paper.
 
-## 8. Phân tích và báo cáo
+## 8. Analysis and reporting
 
-- Mọi số sinh từ một commit; mỗi lần chạy có `provenance.json` (commit, hash input, tham số).
-- Output nằm trong `data/processed/seed_bias/` (gitignored). Chỉ commit bảng tổng hợp nhỏ.
-- Không phát lại frame, video hay GT gốc; release code để tái tạo.
+- Every number is generated from a commit; each run has a `provenance.json` (commit, input hash, parameters).
+- Output lives in `data/processed/seed_bias/` (gitignored). Only small summary tables are committed.
+- No frames, videos or original GT are redistributed; code is released for reproduction.
 
-## Đóng băng
+## Freeze
 
-- 2026-10-20: Nghĩa duyệt. Trước khi đóng băng, mini-study được hoãn đến vòng revision và θ_ref thay
-  cho θ\* đo từ mini-study (mục 2, mục 6). Commit đóng băng là commit đầu tiên chứa dòng
+- 2026-10-20: approved by Nghĩa. Before freezing, the mini-study was deferred to the revision round and θ_ref replaced
+  θ\* measured from the mini-study (Sections 2 and 6). The freeze commit is the first commit containing the line
   `FROZEN 2026-10-20`: `git log --format=%h -S "FROZEN 2026-10-20" -- docs/PROTOCOL.md`.
 
 ## Amendments
 
-### A1 — 20/10/2026, trước khi có bất kỳ kết quả nào
+### A1 — 20/10/2026, before any results were available
 
-**Lý do.** Review phản biện bản simulator đầu tiên (3 hướng độc lập) phát hiện mô hình mục 4, khi diễn
-giải theo từng liên kết, kéo GT_S về phía seed ở mọi 0 < q < 1. Ví dụ: sửa một lần cho một lỗi
-"excursion" không có tác dụng gì; một swap được sửa trọn chỉ với xác suất khoảng q⁴. Hiệu ứng này làm SA
-tăng khoảng 0.01 IDF1, ngang ngưỡng dừng mục 7. Các điểm dưới đây thay thế cách diễn giải mục 4; giả
-thuyết, endpoint, lưới θ, θ_ref và quy tắc dừng giữ nguyên.
+**Rationale.** A critical review of the first simulator version (3 independent strands) found that the model in Section 4, when
+interpreted link by link, pulls GT_S towards the seed at every 0 < q < 1. Examples: a single correction of an
+"excursion" error has no effect; a swap is fully corrected only with probability about q⁴. This effect increases SA
+by about 0.01 IDF1, on a par with the stopping threshold in Section 7. The points below replace the interpretation of Section 4; the
+hypotheses, endpoints, θ grid, θ_ref and stopping rule remain unchanged.
 
-1. **Matching box.** Hungarian theo từng frame, chỉ trên các cặp có IoU ≥ 0.5 (dung sai epsilon máy,
-   như TrackEval), lọc trước khi gán.
-2. **Danh tính.** Ghép một-một seed id ↔ GT id bằng Hungarian trên số box đã match (như IDF1).
-   `label(g)` = seed id được ghép với g, hoặc một nhãn mới nếu g không được ghép.
-3. **Đơn vị sửa ID = episode.** Một cặp (seed id, GT id) nằm ngoài phép ghép danh tính là một cặp lỗi.
-   Các cặp lỗi mà việc sửa sẽ va chạm nhau trong cùng frame (ví dụ hai nửa của một swap) gộp thành một
-   episode. Mỗi episode được sửa với xác suất **q**, rút một lần: được sửa thì mọi box của nó nhận
-   `label(g)`, không thì giữ seed id. Theo cách xây dựng, output luôn hợp lệ, không còn quy tắc xung đột.
-4. **Run.** Đoạn bị bỏ sót và đoạn FP là các đoạn **liên tục theo frame** của một id. Một khoảng trống
-   frame làm tách run.
-5. **Nhãn của box thêm/giữ.** Đoạn bỏ sót được thêm nhận `label(g)`, hoặc nhãn mới nếu `label(g)` đã bị
-   dùng ở một frame của đoạn. Đoạn FP được giữ nhận seed id của nó, hoặc nhãn mới nếu trùng.
-   **Box GT được thêm thay thế** box seed chưa match chồng lên nó (IoU ≥ 0.1) trong cùng frame: reviewer
-   sửa box lệch chứ không giữ cả hai.
-6. **Hình học a.** Rút theo từng box match.
-7. **Input.** Frame/id phải là số nguyên, (frame, id) duy nhất, mọi giá trị hữu hạn. Input được sắp xếp
-   về thứ tự chuẩn, nên kết quả không phụ thuộc thứ tự hàng trong file. Thứ tự rút ngẫu nhiên cố định:
-   episode (theo frame đầu), đoạn bỏ sót, đoạn FP (theo id rồi frame đầu), hình học.
-8. **Tiền xử lý chung.** GT_true và mọi output tracker đi qua **cùng một** bước lọc, trước khi mô phỏng
-   và trước khi chấm, để GT_true và GT_S được chấm như nhau:
-   - MOT17: GT_true là các hàng có consider = 1 và class = 1. Box tracker match (IoU ≥ 0.5) với GT
-     distractor (class 2, 7, 8, 12) hoặc consider = 0 bị bỏ một lần, theo đúng quy tắc của TrackEval.
-     Sau đó chấm không qua bước distractor.
-   - FastTrack: class 9 (`ignore_region`) và các class 10–15 là vùng bỏ qua. Box tracker có tâm nằm
-     trong một vùng bỏ qua cùng frame bị bỏ.
-9. **Detection (mục 3).** Detector chung là YOLO11x pretrain COCO. Điều kiện "different detector" dùng
+1. **Box matching.** Hungarian per frame, only over pairs with IoU ≥ 0.5 (machine-epsilon tolerance,
+   as in TrackEval), filtered before assignment.
+2. **Identity.** One-to-one matching of seed id ↔ GT id by Hungarian on the number of matched boxes (as in IDF1).
+   `label(g)` = the seed id matched to g, or a new label if g is unmatched.
+3. **ID-correction unit = episode.** A (seed id, GT id) pair outside the identity matching is an error pair.
+   Error pairs whose corrections would collide with each other in the same frame (e.g. the two halves of a swap) are merged into one
+   episode. Each episode is corrected with probability **q**, drawn once: if corrected, all its boxes receive
+   `label(g)`; otherwise they keep the seed id. By construction, the output is always valid; no conflict rule remains.
+4. **Run.** Missed segments and FP segments are **frame-contiguous** segments of one id. A frame gap
+   splits a run.
+5. **Labels of added/kept boxes.** An added missed segment receives `label(g)`, or a new label if `label(g)` is already
+   used in a frame of the segment. A kept FP segment receives its seed id, or a new label if it collides.
+   **An added GT box replaces** an unmatched seed box overlapping it (IoU ≥ 0.1) in the same frame: the reviewer
+   corrects the misplaced box rather than keeping both.
+6. **Geometry a.** Drawn per matched box.
+7. **Input.** Frame/id must be integers, (frame, id) unique, all values finite. Input is sorted
+   into a canonical order, so the result does not depend on the row order in the file. Fixed order of random draws:
+   episodes (by first frame), missed segments, FP segments (by id, then first frame), geometry.
+8. **Common preprocessing.** GT_true and every tracker output pass through **the same** filtering step, before simulation
+   and before scoring, so that GT_true and GT_S are scored identically:
+   - MOT17: GT_true is the rows with consider = 1 and class = 1. Tracker boxes matched (IoU ≥ 0.5) to a
+     distractor GT (class 2, 7, 8, 12) or consider = 0 are removed once, following TrackEval's rule exactly.
+     Scoring is then done without the distractor step.
+   - FastTrack: class 9 (`ignore_region`) and classes 10–15 are ignore regions. Tracker boxes whose centre lies
+     inside an ignore region in the same frame are removed.
+9. **Detection (Section 3).** The shared detector is YOLO11x pretrained on COCO. The "different detector" condition uses
    YOLO11n. imgsz 1280, conf ≥ 0.05, ultralytics 8.4.92, script `tools/kaggle_detect_cache.py`.
-   MOT17 dùng detection YOLO11 trên ảnh của thư mục `*-FRCNN`, không dùng public detections.
-   Ánh xạ class (COCO → FastTrack, đánh số 1-based theo `labels.txt`):
+   MOT17 uses YOLO11 detections on the images of the `*-FRCNN` folders, not the public detections.
+   Class mapping (COCO → FastTrack, 1-based numbering following `labels.txt`):
 
-   | Class đánh giá | FastTrack | COCO |
+   | Evaluation class | FastTrack | COCO |
    |---|---|---|
    | person | 1 | 0 person |
    | bus | 2 bus_small, 3 bus_big | 5 bus |
@@ -153,254 +155,254 @@ thuyết, endpoint, lưới θ, θ_ref và quy tắc dừng giữ nguyên.
    | bicycle | 7 bike | 1 bicycle |
    | motorbike | 8 | 3 motorcycle |
 
-   MOT17 và DanceTrack chỉ có person.
-10. **Chẩn đoán báo cáo kèm** (từ review phương pháp): tỉ lệ sửa thực tế theo kích thước episode; SA
-    tại a = 0 cạnh a = 1 (tách phần danh tính và phần hình học); độ nhạy theo ngưỡng match 0.4 / 0.6
-    (chỉ tại θ_ref); phân bố độ dài đoạn bỏ sót của từng tracker seed; phương sai giữa các random seed
-    trong từng ô của lưới.
+   MOT17 and DanceTrack have person only.
+10. **Diagnostics reported alongside** (from the methods review): the actual correction rate by episode size; SA
+    at a = 0 next to a = 1 (separating the identity part from the geometry part); sensitivity to the match threshold 0.4 / 0.6
+    (at θ_ref only); the distribution of missed-segment lengths for each seed tracker; the variance across random seeds
+    within each grid cell.
 
-### A2 — 20/10/2026, trước khi có bất kỳ kết quả nào
+### A2 — 20/10/2026, before any results were available
 
-Chốt chi tiết chạy tracker và chấm điểm (mục 3, mục 8), sau khi đã xem API của thư viện:
+Fixes the details of running trackers and scoring (Sections 3 and 8), after having looked at the libraries' APIs:
 
-1. **Tracker.** Roboflow `trackers` 2.6.1, tham số mặc định của thư viện, `frame_rate` lấy từ
-   `seqinfo.ini`. Chạy riêng cho từng class đánh giá. ByteTrack, OC-SORT và BoT-SORT nhận toàn bộ
-   detection đã cache (conf ≥ 0.05) và tự áp ngưỡng của mình. **SORT** chỉ nhận detection có
-   conf ≥ 0.25 (ngưỡng kích hoạt của nó), vì SORT không có tầng điểm thấp. **BoT-SORT tắt CMC**, vì
-   không có ảnh khi chạy offline. Tracker có ReID chạy trên Kaggle ở bước sau và sẽ được chốt bằng một
-   amendment riêng trước khi chạy.
-2. **Tiền xử lý MOT17 theo đúng TrackEval.** Chỉ bỏ box tracker match (Hungarian, IoU ≥ 0.5) với GT
-   thuộc class distractor 2/7/8/12. Box match với GT pedestrian có consider = 0 **không** bị bỏ (sửa
-   cụm "hoặc consider = 0" ở A1 mục 8 cho khớp quy tắc của TrackEval). GT_true là consider = 1 và
+1. **Trackers.** Roboflow `trackers` 2.6.1, the library's default parameters, `frame_rate` taken from
+   `seqinfo.ini`. Run separately for each evaluation class. ByteTrack, OC-SORT and BoT-SORT receive all
+   cached detections (conf ≥ 0.05) and apply their own thresholds. **SORT** receives only detections with
+   conf ≥ 0.25 (its activation threshold), because SORT has no low-score stage. **BoT-SORT has CMC disabled**, because
+   no images are available when running offline. The tracker with ReID runs on Kaggle at a later step and will be fixed by a
+   separate amendment before running.
+2. **MOT17 preprocessing exactly as in TrackEval.** Only tracker boxes matched (Hungarian, IoU ≥ 0.5) to GT
+   of distractor classes 2/7/8/12 are removed. Boxes matched to pedestrian GT with consider = 0 are **not** removed (correcting
+   the phrase "or consider = 0" in A1 item 8 to match TrackEval's rule). GT_true is consider = 1 and
    class = 1.
-3. **Metric.** TrackEval chính thức @12c8791 (JonathonLuiten), gọi trực tiếp các lớp metric HOTA,
-   CLEAR và Identity trên dữ liệu trong bộ nhớ. Các alias `np.float`/`np.int`/`np.bool` mà numpy 2 đã
-   bỏ được khôi phục trước khi import. Cầu nối phải cho kết quả trùng với Evaluator file-based chính
-   thức của TrackEval (sai số tuyệt đối ≤ 1e-12, có test). Phép kiểm này **thay cho sanity check ở
-   mục 3** ("ByteTrack trên MOT17 lệch ≤ 1 điểm so với số công bố"), vì không có số tham chiếu nào
-   được công bố cho detector YOLO11 COCO này.
-4. **Đơn vị.** Mỗi (sequence, class) là một đơn vị chấm. Dataset-level metric cộng gộp theo cách của
-   TrackEval (`combine_sequences`). Bootstrap lấy mẫu lại theo **sequence**, mỗi sequence mang theo
-   mọi class của nó.
-5. **Lưu trữ.** Track đã tiền xử lý nằm ở `data/processed/tracks/`. `provenance.json` ghi commit,
-   trạng thái thay đổi chưa commit, phiên bản thư viện và hash của mọi file detection/GT đầu vào.
+3. **Metrics.** Official TrackEval @12c8791 (JonathonLuiten), calling the HOTA,
+   CLEAR and Identity metric classes directly on in-memory data. The aliases `np.float`/`np.int`/`np.bool` that numpy 2
+   removed are restored before import. The bridge must give results identical to TrackEval's official file-based
+   Evaluator (absolute error ≤ 1e-12, with a test). This check **replaces the sanity check in
+   Section 3** ("ByteTrack on MOT17 deviates ≤ 1 point from the published number"), because no reference number has
+   been published for this COCO YOLO11 detector.
+4. **Units.** Each (sequence, class) is one scoring unit. Dataset-level metrics are aggregated in TrackEval's way
+   (`combine_sequences`). The bootstrap resamples by **sequence**, each sequence carrying
+   all of its classes.
+5. **Storage.** Preprocessed tracks are in `data/processed/tracks/`. `provenance.json` records the commit,
+   the uncommitted-changes state, library versions and the hash of every input detection/GT file.
 
-### A3 — 20/10/2026, trước khi có bất kỳ kết quả nào
+### A3 — 20/10/2026, before any results were available
 
-Chốt cách tính và phân tích H1 và phần thứ hạng của H2 (`code/seedbias/experiment.py`):
+Fixes the computation and analysis of H1 and the ranking part of H2 (`code/seedbias/experiment.py`):
 
-1. **Seed và tracker được chấm** đều thuộc bốn tracker ở A2 (detector chung YOLO11x). Mỗi tracker lần
-   lượt làm seed A. SA được tính cho mọi cặp có thứ tự (A, B) với A ≠ B.
-2. **IDF1 trên GT_S** được tính đúng theo Identity của TrackEval: đếm các cặp cùng frame có IoU ≥ 0.5
-   (IoU tính bằng hàm của TrackEval), rồi tìm phép ghép id có tổng lớn nhất. Các cặp IoU được tính một
-   lần với box GT và box seed, vì mỗi box của GT_S mang hình học của một trong hai. Có test bắt buộc
-   IDTP phải trùng với cầu nối TrackEval trên GT mô phỏng.
-3. **Số ngẫu nhiên chung (common random numbers).** Random seed của simulator là (k, A, đơn vị) với
-   k = 0..9, **giống nhau ở mọi ô θ**, nên khác biệt giữa các ô không bị nhiễu bởi các lần rút khác nhau.
-4. **Endpoint H1** = trung bình SA (IDF1) trên mọi cặp có thứ tự và trên 10 random seed, tính ở cấp
-   dataset (cộng IDTP và số box trên mọi đơn vị). CI 95% là percentile của 10 000 lần bootstrap lấy mẫu
-   lại sequence (seed bootstrap cố định 0). Mỗi ô θ được tính cùng cách; "vùng CI loại trừ 0" là tập
-   các ô có cận dưới > 0.
-5. **H2, phần thứ hạng.** Với mỗi (A, θ, k): Kendall τ-b (scipy) giữa IDF1 các tracker trên GT_A và trên
-   GT_true, và số cặp tracker bị đảo thứ tự. Báo cáo τ trung bình, số cặp đảo trung bình, và tỉ lệ lần
-   rút có ít nhất một cặp đảo. Phần so sánh với lỗi ngẫu nhiên (null model) sẽ được chốt ở amendment
-   sau, trước khi chạy.
-6. **Metric phụ** (HOTA@0.5, DetA, AssA, MOTA, IDSW) tính bằng cầu nối TrackEval đầy đủ, chỉ tại θ_ref,
-   với cả 10 random seed.
+1. **Seeds and scored trackers** are both the four trackers of A2 (shared detector YOLO11x). Each tracker in
+   turn serves as seed A. SA is computed for every ordered pair (A, B) with A ≠ B.
+2. **IDF1 on GT_S** is computed exactly following TrackEval's Identity: count same-frame pairs with IoU ≥ 0.5
+   (IoU computed with TrackEval's function), then find the id matching with the largest total. IoU pairs are computed
+   once with the GT boxes and the seed boxes, because every box of GT_S carries the geometry of one of the two. A mandatory test requires
+   IDTP to be identical to the TrackEval bridge on simulated GT.
+3. **Common random numbers.** The simulator's random seed is (k, A, unit) with
+   k = 0..9, **identical in every θ cell**, so differences between cells are not confounded by different draws.
+4. **H1 endpoint** = mean SA (IDF1) over all ordered pairs and over the 10 random seeds, computed at the
+   dataset level (summing IDTP and box counts over all units). The 95% CI is the percentile interval of 10 000 bootstrap
+   resamples of sequences (bootstrap seed fixed at 0). Each θ cell is computed the same way; "the region where the CI excludes 0" is the set of
+   cells with lower bound > 0.
+5. **H2, ranking part.** For each (A, θ, k): Kendall τ-b (scipy) between the trackers' IDF1 on GT_A and on
+   GT_true, and the number of tracker pairs whose order is reversed. Report the mean τ, the mean number of reversed pairs, and the proportion of
+   draws with at least one reversed pair. The comparison with random errors (null model) will be fixed in a later
+   amendment, before running.
+6. **Secondary metrics** (HOTA@0.5, DetA, AssA, MOTA, IDSW) are computed with the full TrackEval bridge, at θ_ref only,
+   with all 10 random seeds.
 
-### A4 — 20/10/2026, trước khi có bất kỳ kết quả nào
+### A4 — 20/10/2026, before any results were available
 
-Chốt null model của H2, tập hệ thống được chấm, và định nghĩa vận hành của H3 (mục 5):
+Fixes the H2 null model, the set of scored systems, and the operational definition of H3 (Section 5):
 
-1. **Tập hệ thống.** 8 hệ thống = 4 tracker × {YOLO11x, YOLO11n}. Seed vẫn là 4 hệ thống YOLO11x.
-   Endpoint H1 (A3 mục 4) giữ nguyên: chỉ gồm các cặp (A, B) cùng dùng YOLO11x. Các cặp (A YOLO11x,
-   B YOLO11n) được báo cáo riêng như thành phần detector của seed bias (mục 3, điều kiện "different
-   detector"). Thứ hạng cho H2 (τ, số cặp đảo) tính trên cả 8 hệ thống.
-2. **Lát cắt θ cho các phân tích đắt.** S_r = {θ_ref với r thay bằng từng giá trị trong lưới}, gồm 6 ô,
-   có θ_ref. Null model của H2 và các protocol của H3 chỉ chạy trên S_r, với 10 random seed.
-3. **Null model của H2.** Với mỗi lần rút GT_S (A, θ, k, đơn vị), dựng GT_R từ GT_true, cùng random
+1. **Set of systems.** 8 systems = 4 trackers × {YOLO11x, YOLO11n}. The seeds remain the 4 YOLO11x systems.
+   The H1 endpoint (A3 item 4) is unchanged: it includes only pairs (A, B) both using YOLO11x. Pairs (A YOLO11x,
+   B YOLO11n) are reported separately as the detector component of seed bias (Section 3, the "different
+   detector" condition). Rankings for H2 (τ, number of reversed pairs) are computed over all 8 systems.
+2. **θ slice for the expensive analyses.** S_r = {θ_ref with r replaced by each value in the grid}, 6 cells,
+   including θ_ref. The H2 null model and the H3 protocols run only on S_r, with 10 random seeds.
+3. **H2 null model.** For each draw of GT_S (A, θ, k, unit), build GT_R from GT_true, with the same random
    seed:
-   - Với mỗi đoạn bỏ sót không được thêm trong GT_S, độ dài ℓ: xoá một đoạn ℓ box liên tiếp ở vị trí
-     ngẫu nhiên trên một track GT ngẫu nhiên (chưa bị xoá), nếu track còn đủ dài.
-   - Với mỗi cặp lỗi ID không được sửa, n box: chọn một đoạn n box liên tiếp ngẫu nhiên trên một track
-     ngẫu nhiên. Nếu seed id của cặp lỗi đó còn nằm trên object khác (kiểu merge), gán đoạn này id của
-     một track khác không có mặt ở các frame đó; nếu không (kiểu fragment) hoặc không có track phù hợp,
-     gán một id mới.
-   - Với mỗi đoạn FP được giữ, độ dài ℓ: chép một đoạn ℓ box liên tiếp ngẫu nhiên của một track GT, dịch
-     sang thời điểm ngẫu nhiên khác trong sequence (độ dịch ≠ 0, nằm trong [1, n_frames]), với id mới.
-   - Hình học các box còn lại là của GT (a = 0), để so lỗi cấu trúc với lỗi cấu trúc. Phần SA đến từ
-     hình học được báo cáo riêng qua a = 0 / a = 1 (A1 mục 10).
-   - **Endpoint H2** tại θ_ref: trung bình (τ_null − τ_seed) và (số cặp đảo của seed − của null) trên
-     (A, k), cặp theo cùng (A, θ, k). CI 95% bằng bootstrap sequence như A3. Các ô còn lại của S_r được
-     báo cáo như đường cong.
-4. **Các protocol của H3** (chỉ trên 4 hệ thống YOLO11x, theo thứ tự chữ cái tên tracker):
-   - P0, seed đơn: như H1.
-   - P1, union seeding, k ∈ {2, 3}, mọi tổ hợp k hệ thống: hợp output theo thứ tự cố định; ở mỗi
-     frame, box của hệ thống sau bị bỏ nếu match (Hungarian, IoU ≥ 0.5) với box đã có trong hợp. Id
-     được tách riêng cho từng hệ thống, hình học giữ nguyên. Sau đó mô phỏng review với cùng θ.
-   - P2, **consensus seeding** (bản vận hành của "blind adjudication"): box đồng thuận là box mà cả 4
-     hệ thống đều có (match chuỗi IoU ≥ 0.5 với box của hệ thống đầu tiên). Hình học là trung bình các
-     box, nên không giống hình học của hệ thống nào. Hai box đồng thuận ở hai frame liên tiếp được nối
-     khi và chỉ khi mọi hệ thống giữ cùng id trên cả hai. Box bất đồng không được seed; reviewer bổ sung
-     chúng như đoạn bỏ sót với xác suất r.
-   - P3, bracket: với mỗi hệ thống T, khoảng [min_A M(T; GT_A), max_A M(T; GT_A)] trên 4 GT seed đơn.
-     Báo cáo độ rộng và tỉ lệ khoảng chứa M(T; GT_true). Chi phí bằng tổng chi phí các GT seed đơn
-     (sửa câu "chi phí review thêm bằng 0" ở mục 5).
-   - **Chỉ tiêu H3** cho mọi protocol: độ méo cặp đôi
-     D = trung bình trên các cặp có thứ tự (A, B) của |[M(A; GT_P) − M(B; GT_P)] − [M(A; true) − M(B; true)]|
-     (IDF1, 4 hệ thống YOLO11x). Với P1 báo cáo thêm SA của thành viên so với hệ thống ngoài tập.
-     **Chi phí** = số box hiển thị cho reviewer (box seed + box ứng viên bất đồng ở P2), chia cho số box
-     của GT_true. Kết quả là đường Pareto (chi phí, D) tại θ_ref, kèm CI bootstrap sequence cho D.
+   - For each missed segment not added in GT_S, of length ℓ: delete a segment of ℓ consecutive boxes at a
+     random position on a random GT track (not yet deleted), if the track is still long enough.
+   - For each uncorrected ID-error pair, of n boxes: choose a random segment of n consecutive boxes on a random
+     track. If the seed id of that error pair still lies on another object (merge type), assign this segment the id of
+     another track not present in those frames; otherwise (fragment type), or if no suitable track exists,
+     assign a new id.
+   - For each kept FP segment, of length ℓ: copy a random segment of ℓ consecutive boxes of a GT track, shifted
+     to another random time in the sequence (shift ≠ 0, within [1, n_frames]), with a new id.
+   - The geometry of the remaining boxes is the GT's (a = 0), to compare structural errors with structural errors. The part of SA coming from
+     geometry is reported separately via a = 0 / a = 1 (A1 item 10).
+   - **H2 endpoint** at θ_ref: mean of (τ_null − τ_seed) and of (number of reversed pairs of seed − of null) over
+     (A, k), paired by the same (A, θ, k). 95% CI by sequence bootstrap as in A3. The remaining cells of S_r are
+     reported as curves.
+4. **H3 protocols** (on the 4 YOLO11x systems only, in alphabetical order of tracker name):
+   - P0, single seed: as in H1.
+   - P1, union seeding, k ∈ {2, 3}, every combination of k systems: union of outputs in a fixed order; in each
+     frame, a box of a later system is dropped if it matches (Hungarian, IoU ≥ 0.5) a box already in the union. Ids
+     are kept separate per system, geometry is kept unchanged. Review is then simulated with the same θ.
+   - P2, **consensus seeding** (the operational version of "blind adjudication"): a consensus box is a box that all 4
+     systems have (chained IoU ≥ 0.5 match with the box of the first system). Its geometry is the mean of the
+     boxes, so it is not identical to the geometry of any system. Two consensus boxes in two consecutive frames are linked
+     if and only if every system keeps the same id on both. Disagreement boxes are not seeded; the reviewer adds
+     them as missed segments with probability r.
+   - P3, bracket: for each system T, the interval [min_A M(T; GT_A), max_A M(T; GT_A)] over the 4 single-seed GTs.
+     Report the width and the proportion of intervals containing M(T; GT_true). The cost equals the total cost of the single-seed GTs
+     (correcting the sentence "additional review cost is 0" in Section 5).
+   - **H3 criterion** for every protocol: pairwise distortion
+     D = mean over ordered pairs (A, B) of |[M(A; GT_P) − M(B; GT_P)] − [M(A; true) − M(B; true)]|
+     (IDF1, 4 YOLO11x systems). For P1, additionally report the SA of members relative to systems outside the set.
+     **Cost** = number of boxes shown to the reviewer (seed boxes + disagreement candidate boxes in P2), divided by the number of boxes
+     of GT_true. The result is a Pareto curve (cost, D) at θ_ref, with a sequence-bootstrap CI for D.
 
-### A5 — 20/10/2026, trước khi có bất kỳ kết quả nào
+### A5 — 20/10/2026, before any results were available
 
-**Lý do.** Review phản biện thứ hai (3 hướng, trên commit 139dea1) không tìm thấy lỗi tính toán làm sai
-SA: IDF1 nhanh, bootstrap và common random numbers đều được kiểm lại bằng cài đặt brute-force. Nhưng
-review chỉ ra một số điểm phương pháp phải chốt trước khi xem số:
+**Rationale.** The second critical review (3 strands, on commit 139dea1) found no computational error that would invalidate
+SA: the fast IDF1, the bootstrap and the common random numbers were all rechecked against brute-force implementations. However,
+the review identified several methodological points that must be fixed before seeing the numbers:
 
-1. **H1 là mệnh đề về độ lớn.** Mô hình reviewer chỉ kéo GT về phía seed, nên SA ≥ 0 gần như theo định
-   nghĩa. Dấu của SA không phải bằng chứng. H1 được phát biểu lại: **SA ≥ δ, với δ = 0.01 IDF1**, tại
-   θ_ref, đánh giá bằng cận dưới của khoảng tin cậy (mục 2). Bản đồ vùng θ báo cáo cả hai: cận dưới > 0
-   và cận dưới > δ. Paper phải nói rõ SA ≥ 0 là hệ quả của mô hình; nội dung khoa học nằm ở độ lớn.
-2. **Khoảng tin cậy.** Với 7–25 sequence, khoảng percentile phủ thấp hơn 95% (mô phỏng của review:
-   84–91%). Khoảng chính là **BCa**: bootstrap sequence 10 000 lần, hệ số gia tốc lấy từ jackknife
-   leave-one-sequence-out. Báo cáo kèm khoảng percentile và khoảng leave-one-sequence-out. Khoảng của
-   MOT17 (7 sequence) được ghi là xấp xỉ.
-3. **Đảo thứ hạng có ngưỡng.** Chỉ tính một cặp là bị đảo khi khoảng cách IDF1 trên GT_true của cặp đó
-   lớn hơn δ, để các tracker gần như hoà nhau (ví dụ BoT-SORT không CMC và ByteTrack) không làm nhiễu.
-   τ-b giữ nguyên. Endpoint H2 (A4 mục 3) dùng số cặp đảo có ngưỡng. **Quy tắc dừng mục 7** được phát
-   biểu lại: cận trên BCa của SA < δ với mọi θ có r ≥ 0.5 trên cả ba dataset, và không có cặp đảo có
-   ngưỡng nào.
-4. **Chẩn đoán báo cáo kèm, tại θ_ref:** SA theo từng sequence và trung bình không trọng số; khoảng
-   leave-one-sequence-out; SA theo từng class; ma trận SA(A, B) đầy đủ và SA khi bỏ các cặp có SORT;
-   SA tại a = 1 so với a = 0, cho cặp cùng detector và cặp khác detector. Với detector chung, mọi tracker
-   trả nguyên box detection, nên hình học không gây khác biệt. Phép đo hình học có ý nghĩa nằm ở cặp
-   khác detector, và paper phải nói rõ điều này.
-5. **Nhầm class (FastTrack).** Với mỗi class, đo tỉ lệ box seed không khớp GT cùng class nhưng khớp
-   (IoU ≥ 0.5) GT của một class khác trong cùng frame; đếm số đơn vị không có GT và tỉ lệ box tracker
-   nằm trong chúng. Nếu tỉ lệ nhầm của một class > 10%, paper báo cáo SA khi bỏ class đó, và chạy thêm
-   phân tích độ nhạy với car + bus + truck gộp làm một class "vehicle".
-6. **Vùng ignore của FastTrack** (sửa A1 mục 8): box tracker có tâm nằm trong vùng ignore chỉ bị bỏ khi
-   nó **không** khớp (IoU ≥ 0.5) với một box GT_true của class đang chấm trong frame đó, gần với quy tắc
-   bỏ qua vùng của TrackEval. Mỗi sequence phải có `labels.txt` đúng với bảng ánh xạ ở A1 mục 9, nếu
-   không thì dừng.
-7. **MOT17** dùng đúng công thức của TrackEval, kể cả chiều của ma trận ghép (GT × tracker, GT theo thứ
-   tự trong file). Có test so với Evaluator chính thức khi bật `DO_PREPROC=True`, trên dữ liệu cố tình
-   tạo ties.
-8. **Cache và provenance.** Track được gắn khoá bằng hash input, hash mã nguồn và phiên bản thư viện, và
-   tự tạo lại khi khoá đổi. Kết quả thí nghiệm được checkpoint theo (seed, đơn vị), trong thư mục gắn khoá
-   theo code + input + lưới. `provenance.json` ghi commit của chính repo này và cờ thay đổi chưa commit.
-9. **Phạm vi metric.** Kết luận trên toàn lưới θ và kết luận về thứ hạng chỉ dùng IDF1. Kết luận HOTA chỉ
-   ở θ_ref.
-10. **Độ nhạy của SORT.** Tại θ_ref, chạy thêm SORT nhận mọi detection (conf ≥ 0.05) như một hệ thống
-    phụ, để đo ảnh hưởng của ngưỡng 0.25 ở A2. Không thay đổi endpoint.
+1. **H1 is a statement about magnitude.** The reviewer model only pulls GT towards the seed, so SA ≥ 0 almost by
+   definition. The sign of SA is not evidence. H1 is restated as: **SA ≥ δ, with δ = 0.01 IDF1**, at
+   θ_ref, assessed by the lower bound of the confidence interval (item 2). The θ-region map reports both: lower bound > 0
+   and lower bound > δ. The paper must state clearly that SA ≥ 0 is a consequence of the model; the scientific content lies in the magnitude.
+2. **Confidence intervals.** With 7–25 sequences, the percentile interval has coverage below 95% (the review's simulation:
+   84–91%). The primary interval is **BCa**: sequence bootstrap with 10 000 iterations, acceleration from a
+   leave-one-sequence-out jackknife. The percentile interval and the leave-one-sequence-out interval are reported alongside. The interval for
+   MOT17 (7 sequences) is labelled approximate.
+3. **Thresholded ranking reversals.** A pair is counted as reversed only when that pair's IDF1 gap on GT_true
+   exceeds δ, so that near-tied trackers (e.g. BoT-SORT without CMC and ByteTrack) do not add noise.
+   τ-b is unchanged. The H2 endpoint (A4 item 3) uses the number of thresholded reversed pairs. **The stopping rule in Section 7** is
+   restated: the BCa upper bound of SA < δ for every θ with r ≥ 0.5 on all three datasets, and no thresholded
+   reversed pair.
+4. **Diagnostics reported alongside, at θ_ref:** SA per sequence and the unweighted mean; the
+   leave-one-sequence-out interval; SA per class; the full SA(A, B) matrix and SA with pairs involving SORT removed;
+   SA at a = 1 versus a = 0, for same-detector pairs and different-detector pairs. With a shared detector, every tracker
+   returns the detection boxes unchanged, so geometry makes no difference. The meaningful geometry measurement lies in the
+   different-detector pairs, and the paper must state this clearly.
+5. **Class confusion (FastTrack).** For each class, measure the proportion of seed boxes that do not match GT of the same class but match
+   (IoU ≥ 0.5) GT of another class in the same frame; count the units without GT and the proportion of tracker boxes
+   falling in them. If a class's confusion rate is > 10%, the paper reports SA with that class removed, and runs an additional
+   sensitivity analysis with car + bus + truck merged into one "vehicle" class.
+6. **FastTrack ignore regions** (correcting A1 item 8): a tracker box whose centre lies inside an ignore region is removed only when
+   it does **not** match (IoU ≥ 0.5) a GT_true box of the class being scored in that frame, close to TrackEval's
+   region-ignore rule. Each sequence must have a `labels.txt` consistent with the mapping table in A1 item 9;
+   otherwise stop.
+7. **MOT17** uses exactly TrackEval's formulas, including the orientation of the matching matrix (GT × tracker, GT in
+   file order). A test compares against the official Evaluator with `DO_PREPROC=True`, on data deliberately
+   constructed to contain ties.
+8. **Cache and provenance.** Tracks are keyed by input hash, source-code hash and library versions, and
+   are regenerated automatically when the key changes. Experiment results are checkpointed per (seed, unit), in a directory keyed
+   by code + input + grid. `provenance.json` records the commit of this repository and the uncommitted-changes flag.
+9. **Metric scope.** Conclusions over the whole θ grid and conclusions about rankings use IDF1 only. HOTA conclusions are only
+   at θ_ref.
+10. **SORT sensitivity.** At θ_ref, additionally run SORT receiving all detections (conf ≥ 0.05) as a secondary
+    system, to measure the effect of the 0.25 threshold in A2. The endpoints are unchanged.
 
-### A6 — 20/10/2026, trước khi có bất kỳ kết quả nào
+### A6 — 20/10/2026, before any results were available
 
-**Lý do.** Review phản biện thứ ba (null model, các protocol H3, thống kê, phạm vi kết luận; trên commit
-8540728) xác nhận phần thống kê khớp với cài đặt brute-force, nhưng tìm ra các vấn đề thiết kế ở H2 và
-H3. Các điểm dưới đây thay thế phần tương ứng của A4 và A5.
+**Rationale.** The third critical review (null model, H3 protocols, statistics, scope of conclusions; on commit
+8540728) confirmed that the statistics match brute-force implementations, but found design problems in H2 and
+H3. The points below replace the corresponding parts of A4 and A5.
 
-1. **H2 so lỗi cấu trúc với lỗi cấu trúc.** Endpoint H2 và đường cong S_r dùng các ô **a = 0**, vì GT_S
-   khi đó mang hình học GT giống null model. Null không phụ thuộc a: nhờ common random numbers, cùng một
-   lần rút cho ra cùng các lỗi cấu trúc ở a = 0 và a = 1. Hiệu ở a = 1 được báo cáo kèm, với nhãn
-   "cấu trúc + hình học".
-2. **Null model khớp đủ số lỗi.**
-   - Đơn vị không có box GT_true bị loại khỏi H2 ở cả hai phía, vì null không đặt được FP của chúng.
-   - Lỗi được đặt theo thứ tự đoạn dài trước.
-   - Một bản sao FP phải không trùng (IoU ≥ 0.5) với box GT_true nào ở frame mới; nếu trùng thì rút đoạn
-     hoặc độ dịch khác, tối đa 100 lần, rồi mới bỏ qua.
-   - Nhánh merge chỉ dùng nhãn còn trống ở mọi frame của đoạn, nên (frame, nhãn) luôn duy nhất (có kiểm
-     tra).
-   - Đoạn bỏ sót mà GT_S gán nhãn mới cũng được chuyển sang null như một fragment.
-   - Số box lỗi bị bỏ qua được báo cáo theo loại (FN, ID, FP), dưới dạng tỉ lệ trên số đã yêu cầu. Nếu
-     một loại vượt 1%, paper ghi rõ và coi endpoint H2 của dataset đó là xấp xỉ.
-3. **P1 (union seeding) không được chạy như một protocol.** Với detector chung, mọi tracker trả nguyên box
-   detection, nên hợp các output trùng đúng với output của thành viên đầu tiên (review đã kiểm chứng).
-   P1 vì thế trùng với P0 của thành viên đó. Paper báo cáo điều này như một phát hiện: union seeding vô
-   tác dụng khi các tracker dùng chung detector.
-4. **P2 consensus, định nghĩa lại.**
-   - Box đồng thuận như A4.
-   - Một box đồng thuận được nối với box đồng thuận gần nhất phía sau, trong vòng **30 frame**, mà **đa
-     số** hệ thống (3/4, hoặc 2/3) giữ cùng id. Nhờ vậy một tracker đứt track hay một khoảng trống
-     detection không làm vỡ track.
-   - Box ngoài đồng thuận được khử trùng lặp giữa các hệ thống (Hungarian, IoU ≥ 0.5) và hiển thị như
-     ứng viên ẩn danh.
-   - Các ứng viên không khớp GT_true được đưa vào như đoạn FP (theo id của hệ thống gốc, liên tục theo
-     frame), giữ với xác suất p_fp. Ứng viên đúng là object thật được reviewer bổ sung với xác suất r,
-     như đoạn bỏ sót.
-   - Chạy P2 trên cả 4 hệ thống YOLO11x, và trên từng tập 3 hệ thống (leave-one-out). Hệ thống bị loại
-     ra là phép thử khái quát hoá: SA của các thành viên so với nó được báo cáo.
-5. **Chỉ tiêu H3.**
-   - D tính trên 4 hệ thống YOLO11x (chính) và trên cả 8 hệ thống.
-   - Báo cáo SA của thành viên so với 4 hệ thống YOLO11n.
-   - **Tiêu chí "giảm bias":** cận trên BCa của hiệu ghép cặp D_P − D_P0 (cùng các cột bootstrap) < 0
-     tại θ_ref, với D_P0 là trung bình trên 4 seed đơn.
-   - P3 bracket: báo cáo độ phủ cho từng hệ thống, kèm CI bootstrap sequence.
-6. **Chi phí gồm hai phần, không gộp:** (i) box phải kiểm tra = box seed (P2: thêm ứng viên đã khử trùng
-   lặp); (ii) box phải vẽ mới = số box của các đoạn bỏ sót được reviewer thêm (phụ thuộc r). Cả hai chia
-   cho số box của GT_true. Gán nhãn lại toàn bộ tương ứng (0, 1). Chỉ được viết "rẻ hơn gán nhãn lại
-   toàn bộ" khi nêu đủ cả hai phần.
-7. **Phạm vi kết luận.**
-   - Kết luận xác nhận (confirmatory) chỉ ở θ_ref và tách riêng từng dataset.
-   - Muốn phát biểu H1 chung thì cả ba dataset đều phải đạt (intersection-union, không cần hiệu chỉnh).
-   - Bản đồ 192 ô θ chỉ mang tính mô tả, với CI theo từng điểm.
-   - Không gộp ba dataset làm một.
-8. **Chẩn đoán đã cam kết ở A1 mục 10 nay có code chạy:**
-   - tỉ lệ sửa thực tế theo kích thước episode tại θ_ref;
-   - độ nhạy theo ngưỡng match 0.4 / 0.6 tại θ_ref (IoU khi chấm vẫn 0.5);
-   - phân bố độ dài đoạn bỏ sót của từng seed;
-   - độ lệch chuẩn giữa 10 random seed trong mỗi ô.
-9. **BCa** so sánh ties với dung sai làm tròn (1e-12) và lấy phân vị bằng nội suy tuyến tính, như
-   `np.percentile`.
+1. **H2 compares structural errors with structural errors.** The H2 endpoint and the S_r curves use the **a = 0** cells, because GT_S
+   then carries GT geometry like the null model. The null does not depend on a: thanks to common random numbers, the same
+   draw yields the same structural errors at a = 0 and a = 1. The difference at a = 1 is reported alongside, labelled
+   "structure + geometry".
+2. **The null model matches the error counts in full.**
+   - Units without GT_true boxes are excluded from H2 on both sides, because the null cannot place their FPs.
+   - Errors are placed in order of longest segment first.
+   - An FP copy must not coincide (IoU ≥ 0.5) with any GT_true box in the new frame; if it does, a different segment
+     or shift is drawn, up to 100 times, before skipping.
+   - The merge branch uses only labels free in every frame of the segment, so (frame, label) is always unique (with a
+     check).
+   - Missed segments that GT_S assigns a new label are also transferred to the null as a fragment.
+   - The number of skipped error boxes is reported by type (FN, ID, FP), as a proportion of the number requested. If
+     a type exceeds 1%, the paper states this clearly and treats that dataset's H2 endpoint as approximate.
+3. **P1 (union seeding) is not run as a protocol.** With a shared detector, every tracker returns the detection boxes unchanged,
+   so the union of the outputs is exactly identical to the output of the first member (verified by the review).
+   P1 therefore coincides with P0 of that member. The paper reports this as a finding: union seeding has no
+   effect when the trackers share a detector.
+4. **P2 consensus, redefined.**
+   - Consensus boxes as in A4.
+   - A consensus box is linked to the nearest subsequent consensus box, within **30 frames**, on which a **majority** of
+     systems (3/4, or 2/3) keep the same id. This way a tracker breaking a track or a detection gap does not break
+     the track.
+   - Non-consensus boxes are deduplicated across systems (Hungarian, IoU ≥ 0.5) and shown as
+     anonymous candidates.
+   - Candidates that do not match GT_true are included as FP segments (by the originating system's id, frame-contiguous),
+     kept with probability p_fp. Correct candidates that are real objects are added by the reviewer with probability r,
+     as missed segments.
+   - Run P2 on all 4 YOLO11x systems, and on each set of 3 systems (leave-one-out). The excluded system
+     is a generalisation test: the SA of the members relative to it is reported.
+5. **H3 criterion.**
+   - D is computed on the 4 YOLO11x systems (primary) and on all 8 systems.
+   - Report the SA of members relative to the 4 YOLO11n systems.
+   - **"Bias reduction" criterion:** the BCa upper bound of the paired difference D_P − D_P0 (same bootstrap columns) < 0
+     at θ_ref, with D_P0 the mean over the 4 single seeds.
+   - P3 bracket: report the coverage for each system, with a sequence-bootstrap CI.
+6. **Cost has two parts, not combined:** (i) boxes to check = seed boxes (P2: plus the deduplicated
+   candidates); (ii) boxes to draw anew = the number of boxes of the missed segments added by the reviewer (depends on r). Both are divided
+   by the number of boxes of GT_true. Full relabelling corresponds to (0, 1). "Cheaper than full relabelling" may be written only
+   when both parts are stated.
+7. **Scope of conclusions.**
+   - Confirmatory conclusions are only at θ_ref and separately for each dataset.
+   - To state H1 in general, all three datasets must pass (intersection-union, no correction needed).
+   - The 192-cell θ map is descriptive only, with pointwise CIs.
+   - The three datasets are not pooled into one.
+8. **The diagnostics committed in A1 item 10 now have running code:**
+   - the actual correction rate by episode size at θ_ref;
+   - sensitivity to the match threshold 0.4 / 0.6 at θ_ref (scoring IoU remains 0.5);
+   - the distribution of missed-segment lengths for each seed;
+   - the standard deviation across the 10 random seeds in each cell.
+9. **BCa** compares ties with a rounding tolerance (1e-12) and takes quantiles by linear interpolation, as
+   `np.percentile` does.
 
-### A7 — 20/10/2026, trước khi có bất kỳ kết quả nào
+### A7 — 20/10/2026, before any results were available
 
-**Lý do.** Lượt kiểm chứng các bản sửa A6 (commit 6063de3) xác nhận phần thống kê và cách nối dây trong
-`main()` khớp brute-force, và các bản sửa null model đều đúng. Nhưng lượt này tìm ra một lỗi làm crash
-(`_run_seed` chết ở đơn vị mà seed không bỏ sót box nào, kể cả đơn vị không có GT) và hai cơ chế khiến P2
-vẫn thiên vị.
+**Rationale.** The verification pass on the A6 fixes (commit 6063de3) confirmed that the statistics and the wiring in
+`main()` match brute force, and that the null-model fixes are all correct. However, this pass found a crashing bug
+(`_run_seed` failed on units where the seed missed no box, including units without GT) and two mechanisms that left P2
+still biased.
 
-1. **P2 consensus, định nghĩa lại lần nữa** (thay A6 mục 4, phần phủ box và nối track):
-   - Box được gom cụm qua các hệ thống, từng frame (IoU ≥ 0.5). Một cụm được **đa số** hệ thống ủng hộ
-     (3/4, hoặc 2/3) là box đồng thuận, hình học là trung bình. Không còn đòi đủ mọi hệ thống: consensus
-     kiểu giao (intersection) sẽ kế thừa toàn bộ box bỏ sót của hệ thống phủ ít nhất.
-   - Mỗi hệ thống có mặt trên một box đồng thuận bỏ một phiếu cho box đồng thuận gần nhất phía sau (≤ 30
-     frame) mà nó giữ cùng id. Box nhận nhiều phiếu nhất được nối nếu có **ít nhất 2 phiếu** và đa số
-     tương đối chặt. Hệ thống làm đứt id không bỏ phiếu chống, nên hai tracker cùng đứt track không làm vỡ
-     consensus khi hai tracker còn lại vẫn nối.
-   - Ứng viên là các cụm không đủ đa số, mỗi cụm một box, id lấy theo hệ thống gốc. Một ứng viên chỉ được
-     coi là FP khi không chồng (IoU ≥ 0.5) lên **bất kỳ** box GT_true nào trong frame, không chỉ dựa vào
-     một phép ghép một-một.
-2. **Null model, phạm vi lời khẳng định.** Null khớp **số box** lỗi FN, ID và FP của mỗi lần rút GT_S.
-   Một đoạn FP được giữ trong GT_S có thể mang nhãn của một track thật (một kiểu merge qua đuôi FP); null
-   không tái tạo được kiểu lỗi này. Tỉ lệ box FP như vậy được báo cáo cho từng ô của S_r. Paper không
-   được viết rằng null khớp "mọi lỗi".
-3. **Sửa crash.** Histogram độ dài đoạn bỏ sót dùng mảng kiểu số nguyên. Test end-to-end nay có một đơn vị
-   không có GT và một đơn vị có seed trùng GT.
+1. **P2 consensus, redefined again** (replacing A6 item 4, the parts on box coverage and track linking):
+   - Boxes are clustered across systems, frame by frame (IoU ≥ 0.5). A cluster supported by a **majority** of systems
+     (3/4, or 2/3) is a consensus box, with geometry the mean. All systems are no longer required: an
+     intersection-type consensus would inherit all the missed boxes of the system with the lowest coverage.
+   - Each system present on a consensus box casts one vote for the nearest subsequent consensus box (≤ 30
+     frames) on which it keeps the same id. The box receiving the most votes is linked if it has **at least 2 votes** and a strict
+     relative majority. A system that breaks the id casts no vote against, so two trackers both breaking a track do not break
+     the consensus when the other two trackers still link it.
+   - Candidates are the clusters without a sufficient majority, one box per cluster, with the id taken from the originating system. A candidate is
+     considered an FP only when it does not overlap (IoU ≥ 0.5) **any** GT_true box in the frame, not based only on
+     a one-to-one matching.
+2. **Null model, scope of the claim.** The null matches the **number of boxes** of FN, ID and FP errors in each draw of GT_S.
+   A kept FP segment in GT_S can carry the label of a real track (a kind of merge via an FP tail); the null
+   cannot reproduce this kind of error. The proportion of such FP boxes is reported for each cell of S_r. The paper must
+   not state that the null matches "all errors".
+3. **Crash fix.** The missed-segment-length histogram uses an integer-typed array. The end-to-end test now has a unit
+   without GT and a unit whose seed is identical to the GT.
 
-### A8 — 21/10/2026, sau khi đã có kết quả H1, H2 và P2 (công bố rõ)
+### A8 — 21/10/2026, after the H1, H2 and P2 results were available (disclosed explicitly)
 
-**Lý do.** Review bản thảo phát hiện lý do bỏ P1 ở A6 mục 3 là **sai trên dữ liệu thật**. Box khớp nhau thì
-có cùng hình học (99,6–100%), nhưng mỗi tracker xuất ra một tập con detection khác nhau. Vì vậy hợp đã
-khử trùng lặp có nhiều box hơn thành viên đầu tiên: 1,45 lần (MOT17), 1,06 lần (DanceTrack, 6 sequence
-đầu), 1,40 lần (FastTrack). A8 rút lại lý do đó.
+**Rationale.** The manuscript review found that the reason for dropping P1 in A6 item 3 is **wrong on real data**. Matching boxes
+do have the same geometry (99.6–100%), but each tracker outputs a different subset of the detections. Therefore the
+deduplicated union has more boxes than the first member: 1.45 times (MOT17), 1.06 times (DanceTrack, first 6
+sequences), 1.40 times (FastTrack). A8 withdraws that reason.
 
-1. **P1 được chạy** đúng định nghĩa ở A4 mục 4: mọi tổ hợp 2 và 3 hệ thống YOLO11x, hợp theo thứ tự chữ
-   cái, trên S_r, 10 random seed. Báo cáo D, ΔD, SA của thành viên so với YOLO11n và so với hệ thống ngoài
-   tập, cùng chi phí hai phần. Vì P1 chạy **sau** khi đã thấy H1, H2 và P2, paper phải ghi rõ thứ tự này.
-   Định nghĩa P1 không đổi so với A4, nên không có độ tự do phân tích mới. Kết quả P1 không được dùng để
-   chọn hay đổi các phân tích khác.
-2. **Các phân tích exploratory sau khi xem kết quả**, được gắn nhãn exploratory trong paper:
-   - τ giữa 7 hệ thống không tính seed, kèm CI;
-   - "kin bias" (hệ thống YOLO11n cùng thuật toán với seed);
-   - quan hệ gần tuyến tính của SA theo q;
-   - SA theo từng seed so với IDF1 thật của seed;
-   - độ lệch giữa các tracker không phải seed;
+1. **P1 is run** exactly as defined in A4 item 4: every combination of 2 and 3 YOLO11x systems, union in alphabetical
+   order, on S_r, 10 random seeds. Report D, ΔD, the SA of members relative to YOLO11n and relative to systems outside
+   the set, together with the two-part cost. Because P1 is run **after** H1, H2 and P2 had been seen, the paper must state this order clearly.
+   The definition of P1 is unchanged from A4, so there is no new analytical degree of freedom. The P1 results must not be used to
+   choose or change the other analyses.
+2. **Exploratory analyses after seeing the results**, labelled exploratory in the paper:
+   - τ among the 7 non-seed systems, with CI;
+   - "kin bias" (the YOLO11n system with the same algorithm as the seed);
+   - the near-linear relationship of SA with q;
+   - SA per seed versus the seed's true IDF1;
+   - the deviation among the non-seed trackers;
    - IDSW.
-3. **Lệch so với protocol, công bố trong paper:**
-   - Tracker có ReID (mục 3) không được chạy. Lý do: cần ảnh trên GPU, và BoxMOT xung đột phiên bản
-     opencv trên máy. Mọi kết luận chỉ áp dụng cho bốn tracker dựa trên chuyển động.
-   - Human mini-study hoãn (mục 6).
-   - H1 được phát biểu lại thành phép kiểm độ lớn (A5).
-   - Endpoint H3 được thay bằng ΔD (A4, A6).
+3. **Deviations from the protocol, disclosed in the paper:**
+   - The tracker with ReID (Section 3) was not run. Reason: it requires images on a GPU, and BoxMOT has an opencv version
+     conflict on the machine. All conclusions apply only to the four motion-based trackers.
+   - Human mini-study deferred (Section 6).
+   - H1 restated as a magnitude test (A5).
+   - The H3 endpoint replaced by ΔD (A4, A6).

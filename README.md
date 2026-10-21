@@ -1,37 +1,37 @@
-# CAAP — seed bias trong ground truth MOT
+# CAAP — seed bias in MOT ground truth
 
-Câu hỏi nghiên cứu (chốt 20/10/2026): khi GT tracking được tạo bằng cách review output của một
-tracker, GT đó thiên vị tracker seed bao nhiêu, khi nào thứ hạng tracker bị đảo, và protocol rẻ nào
-khử được bias đó. Thí nghiệm dùng GT công khai (FastTrack, MOT17, DanceTrack) làm chuẩn.
+Research question (fixed 20 October 2026): when tracking GT is created by reviewing the output of a
+tracker, how much does that GT favour the seed tracker, when are tracker rankings reversed, and which
+cheap protocol removes that bias? The experiments use public GT (FastTrack, MOT17, DanceTrack) as the reference.
 
-- Phạm vi và quyết định: [docs/PAPER_SCOPE.md](docs/PAPER_SCOPE.md)
-- Protocol đã đóng băng: [docs/PROTOCOL.md](docs/PROTOCOL.md)
+- Scope and decisions: [docs/PAPER_SCOPE.md](docs/PAPER_SCOPE.md)
+- Frozen protocol: [docs/PROTOCOL.md](docs/PROTOCOL.md)
 
-## Nội dung repo
+## Repository contents
 
-| Thư mục | Nội dung |
+| Directory | Contents |
 |---|---|
-| `code/evaluation/` | Metrics tracking/detection (MOTA, IDF1, IoU matching), kiểm chéo với `motmetrics` |
-| `code/utils/files.py` | `sha256`, `atomic_write` cho provenance |
-| `code/annotation_sim/` | Simulator GT seed-rồi-review (`prepare`, `simulate`; protocol mục 4 + A1) |
+| `code/evaluation/` | Tracking/detection metrics (MOTA, IDF1, IoU matching), cross-checked against `motmetrics` |
+| `code/utils/files.py` | `sha256`, `atomic_write` for provenance |
+| `code/annotation_sim/` | Seed-then-review GT simulator (`prepare`, `simulate`; protocol section 4 + A1) |
 | `tests/` | pytest |
 | `tools/caap.py` | CLI (`status`, `test`) |
-| `tools/kaggle_detect_cache.py` | Cache detection YOLO11 (COCO) trên Kaggle cho FastTrack/MOT17/DanceTrack |
-| `notebooks/caap-q1.ipynb` | Notebook Kaggle chạy script trên (cell 0 ghi script bằng `%%writefile`) |
-| `data/`, `weights/` | Dữ liệu và weights local, gitignored (`weights/yolo11n.pt` là YOLO11n pretrain COCO) |
+| `tools/kaggle_detect_cache.py` | YOLO11 (COCO) detection cache on Kaggle for FastTrack/MOT17/DanceTrack |
+| `notebooks/caap-q1.ipynb` | Kaggle notebook that runs the script above (cell 0 writes the script with `%%writefile`) |
+| `data/`, `weights/` | Local data and weights, gitignored (`weights/yolo11n.pt` is YOLO11n pretrained on COCO) |
 
-Code và dữ liệu detector cũ (tool dataset, ByteTrack vendor, nhãn train, `detector.pt`, video HCMC)
-đã được chuyển ra `C:/Users/ASUS/Desktop/CAAP_detector_backup_20261020` (có `MANIFEST.sha256`) và
-vẫn còn trong Git history.
+The old detector code and data (dataset tool, vendored ByteTrack, training labels, `detector.pt`, HCMC videos)
+have been moved to `C:/Users/ASUS/Desktop/CAAP_detector_backup_20261020` (with `MANIFEST.sha256`) and
+remain in the Git history.
 
-## Bắt đầu
+## Getting started
 
 ```powershell
 .\caap.cmd status
 .\caap.cmd test -q
 ```
 
-Nếu cài trên máy khác:
+To install on another machine:
 
 ```powershell
 py -3.10 -m venv .venv
