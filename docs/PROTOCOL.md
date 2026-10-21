@@ -406,3 +406,27 @@ sequences), 1.40 times (FastTrack). A8 withdraws that reason.
    - Human mini-study deferred (Section 6).
    - H1 restated as a magnitude test (A5).
    - The H3 endpoint replaced by ΔD (A4, A6).
+
+### A9 — 21/10/2026, after all A8 results, before any ReID tracker output exists (exploratory)
+
+**Rationale.** A8 item 3 left the planned appearance-based tracker unrun. Nghĩa decided on 21/10 to run a reduced
+version on a Kaggle GPU, so that the paper can state whether the self-seed advantage also holds for a ReID tracker.
+Every analysis below is **exploratory**, is reported as run after the main results, and changes no confirmatory
+result, ranking analysis or protocol comparison.
+
+1. **Tracker.** BoxMOT 25.0.0 `BotSort` with its default ReID weights (`osnet_x0_25_msmt17.pt`) and constructor
+   defaults, except `use_cmc=False`, as for the motion-only BoT-SORT. It is fed exactly the cached
+   `det_yolo11x.txt` person boxes the other trackers saw (`tools/kaggle_reid_track.py`,
+   `notebooks/caap-reid.ipynb`). Its output goes through the same preprocessing (A2) as every system.
+2. **Datasets.** MOT17 train (7 sequences) and DanceTrack val (25). FastTrack is excluded: its classes are mostly
+   vehicles, the default ReID weights are trained on people, and its frames would have to be downloaded again.
+3. **Analyses, at θ_ref only, 10 random seeds, BCa over sequences:**
+   - (a) **ReID tracker as seed:** its SA over the four YOLO11x motion trackers and over the four YOLO11n systems,
+     also at q = 0 and q = 1;
+   - (b) **ReID tracker as an evaluated system:** each motion seed's SA over the ReID tracker on the motion seed's
+     simulated GT, regenerated with the same random streams as the main run, against the motion seed's SA over the
+     other motion trackers;
+   - (c) its true IDF1 and the number of its ID-error episodes.
+   The regenerated motion-seeded GTs must reproduce the main run's IDTP for the eight systems exactly, or the
+   analysis stops.
+4. The ReID tracker does not enter the ranking (H2) or protocol (H3) analyses.
