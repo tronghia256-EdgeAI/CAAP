@@ -70,7 +70,9 @@ The procedure is efficient, and tracker-generated labels have been shown to trai
 fraction of the annotation cost \cite{cetintas2024spam}. When the corrected output is also used to
 \emph{evaluate} trackers, however, every error that the reviewer leaves in place is an error that the
 seed tracker shares, and the seed is rewarded for it. In recent benchmarks the seeding tracker, or its
-association algorithm, is also among the evaluated baselines \cite{fang2025calves,nae2026indoorcrowd}.
+association algorithm, is also among the evaluated baselines \cite{fang2025calves,nae2026indoorcrowd}; in
+DeepSea MOT, whose GT was corrected from a detector and a tuned ByteTrack, that pipeline scores best on all
+but one sequence \cite{barnard2025deepsea}.
 
 The mechanism is known elsewhere. In dependency parsing, gold standards produced by correcting parser
 output raise the seeding parser's labelled attachment score by 5.8--6.9 points relative to human-annotated
@@ -106,7 +108,11 @@ negative results.
 \textbf{Ground-truth quality and rankings.} Milan et al.\ showed that the same tracker output scores very
 differently against independent annotations of one sequence (MOTA 87.1 versus 68.3)
 \cite{milan2013challenges}; their annotations differ independently of the trackers, whereas seeded GT
-differs in the direction of one of them. Test-set label errors are common
+differs in the direction of one of them. Closest in spirit, Brachmann et al.\ showed that in camera
+re-localisation, where pseudo GT is computed by a reference algorithm, evaluation outcomes depend on that
+algorithm, so rankings must account for each method's similarity to it \cite{brachmann2021pseudo}; seeded MOT GT
+is instead corrected by people, which hides the dependence. Concurrent work argues that MOT box conventions
+favour Kalman-filter trackers \cite{rocky2026ash}; we study where the GT comes from. Test-set label errors are common
 in classification and can reorder models \cite{northcutt2021pervasive}. Re-annotating COCO masks with a
 model-assisted pipeline flips the ranking of several detector pairs, mostly in favour of models that
 predict sharper masks \cite{singh2024cocorem}, while a re-annotation of four detection benchmarks finds
