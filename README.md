@@ -169,7 +169,7 @@ The paper is under preparation. Until it is published, please cite this reposito
 
 ```bibtex
 @misc{le2026seedbias,
-  author = {Le, Trong Nghia and Nguyen, Thien Bao},
+  author = {Le, Trong Nghia and Nguyen, Viet Nam and Ho, Minh Hieu and Nguyen, Thien Bao},
   title  = {How much does a tracker-seeded ground truth favour its seed? Measuring seed bias in multi-object tracking benchmarks},
   year   = {2026},
   howpublished = {\url{https://github.com/tronghia256-EdgeAI/seed-bias-mot}}
@@ -178,7 +178,7 @@ The paper is under preparation. Until it is published, please cite this reposito
 
 ## Authors
 
-Trong Nghia Le and Thien Bao Nguyen, Institute of Intelligent and Interactive Technologies (3ITech),
+Trong Nghia Le, Viet Nam Nguyen, Minh Hieu Ho and Thien Bao Nguyen, Institute of Intelligent and Interactive Technologies (3ITech),
 University of Economics Ho Chi Minh City (UEH), Vietnam.
 
 ## License
