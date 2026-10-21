@@ -6,6 +6,7 @@ Code, pre-registered protocol and results for measuring *seed bias* in multi-obj
 ![Python 3.10](https://img.shields.io/badge/python-3.10-3776ab)
 ![Status](https://img.shields.io/badge/paper-under%20preparation-orange)
 ![Protocol](https://img.shields.io/badge/protocol-pre--registered-2a78d6)
+![License: MIT](https://img.shields.io/badge/license-MIT-1baf7a)
 
 <p align="center">
   <img src="paper/graphical_abstract.png" alt="A seed tracker's output is reviewed into ground truth; the seed then scores higher on it" width="720">
@@ -179,3 +180,11 @@ The paper is under preparation. Until it is published, please cite this reposito
 
 Trong Nghia Le and Thien Bao Nguyen, Institute of Intelligent and Interactive Technologies (3ITech),
 University of Economics Ho Chi Minh City (UEH), Vietnam.
+
+## License
+
+The code and documentation are released under the [MIT License](LICENSE). Exceptions: the manuscript in
+`paper/` (text, figures, highlights, graphical abstract and PDF) is not covered and remains with the authors;
+`paper/prletters.sty` is Elsevier's journal style file and keeps its own LaTeX Project Public License; the
+datasets keep their own licenses and are not included. The ReID notebook installs BoxMOT (AGPL-3.0) at run time
+on Kaggle; no BoxMOT code is included in this repository.
