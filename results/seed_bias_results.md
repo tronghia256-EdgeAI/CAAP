@@ -206,4 +206,4 @@ P3 bracket: width +0.061 [0.053, 0.071]; cost verify 2.32, draw 1.42; coverage p
 
 Upper BCa bound < δ for every θ with r ≥ 0.5 in all datasets: False → stop rule not triggered.
 
-Provenance: mot17 commit b2ad9f3 run 14109e6cd127 dirty=False, dancetrack commit b2ad9f3 run 1e3907710f75 dirty=False, fasttrack commit b2ad9f3 run 182f706e72b3 dirty=False
+Provenance: mot17 commit c274172 run 14109e6cd127 dirty=False, dancetrack commit c274172 run 1e3907710f75 dirty=False, fasttrack commit c274172 run 182f706e72b3 dirty=False

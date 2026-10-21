@@ -256,7 +256,7 @@ Fixes the H2 null model, the set of scored systems, and the operational definiti
 
 ### A5 — 20/10/2026, before any results were available
 
-**Rationale.** The second critical review (3 strands, on commit 139dea1) found no computational error that would invalidate
+**Rationale.** The second critical review (3 strands, on commit 6faa162) found no computational error that would invalidate
 SA: the fast IDF1, the bootstrap and the common random numbers were all rechecked against brute-force implementations. However,
 the review identified several methodological points that must be fixed before seeing the numbers:
 
@@ -300,7 +300,7 @@ the review identified several methodological points that must be fixed before se
 ### A6 — 20/10/2026, before any results were available
 
 **Rationale.** The third critical review (null model, H3 protocols, statistics, scope of conclusions; on commit
-8540728) confirmed that the statistics match brute-force implementations, but found design problems in H2 and
+9a6433a) confirmed that the statistics match brute-force implementations, but found design problems in H2 and
 H3. The points below replace the corresponding parts of A4 and A5.
 
 1. **H2 compares structural errors with structural errors.** The H2 endpoint and the S_r curves use the **a = 0** cells, because GT_S
@@ -358,7 +358,7 @@ H3. The points below replace the corresponding parts of A4 and A5.
 
 ### A7 — 20/10/2026, before any results were available
 
-**Rationale.** The verification pass on the A6 fixes (commit 6063de3) confirmed that the statistics and the wiring in
+**Rationale.** The verification pass on the A6 fixes (commit 1d7b4c9) confirmed that the statistics and the wiring in
 `main()` match brute force, and that the null-model fixes are all correct. However, this pass found a crashing bug
 (`_run_seed` failed on units where the seed missed no box, including units without GT) and two mechanisms that left P2
 still biased.
