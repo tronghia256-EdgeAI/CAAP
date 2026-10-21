@@ -68,11 +68,11 @@ code/
 │   ├── analysis.py              self-seed advantage, rankings, BCa bootstrap
 │   ├── null_model.py            random errors matched in number and length (RQ2)
 │   ├── protocols.py             union and consensus seeding (RQ3)
-│   └── report.py, figures.py, exploratory.py, external_seed.py, paper_numbers.py
+│   └── report.py, figures.py, exploratory.py, external_seed.py, reid_check.py, paper_numbers.py
 ├── evaluation/metrics.py        independent IDF1/MOTA used by the tests, cross-checked against motmetrics
 └── utils/files.py               hashing and provenance helpers
 docs/PROTOCOL.md                 pre-registered protocol with dated amendments A1–A9
-notebooks/                       Kaggle notebooks (detection cache, ReID tracker)
+notebooks/                       Kaggle notebooks (detection cache, ReID tracker, A9)
 paper/                           manuscript (LaTeX), figures, highlights, graphical abstract
 results/                         reports and the numbers quoted in the paper
 tests/                           pytest suite
@@ -133,8 +133,14 @@ Run from the repository root with the environment activated.
    ```powershell
    python -m code.seedbias.external_seed
    ```
-6. **Paper numbers**, last, since it reads every output above (all three datasets, the `fasttrack_vehicle` run,
-   `results/exploratory.json` and `results/external_seed_mpntrack.json`):
+6. **ReID tracker (exploratory, A9).** Run [`notebooks/caap-reid.ipynb`](notebooks/caap-reid.ipynb) on Kaggle with
+   `caap-reid-inputs.zip` (the `det_yolo11x.txt` and `seqinfo.ini` of MOT17 and DanceTrack) as input, extract its
+   `reid_tracks.zip` to `data/processed/reid_tracks/`, then:
+   ```powershell
+   python -m code.seedbias.reid_check
+   ```
+7. **Paper numbers**, last, since it reads every output above (all three datasets, the `fasttrack_vehicle` run,
+   `results/exploratory.json`, `results/external_seed_mpntrack.json` and `results/reid_check.json`):
    ```powershell
    python -m code.seedbias.paper_numbers
    ```
@@ -148,8 +154,9 @@ embedded in each `summary.json`). The report lists the commit and run key behind
 The hypotheses, reviewer grid, metrics and stopping rules were frozen in [`docs/PROTOCOL.md`](docs/PROTOCOL.md)
 before any result was computed. Every later change is a dated amendment that states whether it was made before or
 after the results it affects. Union seeding (A8) was run after the other results, with its definition unchanged, and is
-flagged as such; the other analyses added after the results are labelled *exploratory*. A9 pre-registers an
-exploratory run of an appearance-based (ReID) tracker; its results are not part of the reported numbers yet. The protocol was
+flagged as such; the other analyses added after the results are labelled *exploratory*. A9 registered an
+exploratory run of an appearance-based (ReID) tracker before any of its output existed; as seed it still gains
+0.046 (MOT17) and 0.117 (DanceTrack) IDF1 ([`results/reid_check.json`](results/reid_check.json)). The protocol was
 written in Vietnamese; the file is an English translation, and the originals are in the git history.
 
 ## Data

@@ -47,8 +47,8 @@ complete public ground truth of MOT17, DanceTrack and the traffic benchmark Fast
 reviewed ground truth. With four trackers on a shared detector and an assumed reference reviewer, the
 seed's advantage over the other trackers is 0.069, 0.160 and 0.049 IDF1, with 95\% lower bounds far above
 a pre-specified relevance threshold of 0.01. In an exploratory analysis, the advantage grows almost
-linearly with the share of identity errors left unfixed, and an external appearance-based seed trained on
-MOT17 still gains 0.041 IDF1. Seed-correlated errors reorder the eight evaluated systems more than random
+linearly with the share of identity errors left unfixed, and appearance-based seeds still gain 0.040 to
+0.117 IDF1. Seed-correlated errors reorder the eight evaluated systems more than random
 errors matched in number and length. Seeding from the union of several trackers helps little
 and favours its members; consensus seeding reduces the distortion but does not protect trackers outside
 the consensus; and a bracket over single-seed ground truths never contained the true score. Code and protocol are released.
@@ -197,16 +197,17 @@ general statement requires all three benchmarks to pass. Variation between revie
 deviation 0.001--0.005 at $\theta_{ref}$) is small compared with variation between sequences.
 
 \textbf{Protocol and deviations.} Hypotheses, the grid, the analyses and a stopping rule were fixed in
-version control before any experiment; the protocol, its eight dated amendments and the commit history
+version control before any experiment; the protocol, its nine dated amendments and the commit history
 are released with an English translation of the protocol, which was written in Vietnamese. The amendments
 made before any result restated RQ1 as a magnitude test, replaced the RQ3 endpoint by the paired distortion
 difference below, and added the YOLO11n systems of the planned cross-detector condition to the ranked set.
-The planned appearance-based (ReID) tracker was not run, because it needed image-level GPU inference that
-our setup could not provide; this deviation was recorded after the results, and all main conclusions
-therefore concern motion-based trackers. A planned study of real reviewers was deferred. Union seeding was
+The planned appearance-based (ReID) tracker was first not run, because it needed image-level GPU inference
+that our setup could not provide; after the main results it was run in a reduced form registered before any
+of its output existed (exploratory, $\theta_{ref}$ only, MOT17 and DanceTrack), so the main conclusions
+concern motion-based trackers. A planned study of real reviewers was deferred. Union seeding was
 first dropped on an argument that the data later contradicted and was then run, after the other results
-were known; its definition did not change. Analyses marked \emph{exploratory}, including the external seed,
-were added after the results.
+were known; its definition did not change. Analyses marked \emph{exploratory}, including the external seed
+and the ReID tracker, were added after the results.
 
 \section{Results}
 \label{sec:results}
@@ -283,6 +284,14 @@ that links the public Faster R-CNN detections after Tracktor refinement, as the 
 MPNTrack was trained on these sequences (true IDF1 0.713), so it is a low-error seed and is not ranked. Its
 advantage over our eight systems is 0.041 [0.024, 0.062] at $\theta_{ref}$, 0.082 at $q = 0$ and 0.004
 [$-$0.004, 0.015] at $q = 1$.
+
+\textbf{A ReID tracker (exploratory).} We also ran BoT-SORT with appearance re-identification (BoxMOT
+\cite{brostrom2026boxmot}, OSNet weights \cite{zhou2019osnet}) on the same YOLO11x boxes of MOT17 and DanceTrack.
+It has the highest true IDF1 of all systems (0.556 and 0.494). As seed it still gains 0.046 [0.040, 0.061]
+and 0.117 [0.099, 0.137] IDF1 over the four motion trackers at $\theta_{ref}$, 0.091 and 0.249 at $q = 0$,
+and 0.006 and 0.002 at $q = 1$. On GT seeded by a motion tracker it loses at least as much as the other
+trackers: the seeds' advantage over it is 0.070 (MOT17) and 0.177 (DanceTrack), against 0.069 and 0.160
+over the motion trackers (difference 0.001 [$-$0.005, 0.009] and 0.017 [0.005, 0.031]).
 
 \subsection{RQ2: ranking distortion}
 
@@ -392,7 +401,8 @@ curves. The seeds are tracking-by-detection trackers. Propagation-based assistan
 keeps the identity of each prompted object, so its errors map mainly to geometry, which matters little here,
 to lost objects, which matter less than identity near $\theta_{ref}$ but as much over the whole range of $r$,
 and to jumps onto similar objects, which act like identity episodes. Our main trackers are
-motion-based and share detectors; the external seed is a single exploratory check. The reference GTs are
+motion-based and share detectors; the two appearance-based checks are exploratory, at $\theta_{ref}$ only, and
+the ReID weights are trained on people, so FastTrack's vehicles are not covered. The reference GTs are
 not free of assisted annotation; any seeding they contain is shared by all evaluated systems.
 
 \section{Conclusion}

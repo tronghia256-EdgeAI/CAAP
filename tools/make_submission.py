@@ -10,6 +10,7 @@ change to the manuscript; the output folder is replaced.
 import argparse
 import re
 import shutil
+import zipfile
 from pathlib import Path
 
 from docx import Document
@@ -77,6 +78,12 @@ def main():
     title = re.search(r'\\title\{(.+?)\}\n', tex, re.S).group(1).replace('\\\\', ' ').replace('\n', ' ')
     title = re.sub(r'\s+', ' ', title).strip()
     word(out / '06_cover_letter_DRAFT.docx', 'Cover letter', paragraphs=COVER.format(title=title).split('\n\n'))
+
+    # Overleaf project: main.tex at the root keeps the figures/ folder; compiles with pdfLaTeX + BibTeX.
+    with zipfile.ZipFile(out / '07_overleaf_project.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+        for f in ['main.tex', 'references.bib', 'prletters.sty', 'elsevier-logo.pdf', 'highlights.tex',
+                  'graphical_abstract.pdf', *(f'figures/{p.name}' for p in sorted((PAPER / 'figures').glob('*.pdf')))]:
+            z.write(PAPER / f, f)
     print('\n'.join(sorted(str(p.relative_to(out)) for p in out.rglob('*') if p.is_file())))
 
 

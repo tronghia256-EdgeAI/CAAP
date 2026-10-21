@@ -80,6 +80,7 @@ def main():
     out['fasttrack']['per_class'] = S['fasttrack']['h1_diagnostics']['per_class']
     out['fasttrack']['class_confusion'] = {k: v['share'] for k, v in S['fasttrack']['class_confusion'].items()}
     out['external_mpntrack'] = ext
+    out['reid'] = json.loads(Path('results/reid_check.json').read_text())          # A9, exploratory
     # ranges used in the text (printed precision 3 unless stated)
     D = DATASETS
     out['ranges'] = {
@@ -100,6 +101,9 @@ def main():
         'non_seed_gap_max': hi(max(out[d]['exploratory']['non_seed_distortion']['overall'] for d in D)),
         'min_bias_any': lo(min(out[d]['exploratory']['non_seed_distortion']['min_bias_any'] for d in D)),
         'per_class': rng(list(out['fasttrack']['per_class'].values())),
+        'appearance_seeds': rng([ext['sa_vs_all_eight'][str(dict(ref, q=0.5))]['point']]
+                                + [out['reid'][d]['a_reid_seed']['0.5']['over_yolo11x_motion']['point']
+                                   for d in ('mot17', 'dancetrack')]),
     }
     Path('results/paper_numbers.json').write_text(json.dumps(out, indent=1))
     print(json.dumps(out['ranges'], indent=1))
