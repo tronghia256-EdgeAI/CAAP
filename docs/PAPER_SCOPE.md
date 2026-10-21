@@ -16,7 +16,7 @@ on reviewer recall, and at what level are the rankings between trackers reversed
 - No new tracking GT needs to be created, there is no need to beat SOTA, and latency is not measured.
 - The seed-bias finding from the previous research round is mentioned only qualitatively, as the observation that led to the question.
   No numbers are quoted, and no GT or evidence is restored from the backup.
-- Venue: Q1 by SJR (Scopus). The candidates and rationale are in `CLAUDE.md`. The quartile must be rechecked on
+- Venue: Q1 by SJR (Scopus). The candidates are Pattern Recognition Letters (submitting), Image and Vision Computing, CVIU, Neurocomputing and Sensors. The quartile must be rechecked on
   scimagojr.com before submission.
 - Protocol, hypotheses and stopping rules: `docs/PROTOCOL.md`, approved by Nghĩa and frozen on
   20 October 2026.

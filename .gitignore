@@ -12,13 +12,11 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
-# Credentials and local agent settings.
+# Credentials and local settings.
 .env
 .env.*
 secrets.yaml
 configs/tele_api.yaml
-.claude/
-CLAUDE.md
 SCOPE.md
 
 # OS/runtime output.
